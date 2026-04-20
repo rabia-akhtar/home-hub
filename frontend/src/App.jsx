@@ -6,9 +6,84 @@ const CLARE = { name:"Clare", color:"#f472b6", light:"#fce7f3", dark:"#9d174d", 
 const REWARD_PROJECTS = ["chores","house items","cats"];
 const countsForReward = p => REWARD_PROJECTS.includes((p||"").toLowerCase().trim());
 
-const WX = {0:["Clear","☀️"],1:["Mainly clear","🌤️"],2:["Partly cloudy","⛅"],3:["Overcast","☁️"],45:["Foggy","🌫️"],51:["Drizzle","🌦️"],61:["Light rain","🌧️"],63:["Rain","🌧️"],65:["Heavy rain","⛈️"],71:["Light snow","🌨️"],73:["Snow","❄️"],80:["Showers","🌦️"],95:["Storm","⛈️"]};
-const wxE = c=>(WX[c]||["–","🌡️"])[1];
-const wxL = c=>(WX[c]||["–","🌡️"])[0];
+const WX = {0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Foggy",48:"Foggy",51:"Drizzle",53:"Drizzle",55:"Drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",71:"Light snow",73:"Snow",75:"Heavy snow",80:"Showers",81:"Showers",82:"Showers",95:"Storm",96:"Storm",99:"Storm"};
+const wxL = c => WX[c] || "–";
+
+function WxIcon({ code, size=28, style:st={} }) {
+  const s = {width:size,height:size,flexShrink:0,display:"inline-block",...st};
+  const c = code ?? 0;
+  if(c===0) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="4" fill="#fbbf24"/>
+      {[[12,2.5,12,5],[12,19,12,21.5],[2.5,12,5,12],[19,12,21.5,12],[5.6,5.6,7.4,7.4],[16.6,16.6,18.4,18.4],[18.4,5.6,16.6,7.4],[7.4,16.6,5.6,18.4]].map(([x1,y1,x2,y2],i)=>(
+        <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/>
+      ))}
+    </svg>
+  );
+  if(c<=2) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <circle cx="9" cy="9" r="3.2" fill="#fbbf24"/>
+      <line x1="9" y1="3.5" x2="9" y2="5" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="3.5" y1="9" x2="5" y2="9" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="5.1" y1="5.1" x2="6.1" y2="6.1" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="12.9" y1="5.1" x2="11.9" y2="6.1" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M5.5 18c0-2.2 1.8-4 4-4 .7 0 1.3.2 1.9.5.4-1.6 1.8-2.8 3.5-2.8 2 0 3.5 1.6 3.5 3.5s-1.5 3.5-3.5 3.5H7c-.8 0-1.5-.4-1.5-1.2V18z" fill="#94a3b8"/>
+    </svg>
+  );
+  if(c===3) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <path d="M3.5 16c0-2.5 2-4.5 4.5-4.5.6 0 1.2.1 1.7.4.5-1.8 2.2-3 4.1-3 2.4 0 4.2 1.9 4.2 4.2s-1.9 4.2-4.2 4.2H5.2c-.9 0-1.7-.6-1.7-1.3z" fill="#94a3b8"/>
+      <path d="M17.5 12.5c1.5.5 2.5 1.9 2.5 3.5 0 1.9-1.6 3.5-3.5 3.5" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  );
+  if(c===45||c===48) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <line x1="3" y1="8" x2="21" y2="8" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/>
+      <line x1="5" y1="12" x2="19" y2="12" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/>
+      <line x1="3" y1="16" x2="21" y2="16" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  );
+  if(c>=51&&c<=57) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <path d="M4 12c0-2.2 1.8-4 4-4 .5 0 1 .1 1.4.3.4-1.5 1.7-2.5 3.3-2.5 1.9 0 3.3 1.5 3.3 3.3s-1.5 3.3-3.3 3.3H5.4c-.8 0-1.4-.5-1.4-1.1V12z" fill="#94a3b8"/>
+      <line x1="8" y1="17" x2="7.2" y2="20" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="12" y1="16" x2="11.2" y2="19" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="16" y1="17" x2="15.2" y2="20" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/>
+    </svg>
+  );
+  if((c>=61&&c<=67)||(c>=80&&c<=82)) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <path d="M3.5 11c0-2.2 1.8-4 4-4 .5 0 1 .1 1.5.3.4-1.5 1.7-2.6 3.3-2.6 1.9 0 3.4 1.5 3.4 3.4s-1.5 3.4-3.4 3.4H4.9c-.8 0-1.4-.5-1.4-1.1V11z" fill="#64748b"/>
+      <line x1="7" y1="16" x2="6" y2="20" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="11" y1="15" x2="10" y2="19" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="15" y1="16" x2="14" y2="20" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/>
+    </svg>
+  );
+  if(c>=71&&c<=77) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <path d="M3.5 11c0-2.2 1.8-4 4-4 .5 0 1 .1 1.5.3.4-1.5 1.7-2.6 3.3-2.6 1.9 0 3.4 1.5 3.4 3.4s-1.5 3.4-3.4 3.4H4.9c-.8 0-1.4-.5-1.4-1.1V11z" fill="#94a3b8"/>
+      <circle cx="7.5" cy="17" r="1.3" fill="#bfdbfe"/>
+      <circle cx="12" cy="16" r="1.3" fill="#bfdbfe"/>
+      <circle cx="16.5" cy="17" r="1.3" fill="#bfdbfe"/>
+      <circle cx="10" cy="21" r="1" fill="#dbeafe"/>
+      <circle cx="14.5" cy="21" r="1" fill="#dbeafe"/>
+    </svg>
+  );
+  if(c>=95) return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <path d="M3.5 10c0-2.2 1.8-4 4-4 .5 0 1 .1 1.5.3.4-1.5 1.7-2.6 3.3-2.6 1.9 0 3.4 1.5 3.4 3.4s-1.5 3.4-3.4 3.4H4.9c-.8 0-1.4-.5-1.4-1.1V10z" fill="#475569"/>
+      <line x1="7" y1="14" x2="6.2" y2="17" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="15" y1="14" x2="14.2" y2="17" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/>
+      <polyline points="12,13 10,18 13,18 11,23" stroke="#fbbf24" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" fill="none"/>
+    </svg>
+  );
+  return (
+    <svg style={s} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="19" r="2.5" fill="#ef4444"/>
+      <rect x="11" y="4" width="2" height="12" rx="1" fill="#94a3b8"/>
+    </svg>
+  );
+}
 
 const fmt12 = iso => { if(!iso) return "--"; const d=new Date(iso); let h=d.getHours(),m=d.getMinutes().toString().padStart(2,"0"); return `${h%12||12}:${m}${h>=12?"p":"a"}`; };
 const fmtFull12 = iso => { if(!iso) return "--:--"; const d=new Date(iso); let h=d.getHours(),m=d.getMinutes().toString().padStart(2,"0"); return `${h%12||12}:${m} ${h>=12?"PM":"AM"}`; };
@@ -110,7 +185,14 @@ function ProgressRing({ pts, max=500, size=56, color }) {
 // ─── HEADER ───────────────────────────────────────────────────────────────────
 function Header({ wx, sun, pts }) {
   const [now, setNow] = useState(new Date());
+  const [kiosk, setKiosk] = useState(false);
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ setKiosk(!!document.fullscreenElement); const fn=()=>setKiosk(!!document.fullscreenElement); document.addEventListener('fullscreenchange',fn); return()=>document.removeEventListener('fullscreenchange',fn); },[]);
+  const toggleKiosk = () => {
+    if(document.fullscreenElement) { document.exitFullscreen(); }
+    else { document.documentElement.requestFullscreen().catch(()=>{}); }
+  };
+  const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
 
   const cur  = wx?.current;
   const code = cur?.weather_code;
@@ -121,20 +203,31 @@ function Header({ wx, sun, pts }) {
       <div style={{ position:"absolute",top:-60,right:-60,width:240,height:240,borderRadius:"50%",background:"rgba(255,255,255,0.07)" }}/>
       <div style={{ position:"absolute",bottom:-80,left:-50,width:260,height:260,borderRadius:"50%",background:"rgba(255,255,255,0.05)" }}/>
       <div style={{ position:"relative", zIndex:1 }}>
-        {/* Top row: title + clock */}
+        {/* Top row: title + clock + kiosk buttons */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
           <div>
             <div style={{ fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.65)",letterSpacing:2,textTransform:"uppercase" }}>Akhtar-Tiedemann</div>
             <div style={{ fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:2 }}>{fmtDate(now)}</div>
           </div>
-          <div style={{ fontSize:52,fontWeight:200,color:"#fff",lineHeight:1,letterSpacing:-3 }}>{fmtTime(now)}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={toggleKiosk} title={kiosk?"Exit fullscreen":"Enter fullscreen"} style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {kiosk
+                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M16 21h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 00-2 2v3m13-5h3a2 2 0 012 2v3M16 21h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+              }
+            </button>
+            <button onClick={exitKiosk} title="Close browser (exit kiosk)" style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18" stroke="white" strokeWidth="2" strokeLinecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+            </button>
+            <div style={{ fontSize:52,fontWeight:200,color:"#fff",lineHeight:1,letterSpacing:-3 }}>{fmtTime(now)}</div>
+          </div>
         </div>
 
         {/* Bottom row: weather + points + sunset */}
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
           {cur && (
             <div style={{ display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(12px)",borderRadius:16,padding:"10px 16px",flex:1 }}>
-              <span style={{fontSize:28,lineHeight:1}}>{wxE(code)}</span>
+              <WxIcon code={code} size={32}/>
               <div>
                 <div style={{fontSize:22,fontWeight:700,color:"#fff",lineHeight:1}}>{Math.round(cur.temperature_2m)}°F</div>
                 <div style={{fontSize:12,color:"rgba(255,255,255,0.8)"}}>{wxL(code)} · {Math.round(cur.wind_speed_10m)}mph</div>
@@ -143,7 +236,7 @@ function Header({ wx, sun, pts }) {
           )}
           {sunset && (
             <div style={{ display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(12px)",borderRadius:16,padding:"10px 16px" }}>
-              <span style={{fontSize:22}}>🌅</span>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="11" r="4" fill="#fbbf24"/><line x1="12" y1="3" x2="12" y2="5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="19.8" y1="4.2" x2="18.4" y2="5.6" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="3" y1="11" x2="5" y2="11" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="21" y1="11" x2="19" y2="11" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="2" y1="18" x2="22" y2="18" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round"/><path d="M7 18a5 5 0 0110 0" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
               <div>
                 <div style={{fontSize:13,fontWeight:700,color:"#fff"}}>{fmt12(sunset)}</div>
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>Sunset</div>
@@ -210,162 +303,235 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
 }
 
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
-function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompleteTask, onSetTab, wide, uidMap }) {
+function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTask, onSetTab, wide, uidMap }) {
   const today = new Date(); today.setHours(0,0,0,0);
   const todayStr = today.toISOString().slice(0,10);
+
+  const groceriesProj    = projs.find(p=>p.name.toLowerCase()==="groceries");
+  const rabiaPersonalProj= projs.find(p=>p.name.toLowerCase()==="rabia's personal");
+  const groceryTasks     = groceriesProj ? tasks.filter(t=>!t.checked && t.project_id===groceriesProj.id) : [];
 
   const todayEvts = evts.filter(e=>{
     const s=new Date(e.start); s.setHours(0,0,0,0);
     return s.getTime()===today.getTime();
   }).sort((a,b)=>{
-    if(a.allDay && !b.allDay) return -1;
-    if(!a.allDay && b.allDay) return 1;
+    if(a.allDay&&!b.allDay) return -1; if(!a.allDay&&b.allDay) return 1;
     return new Date(a.start)-new Date(b.start);
   });
+  const rabiaEvts = todayEvts.filter(e=>e.calendar==="Rabia");
+  const clareEvts = todayEvts.filter(e=>e.calendar==="Clare");
 
-  const groceriesProj = projs.find(p=>p.name.toLowerCase()==="groceries");
-  const dailyTasks = tasks.filter(t=>!t.checked && t.due?.date===todayStr && t.project_id!==groceriesProj?.id);
-  const groceryTasks = groceriesProj ? tasks.filter(t=>!t.checked && t.project_id===groceriesProj.id) : [];
+  const nonGrocToday = tasks.filter(t=>!t.checked && t.due?.date===todayStr && t.project_id!==groceriesProj?.id);
+  const rabiaTasks  = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"||t.project_id===rabiaPersonalProj?.id; });
+  const clareTasks  = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
+  const familyTasks = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
 
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
   const weekTasks = tasks.filter(t=>{
-    if(!t.due?.date || t.checked) return false;
+    if(!t.due?.date||t.checked) return false;
     if(t.project_id===groceriesProj?.id) return false;
+    if(t.due?.is_recurring) return false;
     const d=new Date(t.due.date+'T12:00:00');
-    return d > today && d <= weekEnd;
+    return d>today && d<=weekEnd;
   }).sort((a,b)=>a.due.date.localeCompare(b.due.date));
 
-  const people = [RABIA, CLARE];
+  // ── Weather advisories ───────────────────────────────────────────────────
+  const advisories = [];
+  const uv = wx?.current?.uv_index ?? 0;
+  if(uv>=11) advisories.push({icon:"🚨",bg:"#581c87",text:"#faf5ff",msg:`Extreme UV (${uv}) — avoid going outside midday, max SPF, full cover.`,badge:"Extreme"});
+  else if(uv>=8) advisories.push({icon:"🔆",bg:"#fee2e2",text:"#991b1b",msg:`Very high UV (${uv}) — minimize time outdoors, SPF 50+, seek shade.`,badge:"Very High"});
+  else if(uv>=6) advisories.push({icon:"☀️",bg:"#fff7ed",text:"#9a3412",msg:`High UV today (${uv}) — sunscreen, sunglasses, and a hat are a must!`,badge:"High"});
+  else if(uv>=3) advisories.push({icon:"🕶️",bg:"#fefce8",text:"#854d0e",msg:`Moderate UV (${uv}) — pop on some SPF 30+ before heading out.`,badge:"Moderate"});
 
-  const personCards = people.map(person => {
-    const pKey   = person.name.toLowerCase();
-    const points = pts[`${pKey}_points`]||0;
-    const nextMilestone = [100,250,500,750,1000].find(m=>m>points)||1000;
-    const progress = Math.round((points/nextMilestone)*100);
-    return (
-      <div key={person.name} style={{...CARD, overflow:"hidden"}}>
-        <div style={{ background:`linear-gradient(135deg,${person.color}22,${person.color}08)`, padding:"18px 20px", display:"flex",alignItems:"center",gap:14 }}>
-          <Av person={person} size={wide?64:52} />
+  const todayHours = wx?.hourly?.time?.reduce((acc,t,i)=>{
+    if(t.startsWith(todayStr)) acc.push({prob:wx.hourly.precipitation_probability?.[i]??0, amt:wx.hourly.precipitation?.[i]??0, code:wx.hourly.weather_code?.[i]??0});
+    return acc;
+  },[]) ?? [];
+  const maxRain = Math.max(0,...todayHours.map(h=>h.prob));
+  const hasStorm = todayHours.some(h=>h.code>=95);
+  if(hasStorm) advisories.push({icon:"⛈️",bg:"#e0f2fe",text:"#0c4a6e",msg:"Thunderstorms expected today — stay safe indoors during heavy bursts.",badge:"Storm"});
+  else if(maxRain>=70) advisories.push({icon:"☔",bg:"#eff6ff",text:"#1e40af",msg:`High chance of rain today (${maxRain}%) — don't forget your umbrella!`,badge:"Rain"});
+  else if(maxRain>=40) advisories.push({icon:"🌂",bg:"#f0fdf4",text:"#166534",msg:`Possible rain today (${maxRain}%) — worth packing an umbrella just in case.`,badge:"Maybe Rain"});
+
+  const windMph = wx?.current?.wind_speed_10m ?? 0;
+  if(windMph>=35) advisories.push({icon:"💨",bg:"#f1f5f9",text:"#334155",msg:`Very windy today (${Math.round(windMph)} mph) — hold onto your hat!`,badge:"Windy"});
+
+  const advisoryBanner = advisories.length>0 ? (
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {advisories.map((a,i)=>(
+        <div key={i} style={{borderRadius:18,padding:"14px 18px",background:a.bg,display:"flex",alignItems:"center",gap:14,boxShadow:"0 2px 10px rgba(0,0,0,0.06)"}}>
+          <span style={{fontSize:28,flexShrink:0}}>{a.icon}</span>
           <div style={{flex:1}}>
-            <div style={{fontSize:wide?22:18,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
-              <div style={{flex:1,height:8,background:`${person.color}20`,borderRadius:99,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${progress}%`,background:person.color,borderRadius:99,transition:"width 0.5s"}}/>
-              </div>
-              <div style={{fontSize:12,fontWeight:700,color:person.color}}>{points} / {nextMilestone} ⭐</div>
-            </div>
+            <span style={{fontSize:11,fontWeight:800,color:a.text,background:`${a.text}18`,padding:"2px 8px",borderRadius:99,marginRight:8}}>{a.badge}</span>
+            <span style={{fontSize:13,color:a.text,fontWeight:500}}>{a.msg}</span>
           </div>
-          <button onClick={()=>onResetPts(pKey)} style={{fontSize:11,padding:"4px 12px",borderRadius:99,border:`1px solid ${person.color}40`,background:"transparent",color:person.color,cursor:"pointer",fontFamily:"inherit"}}>reset</button>
         </div>
+      ))}
+    </div>
+  ) : null;
+
+  // ── Column builder ────────────────────────────────────────────────────────
+  const CalIcon = ({color}) => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="4" width="18" height="18" rx="3" stroke={color} strokeWidth="2"/>
+      <line x1="8" y1="2" x2="8" y2="6" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+      <line x1="16" y1="2" x2="16" y2="6" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+      <line x1="3" y1="10" x2="21" y2="10" stroke={color} strokeWidth="1.5"/>
+    </svg>
+  );
+  const TaskIcon = ({color}) => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="3" width="18" height="18" rx="3" stroke={color} strokeWidth="2"/>
+      <line x1="8" y1="9" x2="16" y2="9" stroke={color} strokeWidth="1.5"/>
+      <line x1="8" y1="13" x2="13" y2="13" stroke={color} strokeWidth="1.5"/>
+    </svg>
+  );
+
+  const makeCol = (person, myEvts, myTasks) => {
+    const pKey  = person.name.toLowerCase();
+    const points= pts[`${pKey}_points`]||0;
+    const next  = [100,250,500,750,1000].find(m=>m>points)||1000;
+    const prog  = Math.round((points/next)*100);
+    return (
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        {/* Avatar + points */}
+        <div style={{...CARD,overflow:"hidden"}}>
+          <div style={{background:`linear-gradient(135deg,${person.color}22,${person.color}08)`,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+            <Av person={person} size={48}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
+                <div style={{flex:1,height:6,background:`${person.color}20`,borderRadius:99,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${prog}%`,background:person.color,borderRadius:99,transition:"width 0.5s"}}/>
+                </div>
+                <div style={{fontSize:11,fontWeight:700,color:person.color,whiteSpace:"nowrap"}}>{points} / {next} ⭐</div>
+              </div>
+            </div>
+            <button onClick={()=>onResetPts(pKey)} style={{fontSize:10,padding:"3px 9px",borderRadius:99,border:`1px solid ${person.color}40`,background:"transparent",color:person.color,cursor:"pointer",fontFamily:"inherit"}}>reset</button>
+          </div>
+        </div>
+
+        {/* Calendar events */}
+        <div style={{...CARD,overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
+            <CalIcon color={person.color}/>
+            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Today</div>
+            {authOk===false && <a href="/api/auth/google" target="_blank" rel="noreferrer" style={{fontSize:10,color:person.color,fontWeight:600,marginLeft:"auto"}}>Connect →</a>}
+          </div>
+          {myEvts.length===0
+            ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
+            : myEvts.map((e,i)=>(
+              <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
+                <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* Due today */}
+        {myTasks.length>0 && (
+          <div style={{...CARD,overflow:"hidden"}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
+              <TaskIcon color={person.color}/>
+              <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
+              <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{myTasks.length}</span>
+            </div>
+            {myTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+          </div>
+        )}
       </div>
     );
-  });
+  };
 
-  const calCard = (
-    <div style={{...CARD, overflow:"hidden"}}>
-      <div style={{padding:"14px 20px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:16}}>📅</span>
-        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Today</div>
-        {todayEvts.length>0 && <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{todayEvts.length} event{todayEvts.length!==1?"s":""}</span>}
+  // ── Family column ─────────────────────────────────────────────────────────
+  const familyCol = (
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{...CARD,overflow:"hidden",border:"1px solid #a78bfa30"}}>
+        <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:"3px solid rgba(255,255,255,0.85)",flexShrink:0}}>F</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>Family</div>
+        </div>
       </div>
-      {todayEvts.length===0 && authOk===false && (
-        <div style={{padding:"14px 20px"}}>
-          <a href="/api/auth/google" target="_blank" rel="noreferrer"
-            style={{display:"inline-block",fontSize:13,padding:"8px 16px",background:"#fef9c3",color:"#854d0e",borderRadius:12,fontWeight:600,textDecoration:"none"}}>
-            📅 Connect Google Calendar →
-          </a>
+      {familyTasks.length>0 && (
+        <div style={{...CARD,overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
+            <TaskIcon color="#6366f1"/>
+            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
+            <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
+          </div>
+          {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
         </div>
       )}
-      {todayEvts.length===0 && authOk!==false && (
-        <div style={{padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:14}}>Nothing scheduled today</div>
+      {familyTasks.length===0 && (
+        <div style={{...CARD,padding:"16px",fontSize:12,color:"#94a3b8",textAlign:"center"}}>No family tasks today</div>
       )}
-      {todayEvts.map((e,i)=>{
-        const person = e.calendar==="Rabia"?RABIA:e.calendar==="Clare"?CLARE:null;
-        return (
-          <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",borderBottom:i<todayEvts.length-1?"1px solid #f8fafc":"none"}}>
-            <div style={{width:3,alignSelf:"stretch",borderRadius:99,background:e.color,flexShrink:0,minHeight:36}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:wide?16:14,fontWeight:600,color:"#1e293b"}}>{e.title}</div>
-              <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>
-                {e.allDay ? "All day" : `${fmtFull12(e.start)} – ${fmtFull12(e.end)}`}
-              </div>
-            </div>
-            {person && <Av person={person} size={28}/>}
-          </div>
-        );
-      })}
     </div>
   );
 
-  const tasksCard = dailyTasks.length > 0 ? (
-    <div style={{...CARD, overflow:"hidden"}}>
-      <div style={{padding:"14px 20px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:16}}>📋</span>
-        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Due Today</div>
-        <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{dailyTasks.length} task{dailyTasks.length!==1?"s":""}</span>
-      </div>
-      {dailyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
-    </div>
-  ) : null;
-
-  const weekCard = weekTasks.length > 0 ? (
-    <div style={{...CARD, overflow:"hidden"}}>
-      <div style={{padding:"14px 20px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:16}}>🗓</span>
+  // ── Bottom row ────────────────────────────────────────────────────────────
+  const weekCard = (
+    <div style={{...CARD,overflow:"hidden"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#6366f1" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="#6366f1" strokeWidth="1.5"/></svg>
         <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Upcoming This Week</div>
-        <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length} task{weekTasks.length!==1?"s":""}</span>
+        <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length}</span>
       </div>
-      {weekTasks.map(t=>{
-        const due=fmtDue(t.due?.date);
-        const assignedTo = uidMap?.[t.responsible_uid];
-        const person = assignedTo==="rabia"?RABIA:assignedTo==="clare"?CLARE:null;
-        return (
-          <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:56,borderBottom:"1px solid #f8fafc",gap:14}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:14,color:"#1e293b",fontWeight:500}}>{t.content}</div>
-              <div style={{display:"flex",gap:8,alignItems:"center",marginTop:2}}>
-                {t.project_name && <span style={{fontSize:11,color:"#94a3b8"}}>{t.project_name}</span>}
+      {weekTasks.length===0
+        ? <div style={{padding:"16px 18px",fontSize:13,color:"#94a3b8"}}>Nothing coming up</div>
+        : weekTasks.map(t=>{
+          const due=fmtDue(t.due?.date);
+          const a=uidMap?.[t.responsible_uid];
+          const person=a==="rabia"?RABIA:a==="clare"?CLARE:null;
+          return (
+            <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:50,borderBottom:"1px solid #f8fafc",gap:12}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
+                {t.project_name && <div style={{fontSize:11,color:"#94a3b8"}}>{t.project_name}</div>}
               </div>
+              {person && <Av person={person} size={22}/>}
+              {due && <span style={{fontSize:12,fontWeight:700,color:due.color,flexShrink:0}}>{due.label}</span>}
             </div>
-            {t.counts_for_reward && <span style={{fontSize:10,color:"#10b981",fontWeight:700}}>+5⭐</span>}
-            {person && <Av person={person} size={24}/>}
-            {due && <span style={{fontSize:12,fontWeight:700,color:due.color,flexShrink:0}}>{due.label}</span>}
-          </div>
-        );
-      })}
+          );
+        })
+      }
     </div>
-  ) : null;
+  );
 
   const grocCard = groceriesProj ? (
-    <div style={{...CARD, overflow:"hidden"}}>
-      <div style={{padding:"14px 20px",borderBottom:"1px solid #f1f5f9",background:"#f0fdf4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{...CARD,overflow:"hidden"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid #f1f5f9",background:"#f0fdf4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:16}}>🛒</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="1.8" strokeLinecap="round"/></svg>
           <div style={{fontSize:14,fontWeight:800,color:"#059669"}}>Groceries</div>
-          <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{groceryTasks.length} item{groceryTasks.length!==1?"s":""}</span>
+          <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{groceryTasks.length}</span>
         </div>
         <button onClick={()=>onSetTab("groceries")} style={{fontSize:12,padding:"6px 14px",borderRadius:99,border:"1px solid #059669",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
       </div>
-      {groceryTasks.length===0 && <div style={{padding:"16px 20px",fontSize:13,color:"#94a3b8"}}>All clear!</div>}
-      {groceryTasks.slice(0,5).map((t,i)=>(
-        <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:48,borderBottom:i<Math.min(groceryTasks.length,5)-1?"1px solid #f8fafc":"none",gap:12}}>
-          <div style={{width:7,height:7,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
-          <div style={{fontSize:14,color:"#1e293b"}}>{t.content}</div>
+      {groceryTasks.length===0 && <div style={{padding:"14px 18px",fontSize:13,color:"#94a3b8"}}>All clear!</div>}
+      {groceryTasks.slice(0,6).map((t,i)=>(
+        <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:44,borderBottom:i<Math.min(groceryTasks.length,6)-1?"1px solid #f8fafc":"none",gap:10}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
+          <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
         </div>
       ))}
-      {groceryTasks.length>5 && <div style={{padding:"10px 20px",fontSize:13,color:"#94a3b8"}}>+{groceryTasks.length-5} more items</div>}
+      {groceryTasks.length>6 && <div style={{padding:"10px 18px",fontSize:12,color:"#94a3b8"}}>+{groceryTasks.length-6} more</div>}
     </div>
   ) : null;
 
-  if (wide) return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,alignItems:"start"}}>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>{personCards}</div>
-        {tasksCard}
-        {weekCard}
+  if(wide) return (
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      {advisoryBanner}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"start"}}>
+        {makeCol(RABIA, rabiaEvts, rabiaTasks)}
+        {makeCol(CLARE, clareEvts, clareTasks)}
+        {familyCol}
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        {calCard}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
+        {weekCard}
         {grocCard}
       </div>
     </div>
@@ -373,9 +539,10 @@ function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompl
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {personCards}
-      {calCard}
-      {tasksCard}
+      {advisoryBanner}
+      {makeCol(RABIA, rabiaEvts, rabiaTasks)}
+      {makeCol(CLARE, clareEvts, clareTasks)}
+      {familyCol}
       {weekCard}
       {grocCard}
     </div>
@@ -610,7 +777,7 @@ function CalendarTab({ evts, authOk, reload }) {
         )}
 
         {/* Hourly grid */}
-        <div style={{overflowY:"auto",maxHeight:560}}>
+        <div style={{overflowY:"scroll",maxHeight:560,WebkitOverflowScrolling:"touch",touchAction:"pan-y"}}>
           {HOURS.map(h=>(
             <div key={h} style={{display:"grid",gridTemplateColumns:"44px repeat(7,1fr)",minHeight:80,borderBottom:"1px solid #f8fafc"}}>
               <div style={{fontSize:10,color:"#cbd5e1",padding:"6px 6px 0",textAlign:"right",flexShrink:0}}>{h===12?"12p":h>12?`${h-12}p`:`${h}a`}</div>
@@ -655,7 +822,7 @@ function WeatherTab({ wx }) {
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{borderRadius:24,padding:"32px 28px 26px",background:"linear-gradient(145deg,#0ea5e9,#6366f1)",color:"#fff",position:"relative",overflow:"hidden",boxShadow:"0 8px 32px rgba(14,165,233,0.3)"}}>
-        <div style={{position:"absolute",top:-20,right:-20,fontSize:130,opacity:0.12,lineHeight:1}}>{wxE(code)}</div>
+        <div style={{position:"absolute",top:-20,right:-20,opacity:0.12}}><WxIcon code={code} size={130}/></div>
         <div style={{fontSize:12,fontWeight:700,letterSpacing:2,textTransform:"uppercase",opacity:0.7,marginBottom:8}}>{wx.city}</div>
         <div style={{fontSize:80,fontWeight:200,lineHeight:1}}>{Math.round(cur.temperature_2m)}°</div>
         <div style={{fontSize:20,opacity:0.9,marginTop:6}}>{wxL(code)}</div>
@@ -675,7 +842,7 @@ function WeatherTab({ wx }) {
               <div key={i} onClick={()=>setSelDay(v=>v===i?null:i)}
                 style={{flex:"0 0 auto",width:88,textAlign:"center",background:isSel?"#e0f2fe":isT?"#eff6ff":"#f8fafc",border:isSel?"2px solid #0ea5e9":isT?"2px solid #38bdf850":"1px solid #f1f5f9",borderRadius:18,padding:"14px 8px",cursor:"pointer",transition:"all 0.15s"}}>
                 <div style={{fontSize:11,fontWeight:700,color:isSel?"#0ea5e9":isT?"#0ea5e9":"#94a3b8",marginBottom:6}}>{isT?"Today":d.toLocaleDateString("en",{weekday:"short"})}</div>
-                <div style={{fontSize:26,lineHeight:1,marginBottom:8}}>{wxE(daily.weather_code[i])}</div>
+                <div style={{marginBottom:8,display:"flex",justifyContent:"center"}}><WxIcon code={daily.weather_code[i]} size={30}/></div>
                 <div style={{fontSize:15,fontWeight:800,color:"#1e293b"}}>{Math.round(daily.temperature_2m_max[i])}°</div>
                 <div style={{fontSize:12,color:"#94a3b8"}}>{Math.round(daily.temperature_2m_min[i])}°</div>
                 {(daily.precipitation_probability_max[i]||0)>20 && <div style={{fontSize:11,color:"#38bdf8",marginTop:4}}>💧{daily.precipitation_probability_max[i]}%</div>}
@@ -695,7 +862,7 @@ function WeatherTab({ wx }) {
               {selHours.filter(hh=>hh.h>=6&&hh.h<=23).map(hh=>(
                 <div key={hh.time} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 12px",borderRadius:12,background:hh.precip_prob>60?"#e0f2fe":hh.precip_prob>30?"#f0f9ff":"transparent",minHeight:44}}>
                   <div style={{width:48,fontSize:12,fontWeight:700,color:"#64748b",flexShrink:0}}>{hh.h===12?"12pm":hh.h>12?`${hh.h-12}pm`:`${hh.h}am`}</div>
-                  <div style={{fontSize:22,flexShrink:0}}>{wxE(hh.code)}</div>
+                  <WxIcon code={hh.code} size={24}/>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,color:"#64748b"}}>{wxL(hh.code)}</div>
                   </div>
@@ -755,7 +922,7 @@ function SunMoonTab({ sun }) {
         <div style={{fontSize:12,fontWeight:700,color:"#92400e",letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>Golden hour</div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontSize:12,color:"#b45309"}}>Morning</div><div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{fmtFull12(sun.sunrise)}</div></div>
-          <div style={{fontSize:42}}>🌅</div>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" fill="#f59e0b"/><line x1="12" y1="2" x2="12" y2="4.5" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="4.2" y1="4.2" x2="5.9" y2="5.9" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round"/><line x1="19.8" y1="4.2" x2="18.1" y2="5.9" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round"/><line x1="2" y1="10" x2="4.5" y2="10" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="21.5" y1="10" x2="19" y2="10" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="2" y1="18" x2="22" y2="18" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/><path d="M6.5 18a5.5 5.5 0 0111 0" stroke="#b45309" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
           <div style={{textAlign:"right"}}><div style={{fontSize:12,color:"#b45309"}}>Evening</div><div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{sun.sunset?fmtFull12(new Date(new Date(sun.sunset).getTime()-3600000)):"--"}</div></div>
         </div>
       </div>
@@ -846,7 +1013,9 @@ function LightsTab() {
 function RewardsTab({ pts, setPts, rwds, setRwds }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm]       = useState({ name:"", cost:100, icon:"🎁", who:"both" });
-  const [redeeming, setRedeeming] = useState(null); // {rewardId, who}
+  const [editing, setEditing] = useState(null); // reward id being edited
+  const [editForm, setEditForm] = useState({});
+  const [redeeming, setRedeeming] = useState(null);
   const [confetti, setConfetti]   = useState(null);
 
   const addReward = async () => {
@@ -869,6 +1038,13 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
   const deleteReward = async (id) => {
     await fetch(`${API}/rewards/${id}`,{method:"DELETE"});
     setRwds(rw=>({...rw,rewards:rw.rewards.filter(r=>r.id!==id)}));
+  };
+
+  const startEdit = (r) => { setEditing(r.id); setEditForm({name:r.name,cost:r.cost,icon:r.icon,who:r.who}); };
+  const saveEdit  = async () => {
+    const r=await fetch(`${API}/rewards/${editing}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(editForm)}).then(r=>r.json());
+    setRwds(rw=>({...rw,rewards:rw.rewards.map(x=>x.id===editing?r:x)}));
+    setEditing(null);
   };
 
   const people = [RABIA, CLARE];
@@ -952,6 +1128,29 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               {myRwds.map(r=>{
                 const canAfford=myPts>=r.cost;
+                if(editing===r.id) return (
+                  <div key={r.id} style={{...CARD,padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:2}}>
+                      {REWARD_ICONS.map(ic=>(
+                        <button key={ic} onClick={()=>setEditForm(f=>({...f,icon:ic}))} style={{width:36,height:36,fontSize:18,borderRadius:10,border:`2px solid ${editForm.icon===ic?"#6366f1":"#e2e8f0"}`,background:editForm.icon===ic?"#eef2ff":"#fff",cursor:"pointer"}}>{ic}</button>
+                      ))}
+                    </div>
+                    <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} style={{padding:"10px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <input type="number" value={editForm.cost} onChange={e=>setEditForm(f=>({...f,cost:parseInt(e.target.value)||0}))} style={{width:80,padding:"9px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+                      <span style={{fontSize:13,color:"#64748b"}}>⭐</span>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[["both","All"],["rabia","R"],["clare","C"]].map(([val,label])=>(
+                        <button key={val} onClick={()=>setEditForm(f=>({...f,who:val}))} style={{flex:1,padding:"8px",borderRadius:10,border:`2px solid ${editForm.who===val?"#6366f1":"#e2e8f0"}`,background:editForm.who===val?"#eef2ff":"#fff",color:editForm.who===val?"#6366f1":"#64748b",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={saveEdit} style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:"#6366f1",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                      <button onClick={()=>setEditing(null)} style={{padding:"10px 14px",borderRadius:12,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                    </div>
+                  </div>
+                );
                 return (
                   <div key={r.id} style={{...CARD,padding:"18px",textAlign:"center",opacity:canAfford?1:0.6,border:`2px solid ${canAfford?person.color+"40":"#f1f5f9"}`}}>
                     <div style={{fontSize:40,marginBottom:8}}>{r.icon}</div>
@@ -961,6 +1160,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
                       <button onClick={()=>redeem(r,pKey)} disabled={!canAfford} style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:canAfford?person.color:"#e2e8f0",color:canAfford?"#fff":"#94a3b8",fontWeight:700,fontSize:13,cursor:canAfford?"pointer":"not-allowed",fontFamily:"inherit"}}>
                         {canAfford?"Redeem":"Need "+(r.cost-myPts)+" more"}
                       </button>
+                      <button onClick={()=>startEdit(r)} style={{width:36,height:36,borderRadius:12,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✏️</button>
                       <button onClick={()=>deleteReward(r.id)} style={{width:36,height:36,borderRadius:12,border:"1px solid #fee2e2",background:"#fff5f5",color:"#ef4444",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>×</button>
                     </div>
                   </div>
@@ -1040,7 +1240,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
       <div style={{...CARD,overflow:"hidden"}}>
         {groceryTasks.length===0 && (
           <div style={{padding:"40px 24px",textAlign:"center"}}>
-            <div style={{fontSize:40,marginBottom:12}}>🛒</div>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style={{marginBottom:12,opacity:0.4}}><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#94a3b8" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#94a3b8" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/></svg>
             <div style={{fontSize:15,color:"#94a3b8"}}>All done! Tap + to add items.</div>
           </div>
         )}
@@ -1110,7 +1310,9 @@ export default function App() {
     <div style={{ height:"100vh", display:"flex", flexDirection:"column", background:"#f0f4f8", fontFamily:"'DM Sans','Segoe UI',sans-serif", overflow:"hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&display=swap');
-        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; -webkit-overflow-scrolling:touch; }
+        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+        html, body { touch-action:manipulation; }
+        .scroll-area { overflow-y:scroll !important; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
         body { background:#f0f4f8; overscroll-behavior:none; }
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
@@ -1142,8 +1344,8 @@ export default function App() {
         )}
 
         {/* Scrollable content */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", touchAction:"pan-y", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
-          {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} sun={hub.sun} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
+        <div style={{ flex:1, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
+          {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}

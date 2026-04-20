@@ -5,6 +5,7 @@ const { Client } = require('tplink-smarthome-api');
 const fetch      = (...a) => import('node-fetch').then(({ default: f }) => f(...a));
 const fs         = require('fs');
 const path       = require('path');
+const { exec }   = require('child_process');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -216,6 +217,14 @@ app.post('/api/rewards', (req,res)=>{
   data.rewards.push(reward); saveData(data); res.json(reward);
 });
 
+app.patch('/api/rewards/:id', (req,res)=>{
+  const data=loadData();
+  const idx=data.rewards.findIndex(r=>r.id===req.params.id);
+  if(idx===-1) return res.status(404).json({error:'Not found'});
+  data.rewards[idx]={...data.rewards[idx],...req.body};
+  saveData(data); res.json(data.rewards[idx]);
+});
+
 app.delete('/api/rewards/:id', (req,res)=>{
   const data=loadData();
   data.rewards=data.rewards.filter(r=>r.id!==req.params.id);
@@ -338,6 +347,12 @@ app.delete('/api/calendar/:calendarId/:eventId', async (req,res)=>{
     );
     res.json({ok:true});
   } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// ─── Kiosk control ───────────────────────────────────────────────────────────
+app.post('/api/kiosk/exit', (req, res) => {
+  res.json({ok:true});
+  setTimeout(()=>exec('pkill -f chromium'), 300);
 });
 
 // Serve built frontend (production / Pi)
