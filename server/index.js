@@ -51,6 +51,20 @@ function countsForReward(projectName) {
 // ─── Kasa ─────────────────────────────────────────────────────────────────────
 const kasaClient = new Client();
 let deviceCache  = {};
+
+// Static IPs — bypass UDP discovery for known devices
+const STATIC_KASA_IPS = ['192.168.1.189'];
+
+async function connectStaticDevices() {
+  for (const host of STATIC_KASA_IPS) {
+    try {
+      const device = await kasaClient.getDevice({ host });
+      deviceCache[device.alias] = device;
+      console.log(`Kasa static: ${device.alias} @ ${host}`);
+    } catch(e) { console.warn(`Kasa static ${host} unreachable:`, e.message); }
+  }
+}
+
 async function discoverKasa() {
   return new Promise(resolve => {
     const found = {};
@@ -59,8 +73,10 @@ async function discoverKasa() {
     setTimeout(()=>resolve(found), 3500);
   });
 }
+
+connectStaticDevices();
 discoverKasa();
-setInterval(discoverKasa, 30000);
+setInterval(()=>{ connectStaticDevices(); discoverKasa(); }, 30000);
 
 app.get('/api/lights', async (req,res) => {
   try {
