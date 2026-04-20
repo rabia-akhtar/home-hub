@@ -325,7 +325,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   const rabiaTasks  = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"&&t.project_id!==rabiaPersonalProj?.id; });
   const clareTasks  = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
   const familyTasks = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
-  const rabiaPersonalTasks = rabiaPersonalProj ? tasks.filter(t=>!t.checked && t.project_id===rabiaPersonalProj.id) : [];
+  const rabiaPersonalTasks = rabiaPersonalProj ? tasks.filter(t=>!t.checked && t.project_id===rabiaPersonalProj.id && t.due?.date===todayStr) : [];
 
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
   const weekTasks = tasks.filter(t=>{
@@ -1341,7 +1341,7 @@ export default function App() {
       {/* Header — always visible */}
       <Header wx={hub.wx} sun={hub.sun} pts={hub.pts}/>
 
-      <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
+      <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
         {/* Sidebar nav — wide screens (Pi / desktop) */}
         {wide && (
@@ -1359,7 +1359,7 @@ export default function App() {
         )}
 
         {/* Scrollable content */}
-        <div style={{ flex:1, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
+        <div style={{ flex:1, minHeight:0, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
