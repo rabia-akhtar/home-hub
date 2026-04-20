@@ -14,6 +14,17 @@ const fmt12 = iso => { if(!iso) return "--"; const d=new Date(iso); let h=d.getH
 const fmtFull12 = iso => { if(!iso) return "--:--"; const d=new Date(iso); let h=d.getHours(),m=d.getMinutes().toString().padStart(2,"0"); return `${h%12||12}:${m} ${h>=12?"PM":"AM"}`; };
 const fmtDate = d => d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
 const fmtTime = d => { let h=d.getHours(),m=d.getMinutes().toString().padStart(2,"0"); return `${h%12||12}:${m} ${h>=12?"PM":"AM"}`; };
+const isFamily = task => (task.labels||[]).some(l=>l.toLowerCase()==='family');
+
+const fmtDue = dateStr => {
+  if(!dateStr) return null;
+  const d=new Date(dateStr+'T12:00:00'), t=new Date(); t.setHours(0,0,0,0);
+  const tm=new Date(t); tm.setDate(t.getDate()+1);
+  if(d<t)                          return {label:'Overdue',  color:'#ef4444'};
+  if(d.toDateString()===t.toDateString())  return {label:'Today',    color:'#f59e0b'};
+  if(d.toDateString()===tm.toDateString()) return {label:'Tomorrow', color:'#10b981'};
+  return {label:d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}), color:'#94a3b8'};
+};
 
 function useWide() {
   const [wide, setWide] = useState(()=>window.innerWidth >= 900);
@@ -40,6 +51,7 @@ function useHub() {
   const [evts,  setEvts]  = useState([]);
   const [authOk,setAuthOk]= useState(null);
   const [rwds,  setRwds]  = useState({rewards:[],redeemed:[]});
+  const [users, setUsers] = useState([]);
 
   const loadWx   = useCallback(()=>fetch(`${API}/weather`).then(r=>r.json()).then(setWx).catch(()=>{}), []);
   const loadSun  = useCallback(()=>fetch(`${API}/sun`).then(r=>r.json()).then(setSun).catch(()=>{}), []);
@@ -47,6 +59,7 @@ function useHub() {
   const loadRwds = useCallback(()=>fetch(`${API}/rewards`).then(r=>r.json()).then(setRwds).catch(()=>{}), []);
   const loadProjs= useCallback(()=>fetch(`${API}/projects`).then(r=>r.json()).then(d=>setProjs(Array.isArray(d)?d:[])).catch(()=>{}), []);
   const loadTasks= useCallback(()=>fetch(`${API}/tasks`).then(r=>r.json()).then(d=>setTasks(Array.isArray(d)?d:[])).catch(()=>{}), []);
+  const loadUsers= useCallback(()=>fetch(`${API}/users`).then(r=>r.json()).then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}), []);
   const loadCal  = useCallback(async()=>{
     try {
       const r=await fetch(`${API}/calendar`);
@@ -56,7 +69,7 @@ function useHub() {
   },[]);
 
   useEffect(()=>{
-    loadWx(); loadSun(); loadPts(); loadRwds(); loadProjs(); loadTasks(); loadCal();
+    loadWx(); loadSun(); loadPts(); loadRwds(); loadProjs(); loadTasks(); loadCal(); loadUsers();
     const t1=setInterval(loadWx,  600000);
     const t2=setInterval(loadSun, 600000);
     const t3=setInterval(loadTasks,30000);
@@ -64,7 +77,7 @@ function useHub() {
     return()=>{clearInterval(t1);clearInterval(t2);clearInterval(t3);clearInterval(t4);};
   },[]);
 
-  return { wx,sun,pts,setPts,tasks,setTasks,projs,evts,setEvts,authOk,rwds,setRwds, reload:{wx:loadWx,sun:loadSun,pts:loadPts,rwds:loadRwds,tasks:loadTasks,cal:loadCal,projs:loadProjs} };
+  return { wx,sun,pts,setPts,tasks,setTasks,projs,evts,setEvts,authOk,rwds,setRwds,users, reload:{wx:loadWx,sun:loadSun,pts:loadPts,rwds:loadRwds,tasks:loadTasks,cal:loadCal,projs:loadProjs} };
 }
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -156,11 +169,18 @@ function Header({ wx, sun, pts }) {
 }
 
 // ─── HOME DAILY TASK ROW ──────────────────────────────────────────────────────
-function HomeDailyTaskRow({ task, onComplete }) {
-  const [assignee, setAssignee] = useState("");
+function HomeDailyTaskRow({ task, onComplete, uidMap }) {
+  const mapped = uidMap?.[task.responsible_uid] || "";
+  const [assignee, setAssignee] = useState(mapped);
   const [done,     setDone]     = useState(false);
+  useEffect(()=>{ if(mapped && !assignee) setAssignee(mapped); }, [mapped]);
 
-  const complete = () => { setDone(true); onComplete(task, assignee, task.counts_for_reward); };
+  const family = isFamily(task);
+  const complete = () => {
+    const eff = family ? "family" : assignee;
+    setDone(true); onComplete(task, eff, task.counts_for_reward);
+  };
+  const due = fmtDue(task.due?.date);
 
   return (
     <div style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:"1px solid #f8fafc",gap:14,opacity:done?0.35:1,transition:"opacity 0.3s"}}>
@@ -170,13 +190,17 @@ function HomeDailyTaskRow({ task, onComplete }) {
       </button>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:14,color:"#1e293b",fontWeight:500,textDecoration:done?"line-through":"none"}}>{task.content}</div>
-        {task.project_name && <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{task.project_name}</div>}
+        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:2}}>
+          {task.project_name && <span style={{fontSize:11,color:"#94a3b8"}}>{task.project_name}</span>}
+          {due && <span style={{fontSize:11,fontWeight:700,color:due.color}}>{due.label}</span>}
+        </div>
       </div>
       {task.counts_for_reward && <span style={{fontSize:10,color:"#10b981",fontWeight:700}}>+5⭐</span>}
-      <div style={{display:"flex",gap:5,flexShrink:0}}>
+      <div style={{display:"flex",gap:5,flexShrink:0,alignItems:"center"}}>
+        {family && <span style={{width:28,height:28,borderRadius:"50%",background:"#6366f1",color:"#fff",fontWeight:800,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>F</span>}
         {[RABIA,CLARE].map(p=>(
-          <button key={p.name} onClick={()=>setAssignee(a=>a===p.name.toLowerCase()?"":p.name.toLowerCase())}
-            style={{width:28,height:28,borderRadius:"50%",border:`2px solid ${assignee===p.name.toLowerCase()?p.color:"#e2e8f0"}`,background:assignee===p.name.toLowerCase()?p.color:"#fff",color:assignee===p.name.toLowerCase()?"#fff":"#94a3b8",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+          <button key={p.name} onClick={()=>!family&&setAssignee(a=>a===p.name.toLowerCase()?"":p.name.toLowerCase())}
+            style={{width:28,height:28,borderRadius:"50%",border:`2px solid ${(family||assignee===p.name.toLowerCase())?p.color:"#e2e8f0"}`,background:(family||assignee===p.name.toLowerCase())?p.color:"#fff",color:(family||assignee===p.name.toLowerCase())?"#fff":"#94a3b8",fontWeight:800,fontSize:12,cursor:family?"default":"pointer",fontFamily:"inherit"}}>
             {p.initial}
           </button>
         ))}
@@ -186,7 +210,7 @@ function HomeDailyTaskRow({ task, onComplete }) {
 }
 
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
-function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompleteTask, onSetTab, wide }) {
+function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompleteTask, onSetTab, wide, uidMap }) {
   const today = new Date(); today.setHours(0,0,0,0);
   const todayStr = today.toISOString().slice(0,10);
 
@@ -202,6 +226,14 @@ function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompl
   const groceriesProj = projs.find(p=>p.name.toLowerCase()==="groceries");
   const dailyTasks = tasks.filter(t=>!t.checked && t.due?.date===todayStr && t.project_id!==groceriesProj?.id);
   const groceryTasks = groceriesProj ? tasks.filter(t=>!t.checked && t.project_id===groceriesProj.id) : [];
+
+  const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
+  const weekTasks = tasks.filter(t=>{
+    if(!t.due?.date || t.checked) return false;
+    if(t.project_id===groceriesProj?.id) return false;
+    const d=new Date(t.due.date+'T12:00:00');
+    return d > today && d <= weekEnd;
+  }).sort((a,b)=>a.due.date.localeCompare(b.due.date));
 
   const people = [RABIA, CLARE];
 
@@ -272,7 +304,35 @@ function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompl
         <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Due Today</div>
         <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{dailyTasks.length} task{dailyTasks.length!==1?"s":""}</span>
       </div>
-      {dailyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask}/>)}
+      {dailyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+    </div>
+  ) : null;
+
+  const weekCard = weekTasks.length > 0 ? (
+    <div style={{...CARD, overflow:"hidden"}}>
+      <div style={{padding:"14px 20px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:16}}>🗓</span>
+        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Upcoming This Week</div>
+        <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length} task{weekTasks.length!==1?"s":""}</span>
+      </div>
+      {weekTasks.map(t=>{
+        const due=fmtDue(t.due?.date);
+        const assignedTo = uidMap?.[t.responsible_uid];
+        const person = assignedTo==="rabia"?RABIA:assignedTo==="clare"?CLARE:null;
+        return (
+          <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:56,borderBottom:"1px solid #f8fafc",gap:14}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,color:"#1e293b",fontWeight:500}}>{t.content}</div>
+              <div style={{display:"flex",gap:8,alignItems:"center",marginTop:2}}>
+                {t.project_name && <span style={{fontSize:11,color:"#94a3b8"}}>{t.project_name}</span>}
+              </div>
+            </div>
+            {t.counts_for_reward && <span style={{fontSize:10,color:"#10b981",fontWeight:700}}>+5⭐</span>}
+            {person && <Av person={person} size={24}/>}
+            {due && <span style={{fontSize:12,fontWeight:700,color:due.color,flexShrink:0}}>{due.label}</span>}
+          </div>
+        );
+      })}
     </div>
   ) : null;
 
@@ -302,6 +362,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompl
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>{personCards}</div>
         {tasksCard}
+        {weekCard}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
         {calCard}
@@ -315,13 +376,14 @@ function HomeTab({ evts, tasks, projs, pts, wx, sun, authOk, onResetPts, onCompl
       {personCards}
       {calCard}
       {tasksCard}
+      {weekCard}
       {grocCard}
     </div>
   );
 }
 
 // ─── TASKS TAB ────────────────────────────────────────────────────────────────
-function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload }) {
+function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidMap }) {
   const [adding, setAdding]   = useState(null); // project_id being added to
   const [newContent, setNewContent] = useState("");
   const [newDue,     setNewDue]     = useState("");
@@ -379,7 +441,7 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload }) {
               <div style={{padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:14}}>No tasks — tap + to add one</div>
             )}
             {pt.map(t=>(
-              <TaskRow key={t.id} task={t} projColor={projColor} isReward={isReward} onComplete={onComplete} onDelete={onDelete}/>
+              <TaskRow key={t.id} task={t} projColor={projColor} isReward={isReward} onComplete={onComplete} onDelete={onDelete} uidMap={uidMap}/>
             ))}
           </div>
         );
@@ -392,12 +454,18 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload }) {
   );
 }
 
-function TaskRow({ task, projColor, isReward, onComplete, onDelete }) {
-  const [assignee, setAssignee] = useState("");
+function TaskRow({ task, projColor, isReward, onComplete, onDelete, uidMap }) {
+  const mapped = uidMap?.[task.responsible_uid] || "";
+  const [assignee, setAssignee] = useState(mapped);
   const [done, setDone] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
+  useEffect(()=>{ if(mapped && !assignee) setAssignee(mapped); }, [mapped]);
 
-  const complete = () => { setDone(true); onComplete(task, assignee, isReward); };
+  const family = isFamily(task);
+  const complete = () => {
+    const eff = family ? "family" : assignee;
+    setDone(true); onComplete(task, eff, isReward);
+  };
+  const due = fmtDue(task.due?.date);
 
   return (
     <div style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:"1px solid #f8fafc",gap:14,opacity:done?0.35:1,transition:"opacity 0.3s"}}>
@@ -406,12 +474,13 @@ function TaskRow({ task, projColor, isReward, onComplete, onDelete }) {
       </button>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:15,color:"#1e293b",fontWeight:500,textDecoration:done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.content}</div>
-        {task.due?.string && <div style={{fontSize:12,color:"#94a3b8",marginTop:1}}>{task.due.string}</div>}
+        {due && <span style={{fontSize:11,fontWeight:700,color:due.color}}>{due.label}</span>}
       </div>
       {isReward && <span style={{fontSize:11,color:"#10b981",fontWeight:700,flexShrink:0}}>+5⭐</span>}
-      <div style={{display:"flex",gap:5,flexShrink:0}}>
+      <div style={{display:"flex",gap:5,flexShrink:0,alignItems:"center"}}>
+        {family && <span style={{width:28,height:28,borderRadius:"50%",background:"#6366f1",color:"#fff",fontWeight:800,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>F</span>}
         {[RABIA,CLARE].map(p=>(
-          <button key={p.name} onClick={()=>setAssignee(a=>a===p.name.toLowerCase()?"":p.name.toLowerCase())} style={{width:28,height:28,borderRadius:"50%",border:`2px solid ${assignee===p.name.toLowerCase()?p.color:"#e2e8f0"}`,background:assignee===p.name.toLowerCase()?p.color:"#fff",color:assignee===p.name.toLowerCase()?"#fff":"#94a3b8",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{p.initial}</button>
+          <button key={p.name} onClick={()=>!family&&setAssignee(a=>a===p.name.toLowerCase()?"":p.name.toLowerCase())} style={{width:28,height:28,borderRadius:"50%",border:`2px solid ${(family||assignee===p.name.toLowerCase())?p.color:"#e2e8f0"}`,background:(family||assignee===p.name.toLowerCase())?p.color:"#fff",color:(family||assignee===p.name.toLowerCase())?"#fff":"#94a3b8",fontWeight:800,fontSize:12,cursor:family?"default":"pointer",fontFamily:"inherit"}}>{p.initial}</button>
         ))}
         <button onClick={()=>onDelete(task)} style={{width:28,height:28,borderRadius:"50%",border:"1px solid #fee2e2",background:"#fff5f5",color:"#ef4444",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>×</button>
       </div>
@@ -562,8 +631,27 @@ function CalendarTab({ evts, authOk, reload }) {
 
 // ─── WEATHER TAB ──────────────────────────────────────────────────────────────
 function WeatherTab({ wx }) {
+  const [selDay, setSelDay] = useState(null);
   if(!wx?.current) return <div style={{...CARD,padding:32,textAlign:"center",color:"#94a3b8"}}>Loading weather…</div>;
-  const cur=wx.current, daily=wx.daily, code=cur.weather_code;
+  const cur=wx.current, daily=wx.daily, hourly=wx.hourly, code=cur.weather_code;
+
+  const hourlyForDay = (dateStr) => {
+    if(!hourly?.time) return [];
+    return hourly.time.reduce((acc,t,i)=>{
+      if(t.startsWith(dateStr)) acc.push({
+        time:t, h:parseInt(t.slice(11,13)),
+        temp:hourly.temperature_2m[i],
+        precip_prob:hourly.precipitation_probability[i]||0,
+        precip:hourly.precipitation[i]||0,
+        code:hourly.weather_code[i],
+      });
+      return acc;
+    },[]);
+  };
+
+  const selDateStr = selDay!==null ? daily?.time?.[selDay] : null;
+  const selHours   = selDateStr ? hourlyForDay(selDateStr) : [];
+
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{borderRadius:24,padding:"32px 28px 26px",background:"linear-gradient(145deg,#0ea5e9,#6366f1)",color:"#fff",position:"relative",overflow:"hidden",boxShadow:"0 8px 32px rgba(14,165,233,0.3)"}}>
@@ -579,21 +667,53 @@ function WeatherTab({ wx }) {
         </div>
       </div>
       <div style={{...CARD,padding:"20px"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>7-day forecast</div>
+        <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>7-day forecast — tap a day for hourly detail</div>
         <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:4}}>
           {(daily?.time||[]).map((date,i)=>{
-            const d=new Date(date),isT=i===0;
+            const d=new Date(date),isT=i===0,isSel=selDay===i;
             return (
-              <div key={i} style={{flex:"0 0 auto",width:88,textAlign:"center",background:isT?"#eff6ff":"#f8fafc",border:isT?"2px solid #38bdf850":"1px solid #f1f5f9",borderRadius:18,padding:"14px 8px"}}>
-                <div style={{fontSize:11,fontWeight:700,color:isT?"#0ea5e9":"#94a3b8",marginBottom:6}}>{isT?"Today":d.toLocaleDateString("en",{weekday:"short"})}</div>
+              <div key={i} onClick={()=>setSelDay(v=>v===i?null:i)}
+                style={{flex:"0 0 auto",width:88,textAlign:"center",background:isSel?"#e0f2fe":isT?"#eff6ff":"#f8fafc",border:isSel?"2px solid #0ea5e9":isT?"2px solid #38bdf850":"1px solid #f1f5f9",borderRadius:18,padding:"14px 8px",cursor:"pointer",transition:"all 0.15s"}}>
+                <div style={{fontSize:11,fontWeight:700,color:isSel?"#0ea5e9":isT?"#0ea5e9":"#94a3b8",marginBottom:6}}>{isT?"Today":d.toLocaleDateString("en",{weekday:"short"})}</div>
                 <div style={{fontSize:26,lineHeight:1,marginBottom:8}}>{wxE(daily.weather_code[i])}</div>
                 <div style={{fontSize:15,fontWeight:800,color:"#1e293b"}}>{Math.round(daily.temperature_2m_max[i])}°</div>
                 <div style={{fontSize:12,color:"#94a3b8"}}>{Math.round(daily.temperature_2m_min[i])}°</div>
                 {(daily.precipitation_probability_max[i]||0)>20 && <div style={{fontSize:11,color:"#38bdf8",marginTop:4}}>💧{daily.precipitation_probability_max[i]}%</div>}
+                <div style={{fontSize:10,color:isSel?"#0ea5e9":"#cbd5e1",marginTop:6}}>{isSel?"▲ hide":"▼ detail"}</div>
               </div>
             );
           })}
         </div>
+
+        {/* Hourly detail panel */}
+        {selDay!==null && selHours.length>0 && (
+          <div style={{marginTop:18,borderTop:"1px solid #e2e8f0",paddingTop:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>
+              {selDateStr ? new Date(selDateStr+'T12:00').toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"}) : "Hourly"} — hour by hour
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+              {selHours.filter(hh=>hh.h>=6&&hh.h<=23).map(hh=>(
+                <div key={hh.time} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 12px",borderRadius:12,background:hh.precip_prob>60?"#e0f2fe":hh.precip_prob>30?"#f0f9ff":"transparent",minHeight:44}}>
+                  <div style={{width:48,fontSize:12,fontWeight:700,color:"#64748b",flexShrink:0}}>{hh.h===12?"12pm":hh.h>12?`${hh.h-12}pm`:`${hh.h}am`}</div>
+                  <div style={{fontSize:22,flexShrink:0}}>{wxE(hh.code)}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,color:"#64748b"}}>{wxL(hh.code)}</div>
+                  </div>
+                  <div style={{fontSize:16,fontWeight:800,color:"#1e293b",flexShrink:0}}>{Math.round(hh.temp)}°</div>
+                  {hh.precip_prob>10 && (
+                    <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                      <span style={{fontSize:14}}>💧</span>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:12,fontWeight:700,color:"#38bdf8"}}>{hh.precip_prob}%</div>
+                        {hh.precip>0&&<div style={{fontSize:10,color:"#94a3b8"}}>{hh.precip.toFixed(1)}mm</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -956,6 +1076,12 @@ export default function App() {
   const hub = useHub();
   const wide = useWide();
 
+  const uidMap = {};
+  hub.users.forEach(u=>{
+    if(u.email==='rabia1082@gmail.com')           uidMap[u.id]='rabia';
+    if(u.email==='clare.a.tiedemann@gmail.com')   uidMap[u.id]='clare';
+  });
+
   const handleCompleteTask = async (task, who, countsForReward) => {
     hub.setTasks(ts=>ts.filter(t=>t.id!==task.id));
     const res = await fetch(`${API}/tasks/${task.id}/close`,{
@@ -984,7 +1110,7 @@ export default function App() {
     <div style={{ height:"100vh", display:"flex", flexDirection:"column", background:"#f0f4f8", fontFamily:"'DM Sans','Segoe UI',sans-serif", overflow:"hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&display=swap');
-        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; -webkit-overflow-scrolling:touch; }
         body { background:#f0f4f8; overscroll-behavior:none; }
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
@@ -1016,9 +1142,9 @@ export default function App() {
         )}
 
         {/* Scrollable content */}
-        <div style={{ flex:1, overflowY:"auto", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
-          {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} sun={hub.sun} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide}/>}
-          {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload}/>}
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", touchAction:"pan-y", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
+          {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} sun={hub.sun} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
+          {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx}/>}

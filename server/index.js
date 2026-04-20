@@ -86,7 +86,7 @@ app.post('/api/lights/scene', async (req,res) => {
 app.get('/api/weather', async (req,res) => {
   const lat=process.env.LAT||'40.7128', lon=process.env.LON||'-74.0060', city=process.env.CITY||'New York';
   try {
-    const data = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`).then(r=>r.json());
+    const data = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,precipitation_probability,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`).then(r=>r.json());
     res.json({city,...data});
   } catch(e) { res.status(500).json({error:e.message}); }
 });
@@ -147,8 +147,9 @@ app.post('/api/tasks/:id/close', async (req,res) => {
     await fetch(`${TODO_BASE}/tasks/${req.params.id}/close`,{method:'POST',headers:TODO_HDR});
     const data = loadData();
     if (req.body.counts_for_reward) {
-      if (req.body.assignee==='rabia') data.rabia_points=Math.min((data.rabia_points||0)+5,9999);
-      if (req.body.assignee==='clare') data.clare_points=Math.min((data.clare_points||0)+5,9999);
+      const who = req.body.assignee;
+      if (who==='rabia'  || who==='family') data.rabia_points=Math.min((data.rabia_points||0)+5,9999);
+      if (who==='clare'  || who==='family') data.clare_points=Math.min((data.clare_points||0)+5,9999);
     }
     saveData(data);
     res.json({ok:true, points:data});
@@ -168,6 +169,24 @@ app.patch('/api/tasks/:id', async (req,res) => {
   try {
     const updated = await fetch(`${TODO_BASE}/tasks/${req.params.id}`,{method:'POST',headers:TODO_HDR,body:JSON.stringify(req.body)}).then(r=>r.json());
     res.json(updated);
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// GET /api/users — current user + collaborators (for UID→person mapping)
+app.get('/api/users', async (req,res) => {
+  try {
+    const [me, projData] = await Promise.all([
+      fetch(`${TODO_BASE}/user`,{headers:TODO_HDR}).then(r=>r.json()),
+      fetch(`${TODO_BASE}/projects`,{headers:TODO_HDR}).then(r=>r.json()),
+    ]);
+    const shared = todoList(projData).filter(p=>p.is_shared);
+    const collabArrays = await Promise.all(
+      shared.map(p=>fetch(`${TODO_BASE}/projects/${p.id}/collaborators`,{headers:TODO_HDR}).then(r=>r.json()).catch(()=>({})))
+    );
+    const seen = {};
+    if(me.id) seen[me.id]={id:me.id,email:me.email,name:me.full_name};
+    collabArrays.forEach(c=>todoList(c).forEach(u=>{ if(u.id) seen[u.id]={id:u.id,email:u.email,name:u.full_name||u.name}; }));
+    res.json(Object.values(seen));
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
