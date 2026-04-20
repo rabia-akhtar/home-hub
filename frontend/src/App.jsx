@@ -487,6 +487,39 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   // ── Bottom row ────────────────────────────────────────────────────────────
   const [weekOpen, setWeekOpen] = useState(false);
+
+  const weekRabia  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"||t.project_id===rabiaPersonalProj?.id; });
+  const weekClare  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
+  const weekFamily = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
+
+  const WeekCol = ({person, tasks:wt, color}) => (
+    <div style={{display:"flex",flexDirection:"column",gap:0,minWidth:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderBottom:"1px solid #f1f5f9",background:`${color}08`}}>
+        {person
+          ? <Av person={person} size={20}/>
+          : <div style={{width:20,height:20,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>F</div>
+        }
+        <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{person?.name||"Family"}</span>
+        <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{wt.length}</span>
+      </div>
+      {wt.length===0
+        ? <div style={{padding:"10px 14px",fontSize:12,color:"#94a3b8"}}>Nothing this week</div>
+        : wt.map(t=>{
+            const due=fmtDue(t.due?.date);
+            return (
+              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 14px",minHeight:46,borderBottom:"1px solid #f8fafc",gap:10}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
+                  {t.project_name && <div style={{fontSize:10,color:"#94a3b8"}}>{t.project_name}</div>}
+                </div>
+                {due && <span style={{fontSize:11,fontWeight:700,color:due.color,flexShrink:0,whiteSpace:"nowrap"}}>{due.label}</span>}
+              </div>
+            );
+          })
+      }
+    </div>
+  );
+
   const weekCard = (
     <div style={{...CARD,overflow:"hidden"}}>
       <div onClick={()=>setWeekOpen(v=>!v)} style={{padding:"14px 18px",background:"#fafafa",display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
@@ -495,23 +528,14 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
         <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length}</span>
         <svg style={{marginLeft:"auto",transform:weekOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}} width="16" height="16" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </div>
-      {weekOpen && (weekTasks.length===0
-        ? <div style={{padding:"16px 18px",fontSize:13,color:"#94a3b8",borderTop:"1px solid #f1f5f9"}}>Nothing coming up</div>
-        : weekTasks.map(t=>{
-          const due=fmtDue(t.due?.date);
-          const a=uidMap?.[t.responsible_uid];
-          const person=a==="rabia"?RABIA:a==="clare"?CLARE:null;
-          return (
-            <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:50,borderTop:"1px solid #f8fafc",gap:12}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
-                {t.project_name && <div style={{fontSize:11,color:"#94a3b8"}}>{t.project_name}</div>}
-              </div>
-              {person && <Av person={person} size={22}/>}
-              {due && <span style={{fontSize:12,fontWeight:700,color:due.color,flexShrink:0}}>{due.label}</span>}
+      {weekOpen && (
+        weekTasks.length===0
+          ? <div style={{padding:"16px 18px",fontSize:13,color:"#94a3b8",borderTop:"1px solid #f1f5f9"}}>Nothing coming up this week</div>
+          : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderTop:"1px solid #f1f5f9"}}>
+              <WeekCol person={RABIA}  tasks={weekRabia}  color={RABIA.color}/>
+              <div style={{borderLeft:"1px solid #f1f5f9"}}><WeekCol person={CLARE} tasks={weekClare} color={CLARE.color}/></div>
+              <div style={{borderLeft:"1px solid #f1f5f9"}}><WeekCol person={null}  tasks={weekFamily} color="#6366f1"/></div>
             </div>
-          );
-        })
       )}
     </div>
   );
