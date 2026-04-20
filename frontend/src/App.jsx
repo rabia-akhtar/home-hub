@@ -473,21 +473,23 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   );
 
   // ── Bottom row ────────────────────────────────────────────────────────────
+  const [weekOpen, setWeekOpen] = useState(false);
   const weekCard = (
     <div style={{...CARD,overflow:"hidden"}}>
-      <div style={{padding:"14px 18px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
+      <div onClick={()=>setWeekOpen(v=>!v)} style={{padding:"14px 18px",background:"#fafafa",display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#6366f1" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="#6366f1" strokeWidth="1.5"/></svg>
         <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Upcoming This Week</div>
         <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length}</span>
+        <svg style={{marginLeft:"auto",transform:weekOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}} width="16" height="16" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </div>
-      {weekTasks.length===0
-        ? <div style={{padding:"16px 18px",fontSize:13,color:"#94a3b8"}}>Nothing coming up</div>
+      {weekOpen && (weekTasks.length===0
+        ? <div style={{padding:"16px 18px",fontSize:13,color:"#94a3b8",borderTop:"1px solid #f1f5f9"}}>Nothing coming up</div>
         : weekTasks.map(t=>{
           const due=fmtDue(t.due?.date);
           const a=uidMap?.[t.responsible_uid];
           const person=a==="rabia"?RABIA:a==="clare"?CLARE:null;
           return (
-            <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:50,borderBottom:"1px solid #f8fafc",gap:12}}>
+            <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:50,borderTop:"1px solid #f8fafc",gap:12}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
                 {t.project_name && <div style={{fontSize:11,color:"#94a3b8"}}>{t.project_name}</div>}
@@ -497,7 +499,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
             </div>
           );
         })
-      }
+      )}
     </div>
   );
 
