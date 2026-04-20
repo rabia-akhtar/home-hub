@@ -322,9 +322,10 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   const clareEvts = todayEvts.filter(e=>e.calendar==="Clare");
 
   const nonGrocToday = tasks.filter(t=>!t.checked && t.due?.date===todayStr && t.project_id!==groceriesProj?.id);
-  const rabiaTasks  = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"||t.project_id===rabiaPersonalProj?.id; });
+  const rabiaTasks  = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"&&t.project_id!==rabiaPersonalProj?.id; });
   const clareTasks  = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
   const familyTasks = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
+  const rabiaPersonalTasks = rabiaPersonalProj ? tasks.filter(t=>!t.checked && t.project_id===rabiaPersonalProj.id) : [];
 
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
   const weekTasks = tasks.filter(t=>{
@@ -387,7 +388,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </svg>
   );
 
-  const makeCol = (person, myEvts, myTasks) => {
+  const makeCol = (person, myEvts, myTasks, personalTasks=[]) => {
     const pKey  = person.name.toLowerCase();
     const points= pts[`${pKey}_points`]||0;
     const next  = [100,250,500,750,1000].find(m=>m>points)||1000;
@@ -441,6 +442,18 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
               <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{myTasks.length}</span>
             </div>
             {myTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+          </div>
+        )}
+
+        {/* Personal project tasks */}
+        {personalTasks.length>0 && (
+          <div style={{...CARD,overflow:"hidden"}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:`linear-gradient(135deg,${person.color}10,${person.color}05)`,display:"flex",alignItems:"center",gap:8}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke={person.color} strokeWidth="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke={person.color} strokeWidth="2" strokeLinecap="round"/></svg>
+              <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Personal</div>
+              <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{personalTasks.length}</span>
+            </div>
+            {personalTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
           </div>
         )}
       </div>
@@ -528,7 +541,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       {advisoryBanner}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"start"}}>
-        {makeCol(RABIA, rabiaEvts, rabiaTasks)}
+        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks)}
         {makeCol(CLARE, clareEvts, clareTasks)}
         {familyCol}
       </div>
@@ -542,7 +555,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       {advisoryBanner}
-      {makeCol(RABIA, rabiaEvts, rabiaTasks)}
+      {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks)}
       {makeCol(CLARE, clareEvts, clareTasks)}
       {familyCol}
       {weekCard}
