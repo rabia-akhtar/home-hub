@@ -1311,8 +1311,8 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-        html, body { touch-action:manipulation; }
-        .scroll-area { overflow-y:scroll !important; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
+        html, body { touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+        input, textarea { user-select:text !important; -webkit-user-select:text !important; }
         body { background:#f0f4f8; overscroll-behavior:none; }
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
@@ -1344,7 +1344,7 @@ export default function App() {
         )}
 
         {/* Scrollable content */}
-        <div style={{ flex:1, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
+        <div style={{ flex:1, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
