@@ -1,12 +1,31 @@
 require('dotenv').config();
 const express    = require('express');
 const cors       = require('cors');
-const { Client } = require('tplink-smarthome-api');
 const fetch      = (...a) => import('node-fetch').then(({ default: f }) => f(...a));
 const fs         = require('fs');
 const path       = require('path');
 const { exec }   = require('child_process');
 const { google } = require('googleapis');
+
+// ─── PIR motion sensor (Raspberry Pi GPIO via onoff) ──────────────────────────
+let lastMotion = null;
+let pirWatcher = null;
+try {
+  const { Gpio } = require('onoff');
+  const PIR_PIN  = parseInt(process.env.PIR_GPIO || '17');
+  pirWatcher = new Gpio(PIR_PIN, 'in', 'both');
+  pirWatcher.watch((err, value) => {
+    if (err) return;
+    if (value === 1) {
+      lastMotion = new Date();
+      exec('DISPLAY=:0 xset dpms force on 2>/dev/null; DISPLAY=:0 xset s reset 2>/dev/null', ()=>{});
+      console.log('[PIR] Motion detected — screen woken');
+    }
+  });
+  console.log(`[PIR] Watching GPIO ${PIR_PIN}`);
+} catch(e) {
+  console.log('[PIR] GPIO not available (non-Pi or onoff not installed):', e.message);
+}
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -49,78 +68,163 @@ function countsForReward(projectName) {
   return REWARD_PROJECTS.includes((projectName||'').toLowerCase().trim());
 }
 
-// ─── Kasa ─────────────────────────────────────────────────────────────────────
-const kasaClient = new Client();
-let deviceCache  = {};
-let kasaLog      = [];   // rolling log for /api/lights/debug
+// ─── Kasa / Tapo KLAP protocol (EP25 + newer devices) ───────────────────────
+// EP25 uses KLAP over HTTP port 80 — the old tplink-smarthome-api (port 9999) won't work.
+// Requires: npm install tp-link-tapo-connect   in ~/home-hub/server/
+// Credentials go in .env: KASA_EMAIL=you@email.com  KASA_PASSWORD=yourpassword
 
-function kasaInfo(msg) { const t=new Date().toISOString(); console.log('[Kasa]',msg); kasaLog.push(`${t} ${msg}`); if(kasaLog.length>50) kasaLog.shift(); }
+const KASA_EMAIL    = process.env.KASA_EMAIL;
+const KASA_PASSWORD = process.env.KASA_PASSWORD;
 
-// Static IPs — bypass UDP discovery for known devices
-const STATIC_KASA_IPS = ['192.168.1.189'];
+// Static device list — add more entries as needed
+const TAPO_DEVICES = [
+  { alias: 'Smart Plug Flower', host: '192.168.1.189' },
+];
 
-async function connectStaticDevices() {
-  for (const host of STATIC_KASA_IPS) {
+let tapo        = null;   // tp-link-tapo-connect client
+let tapoCache   = {};     // alias → { host, alias, token, on, power_mw }
+let tapoLog     = [];
+let tapoReady   = false;
+
+function tapoInfo(msg) {
+  const t = new Date().toISOString();
+  console.log('[Tapo]', msg);
+  tapoLog.push(`${t} ${msg}`);
+  if (tapoLog.length > 60) tapoLog.shift();
+}
+
+async function initTapo() {
+  if (!KASA_EMAIL || !KASA_PASSWORD) {
+    tapoInfo('⚠ KASA_EMAIL / KASA_PASSWORD not set in .env — Lights tab disabled');
+    return;
+  }
+  try {
+    const mod = require('tp-link-tapo-connect');
+    // The package exports either a class or named functions depending on version
+    tapo = mod.TapoConnect ? new mod.TapoConnect(KASA_EMAIL, KASA_PASSWORD)
+                           : mod;
+    tapoReady = true;
+    tapoInfo('Tapo client ready — connecting to devices…');
+    await refreshTapoDevices();
+  } catch(e) {
+    tapoInfo(`Failed to load tp-link-tapo-connect: ${e.message}`);
+    tapoInfo('Run: cd ~/home-hub/server && npm install tp-link-tapo-connect');
+  }
+}
+
+async function loginDevice(host) {
+  // Handles both API styles of tp-link-tapo-connect
+  if (tapo.loginDeviceByIp) return tapo.loginDeviceByIp(KASA_EMAIL, KASA_PASSWORD, host);
+  if (tapo.loginDevice)     return tapo.loginDevice(host);
+  throw new Error('Unrecognised tp-link-tapo-connect API');
+}
+
+async function getDeviceOn(token) {
+  let info;
+  if (tapo.getDeviceInfo) info = await tapo.getDeviceInfo(token);
+  else if (tapo.getDeviceState) info = await tapo.getDeviceState(token);
+  else throw new Error('Cannot read device info');
+  return info.device_on ?? info.relay_state === 1 ?? false;
+}
+
+async function refreshTapoDevices() {
+  if (!tapoReady) return;
+  for (const dev of TAPO_DEVICES) {
     try {
-      kasaInfo(`Trying static IP ${host}…`);
-      const device = await kasaClient.getDevice({ host });
-      deviceCache[device.alias] = device;
-      kasaInfo(`✓ Static connected: "${device.alias}" @ ${host}`);
+      tapoInfo(`Connecting to ${dev.alias} @ ${dev.host}…`);
+      const token = await loginDevice(dev.host);
+      const on    = await getDeviceOn(token);
+      tapoCache[dev.alias] = { ...dev, token, on };
+      tapoInfo(`✓ ${dev.alias}: ${on ? 'ON' : 'OFF'}`);
     } catch(e) {
-      kasaInfo(`✗ Static ${host} failed: ${e.message}`);
+      tapoInfo(`✗ ${dev.alias} @ ${dev.host}: ${e.message}`);
+      // Keep stale entry so UI still shows device (greyed out)
+      if (!tapoCache[dev.alias]) tapoCache[dev.alias] = { ...dev, token: null, on: false, unreachable: true };
     }
   }
 }
 
-async function discoverKasa() {
-  return new Promise(resolve => {
-    const found = {};
-    kasaInfo('Starting UDP discovery…');
-    kasaClient.startDiscovery({ discoveryTimeout: 4000 })
-      .on('device-new', device => {
-        kasaInfo(`✓ Discovered: "${device.alias}" @ ${device.host}`);
-        found[device.alias] = device;
-        deviceCache = { ...deviceCache, ...found };
-      });
-    setTimeout(() => {
-      kasaInfo(`Discovery done. Cache: [${Object.keys(deviceCache).join(', ') || 'empty'}]`);
-      resolve(found);
-    }, 4500);
-  });
+initTapo();
+setInterval(refreshTapoDevices, 30000);
+
+// GET /api/lights — list all devices with current state
+app.get('/api/lights', async (req, res) => {
+  try {
+    // Refresh states inline for accurate reading
+    if (tapoReady) {
+      for (const alias of Object.keys(tapoCache)) {
+        const d = tapoCache[alias];
+        if (!d.token) continue;
+        try {
+          d.on = await getDeviceOn(d.token);
+          d.unreachable = false;
+        } catch { d.unreachable = true; }
+      }
+    }
+    const devices = Object.values(tapoCache).map(d => ({
+      id:          d.alias.toLowerCase().replace(/\s+/g, '_'),
+      alias:       d.alias,
+      on:          d.on,
+      unreachable: d.unreachable || false,
+      host:        d.host,
+      brightness:  null,  // EP25 is a plug, no brightness
+      power_mw:    null,
+    }));
+    res.json(devices);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+async function tapoSetPower(alias, state) {
+  const d = tapoCache[alias];
+  if (!d) throw new Error('Device not found');
+  if (!d.token) throw new Error('Device not connected — check credentials and IP');
+  if (tapo.setPowerState)  await tapo.setPowerState(d.token, state);
+  else if (tapo.turnOn && state)  await tapo.turnOn(d.token);
+  else if (tapo.turnOff && !state) await tapo.turnOff(d.token);
+  else throw new Error('Cannot control device — unrecognised API');
+  d.on = state;
 }
 
-connectStaticDevices();
-discoverKasa();
-setInterval(()=>{ connectStaticDevices(); discoverKasa(); }, 30000);
+app.post('/api/lights/:alias/on',  async (req, res) => {
+  try { await tapoSetPower(req.params.alias, true);  res.json({ ok: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/lights/:alias/off', async (req, res) => {
+  try { await tapoSetPower(req.params.alias, false); res.json({ ok: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/lights/:alias/brightness', async (req, res) => {
+  // EP25 is a plain plug — brightness not supported
+  res.json({ ok: true, note: 'EP25 does not support brightness' });
+});
+const LIGHT_SCENES = { bright:{on:true}, relax:{on:true}, night:{on:true}, away:{on:false} };
+app.post('/api/lights/scene', async (req, res) => {
+  const cfg = LIGHT_SCENES[req.body.scene];
+  if (!cfg) return res.status(400).json({ error: 'Unknown scene' });
+  await Promise.all(Object.keys(tapoCache).map(alias => tapoSetPower(alias, cfg.on).catch(()=>{})));
+  res.json({ ok: true });
+});
 
-// Debug endpoint — call http://pi:3001/api/lights/debug to see what's happening
+// Debug
 app.get('/api/lights/debug', (req, res) => {
   res.json({
-    cached: Object.keys(deviceCache).map(k => ({ alias: k, host: deviceCache[k].host })),
-    static_ips: STATIC_KASA_IPS,
-    log: kasaLog.slice(-30),
+    ready:   tapoReady,
+    devices: Object.values(tapoCache).map(d => ({ alias: d.alias, host: d.host, on: d.on, hasToken: !!d.token, unreachable: d.unreachable })),
+    log:     tapoLog.slice(-30),
+    credentials_set: !!(KASA_EMAIL && KASA_PASSWORD),
   });
 });
 
-app.get('/api/lights', async (req,res) => {
-  try {
-    const devices = await Promise.all(Object.values(deviceCache).map(async d => {
-      try {
-        const info = await d.getSysInfo();
-        return { id:d.alias.toLowerCase().replace(/\s+/g,'_'), alias:d.alias, on:info.relay_state===1||info.light_state?.on_off===1, brightness:info.light_state?.brightness??null, power_mw:info.emeter_realtime?.power_mw??null, host:d.host };
-      } catch { return null; }
-    }));
-    res.json(devices.filter(Boolean));
-  } catch(e) { res.status(500).json({error:e.message}); }
+// ─── Motion sensor ────────────────────────────────────────────────────────────
+app.get('/api/motion', (req, res) => {
+  const secAgo = lastMotion ? Math.floor((Date.now() - lastMotion.getTime()) / 1000) : null;
+  res.json({ lastMotion: lastMotion?.toISOString() || null, secondsAgo: secAgo, active: secAgo !== null && secAgo < 120 });
 });
-app.post('/api/lights/:alias/on',  async (req,res) => { const d=deviceCache[req.params.alias]; if(!d) return res.status(404).json({error:'Not found'}); await d.setPowerState(true);  res.json({ok:true}); });
-app.post('/api/lights/:alias/off', async (req,res) => { const d=deviceCache[req.params.alias]; if(!d) return res.status(404).json({error:'Not found'}); await d.setPowerState(false); res.json({ok:true}); });
-app.post('/api/lights/:alias/brightness', async (req,res) => { const d=deviceCache[req.params.alias]; if(!d) return res.status(404).json({error:'Not found'}); if(d.lighting) await d.lighting.setLightingService({brightness:req.body.brightness}); res.json({ok:true}); });
-const LIGHT_SCENES = { bright:{on:true,brightness:100}, relax:{on:true,brightness:45}, night:{on:true,brightness:10}, away:{on:false,brightness:0} };
-app.post('/api/lights/scene', async (req,res) => {
-  const cfg=LIGHT_SCENES[req.body.scene]; if(!cfg) return res.status(400).json({error:'Unknown scene'});
-  await Promise.all(Object.values(deviceCache).map(async d => { try { await d.setPowerState(cfg.on); if(cfg.on&&d.lighting) await d.lighting.setLightingService({brightness:cfg.brightness}); } catch{} }));
-  res.json({ok:true});
+app.post('/api/motion/simulate', (req, res) => {
+  // Useful for testing without hardware
+  lastMotion = new Date();
+  exec('DISPLAY=:0 xset dpms force on 2>/dev/null', ()=>{});
+  res.json({ ok: true, lastMotion: lastMotion.toISOString() });
 });
 
 // ─── Weather ──────────────────────────────────────────────────────────────────
@@ -174,6 +278,50 @@ app.get('/api/projects', async (req,res) => {
     const r = await fetch(`${TODO_BASE}/projects`,{headers:TODO_HDR}).then(r=>r.json());
     res.json(todoList(r));
   } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// ─── Recipes (Edamam) ────────────────────────────────────────────────────────
+const EDAMAM_ID  = process.env.EDAMAM_APP_ID;
+const EDAMAM_KEY = process.env.EDAMAM_APP_KEY;
+const EDAMAM_FIELDS = ['label','image','ingredientLines','calories','totalTime','cuisineType','mealType','yield','source','url'].map(f=>`field=${f}`).join('&');
+
+// GET /api/recipes/search?q=...&next=<url>
+app.get('/api/recipes/search', async (req, res) => {
+  try {
+    if (!EDAMAM_ID || !EDAMAM_KEY) return res.status(500).json({ error: 'Edamam credentials not set in .env (EDAMAM_APP_ID / EDAMAM_APP_KEY)' });
+    const q = req.query.q;
+    if (!q) return res.json({ hits: [], count: 0 });
+    // Support pagination via ?next=<encoded url>
+    const url = req.query.next
+      ? decodeURIComponent(req.query.next)
+      : `https://api.edamam.com/api/recipes/v2?type=public&q=${encodeURIComponent(q)}&app_id=${EDAMAM_ID}&app_key=${EDAMAM_KEY}&${EDAMAM_FIELDS}`;
+    const data = await fetch(url).then(r => r.json());
+    res.json({
+      hits:  data.hits || [],
+      count: data.count || 0,
+      next:  data._links?.next?.href || null,
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/recipes/add-ingredients  body: { ingredients: string[], recipeName: string }
+app.post('/api/recipes/add-ingredients', async (req, res) => {
+  try {
+    const { ingredients, recipeName } = req.body;
+    if (!ingredients?.length) return res.status(400).json({ error: 'No ingredients' });
+    // Find the Groceries project
+    const projects = await fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json());
+    const grocProj  = todoList(projects).find(p => p.name.toLowerCase() === 'groceries');
+    if (!grocProj) return res.status(404).json({ error: 'Groceries project not found in Todoist' });
+    // Create one task per ingredient (parallel)
+    await Promise.all(ingredients.map(line =>
+      fetch(`${TODO_BASE}/tasks`, {
+        method: 'POST', headers: TODO_HDR,
+        body: JSON.stringify({ content: line, project_id: grocProj.id, description: `From: ${recipeName}` }),
+      })
+    ));
+    res.json({ ok: true, added: ingredients.length, project: grocProj.name });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // POST /api/tasks — create
