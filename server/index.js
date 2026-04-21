@@ -77,9 +77,13 @@ const KASA_EMAIL    = process.env.KASA_EMAIL;
 const KASA_PASSWORD = process.env.KASA_PASSWORD;
 
 // Static device list — add more entries as needed
+// Device IPs: set KASA_IP_GLOBE and KASA_IP_LAMP in .env
+// To find IPs: run  nmap -sn 192.168.1.0/24  on the Pi and look for TP-Link entries
 const TAPO_DEVICES = [
-  { alias: 'Smart Plug Flower', host: '192.168.1.189' },
-];
+  { alias: 'Smart Plug Flower',    host: process.env.KASA_IP_FLOWER || '192.168.1.189' },
+  { alias: 'Smart Plug Globe',     host: process.env.KASA_IP_GLOBE  || '' },
+  { alias: 'Smart Plug Long Lamp', host: process.env.KASA_IP_LAMP   || '' },
+].filter(d => d.host.trim());
 
 let tapo        = null;   // tp-link-tapo-connect client
 let tapoCache   = {};     // alias → { host, alias, token, on, power_mw }
@@ -100,9 +104,9 @@ async function initTapo() {
   }
   try {
     const mod = require('tp-link-tapo-connect');
-    // The package exports either a class or named functions depending on version
-    tapo = mod.TapoConnect ? new mod.TapoConnect(KASA_EMAIL, KASA_PASSWORD)
-                           : mod;
+    // loginDeviceByIp is a top-level export: loginDeviceByIp(email, password, ip) → device object
+    // The device object has methods: device.getDeviceInfo(), device.turnOn(), device.turnOff()
+    tapo = mod;
     tapoReady = true;
     tapoInfo('Tapo client ready — connecting to devices…');
     await refreshTapoDevices();
@@ -112,19 +116,24 @@ async function initTapo() {
   }
 }
 
+// Returns a device object with methods (getDeviceInfo, turnOn, turnOff)
 async function loginDevice(host) {
-  // Handles both API styles of tp-link-tapo-connect
   if (tapo.loginDeviceByIp) return tapo.loginDeviceByIp(KASA_EMAIL, KASA_PASSWORD, host);
-  if (tapo.loginDevice)     return tapo.loginDevice(host);
-  throw new Error('Unrecognised tp-link-tapo-connect API');
+  if (tapo.loginDevice)     return tapo.loginDevice(KASA_EMAIL, KASA_PASSWORD, host);
+  throw new Error('Unrecognised tp-link-tapo-connect API — no loginDeviceByIp found');
 }
 
-async function getDeviceOn(token) {
+// device is the object returned by loginDevice — call methods on IT, not on tapo module
+async function getDeviceOn(device) {
   let info;
-  if (tapo.getDeviceInfo) info = await tapo.getDeviceInfo(token);
-  else if (tapo.getDeviceState) info = await tapo.getDeviceState(token);
-  else throw new Error('Cannot read device info');
-  return info.device_on ?? info.relay_state === 1 ?? false;
+  if (device && typeof device.getDeviceInfo === 'function') {
+    info = await device.getDeviceInfo();
+  } else if (device && typeof device.getDeviceState === 'function') {
+    info = await device.getDeviceState();
+  } else {
+    throw new Error('Device object has no getDeviceInfo method — check tp-link-tapo-connect version');
+  }
+  return !!(info.device_on ?? (info.relay_state === 1));
 }
 
 async function refreshTapoDevices() {
@@ -132,14 +141,15 @@ async function refreshTapoDevices() {
   for (const dev of TAPO_DEVICES) {
     try {
       tapoInfo(`Connecting to ${dev.alias} @ ${dev.host}…`);
-      const token = await loginDevice(dev.host);
-      const on    = await getDeviceOn(token);
-      tapoCache[dev.alias] = { ...dev, token, on };
+      const device = await loginDevice(dev.host);
+      const on     = await getDeviceOn(device);
+      tapoCache[dev.alias] = { ...dev, device, on, unreachable: false };
       tapoInfo(`✓ ${dev.alias}: ${on ? 'ON' : 'OFF'}`);
     } catch(e) {
       tapoInfo(`✗ ${dev.alias} @ ${dev.host}: ${e.message}`);
       // Keep stale entry so UI still shows device (greyed out)
-      if (!tapoCache[dev.alias]) tapoCache[dev.alias] = { ...dev, token: null, on: false, unreachable: true };
+      if (!tapoCache[dev.alias]) tapoCache[dev.alias] = { ...dev, device: null, on: false, unreachable: true };
+      else tapoCache[dev.alias].unreachable = true;
     }
   }
 }
@@ -154,9 +164,9 @@ app.get('/api/lights', async (req, res) => {
     if (tapoReady) {
       for (const alias of Object.keys(tapoCache)) {
         const d = tapoCache[alias];
-        if (!d.token) continue;
+        if (!d.device) continue;
         try {
-          d.on = await getDeviceOn(d.token);
+          d.on = await getDeviceOn(d.device);
           d.unreachable = false;
         } catch { d.unreachable = true; }
       }
@@ -177,11 +187,24 @@ app.get('/api/lights', async (req, res) => {
 async function tapoSetPower(alias, state) {
   const d = tapoCache[alias];
   if (!d) throw new Error('Device not found');
-  if (!d.token) throw new Error('Device not connected — check credentials and IP');
-  if (tapo.setPowerState)  await tapo.setPowerState(d.token, state);
-  else if (tapo.turnOn && state)  await tapo.turnOn(d.token);
-  else if (tapo.turnOff && !state) await tapo.turnOff(d.token);
-  else throw new Error('Cannot control device — unrecognised API');
+  if (!d.device) {
+    // Try re-connecting first
+    try {
+      tapoInfo(`Re-connecting to ${alias} @ ${d.host}…`);
+      d.device = await loginDevice(d.host);
+      d.unreachable = false;
+    } catch(e) {
+      throw new Error(`Device not connected — ${e.message}`);
+    }
+  }
+  // Call turnOn/turnOff on the device object
+  if (state) {
+    if (typeof d.device.turnOn === 'function') await d.device.turnOn();
+    else throw new Error('Device has no turnOn method');
+  } else {
+    if (typeof d.device.turnOff === 'function') await d.device.turnOff();
+    else throw new Error('Device has no turnOff method');
+  }
   d.on = state;
 }
 
@@ -205,11 +228,22 @@ app.post('/api/lights/scene', async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/lights/group — turn all devices on or off at once
+app.post('/api/lights/group', async (req, res) => {
+  const { on } = req.body;
+  if (typeof on !== 'boolean') return res.status(400).json({ error: 'body must include { on: true|false }' });
+  const results = await Promise.allSettled(
+    Object.keys(tapoCache).map(alias => tapoSetPower(alias, on))
+  );
+  const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
+  res.json({ ok: true, on, failed });
+});
+
 // Debug
 app.get('/api/lights/debug', (req, res) => {
   res.json({
     ready:   tapoReady,
-    devices: Object.values(tapoCache).map(d => ({ alias: d.alias, host: d.host, on: d.on, hasToken: !!d.token, unreachable: d.unreachable })),
+    devices: Object.values(tapoCache).map(d => ({ alias: d.alias, host: d.host, on: d.on, connected: !!d.device, unreachable: d.unreachable })),
     log:     tapoLog.slice(-30),
     credentials_set: !!(KASA_EMAIL && KASA_PASSWORD),
   });
@@ -301,6 +335,18 @@ app.get('/api/recipes/search', async (req, res) => {
       count: data.count || 0,
       next:  data._links?.next?.href || null,
     });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/recipes/recommended — vegetarian + dairy-free, random rotation
+const RECOMMENDED_QUERIES = ['pasta','soup','salad','curry','stir fry','tacos','pizza','bowl','risotto','noodles','chili','roasted vegetables','lentil','chickpea','tofu'];
+app.get('/api/recipes/recommended', async (req, res) => {
+  try {
+    if (!EDAMAM_ID || !EDAMAM_KEY) return res.status(500).json({ error: 'Edamam credentials not set' });
+    const q   = RECOMMENDED_QUERIES[Math.floor(Math.random() * RECOMMENDED_QUERIES.length)];
+    const url = `https://api.edamam.com/api/recipes/v2?type=public&q=${encodeURIComponent(q)}&app_id=${EDAMAM_ID}&app_key=${EDAMAM_KEY}&health=vegetarian&health=dairy-free&random=true&${EDAMAM_FIELDS}`;
+    const data = await fetch(url).then(r => r.json());
+    res.json({ hits: (data.hits || []).slice(0, 9), query: q });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

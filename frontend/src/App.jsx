@@ -183,7 +183,7 @@ function ProgressRing({ pts, max=500, size=56, color }) {
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, pts }) {
+function Header({ wx, sun, pts, lightsOn, onToggleLights }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -204,6 +204,17 @@ function Header({ wx, sun, pts }) {
             <div style={{ fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:2 }}>{fmtDate(now)}</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {/* Lights toggle button */}
+            {onToggleLights && (
+              <button onClick={onToggleLights} title={lightsOn ? "Turn all lights off" : "Turn all lights on"}
+                style={{width:34,height:34,borderRadius:"50%",border:"none",background:lightsOn?"rgba(255,237,100,0.35)":"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
+                    stroke={lightsOn ? "#fde68a" : "rgba(255,255,255,0.85)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    fill={lightsOn ? "rgba(253,230,138,0.4)" : "none"}/>
+                </svg>
+              </button>
+            )}
             <button onClick={exitKiosk} title="Exit kiosk / close browser" style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
@@ -1047,64 +1058,110 @@ const SCENE_ICONS={
 };
 const SCENES={bright:{label:"Bright",bg:"#fffbeb",border:"#fde68a",text:"#92400e"},relax:{label:"Relax",bg:"#fff7ed",border:"#fed7aa",text:"#9a3412"},night:{label:"Night",bg:"#eff6ff",border:"#bfdbfe",text:"#1e40af"},away:{label:"Away",bg:"#f8fafc",border:"#e2e8f0",text:"#475569"}};
 
-function LightsTab() {
-  const [devices,setDevices]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [scene,setScene]=useState(null);
-  const load=useCallback(async()=>{ try{const d=await fetch(`${API}/lights`).then(r=>r.json());setDevices(Array.isArray(d)?d:[]);}catch{setDevices([]);} setLoading(false);},[]);
-  useEffect(()=>{load();const t=setInterval(load,10000);return()=>clearInterval(t);},[load]);
-  const toggle=async d=>{setDevices(ds=>ds.map(x=>x.alias===d.alias?{...x,on:!x.on}:x));await fetch(`${API}/lights/${encodeURIComponent(d.alias)}/${d.on?"off":"on"}`,{method:"POST"});};
-  const setBr=async(d,b)=>{setDevices(ds=>ds.map(x=>x.alias===d.alias?{...x,brightness:b}:x));await fetch(`${API}/lights/${encodeURIComponent(d.alias)}/brightness`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({brightness:b})});};
-  const applyScene=async k=>{setScene(k);await fetch(`${API}/lights/scene`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scene:k})});setTimeout(load,600);};
-  const on=devices.filter(d=>d.on).length;
+// Friendly display names for known devices
+const DEVICE_LABELS = {
+  'smart plug flower':    'Flower Lamp',
+  'smart plug globe':     'Globe Lamp',
+  'smart plug long lamp': 'Long Lamp',
+};
+function deviceLabel(alias) { return DEVICE_LABELS[alias.toLowerCase()] || alias; }
+
+function Toggle({ on, onToggle, disabled }) {
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{...CARD,padding:"18px 20px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <div style={{fontSize:26,fontWeight:800,color:"#1e293b"}}>{on} <span style={{fontSize:15,color:"#94a3b8",fontWeight:400}}>of {devices.length} on</span></div>
-          <button onClick={()=>applyScene(on>0?"away":"bright")} style={{padding:"12px 22px",background:on>0?"#fee2e2":"#fffbeb",border:"none",borderRadius:14,fontSize:14,fontWeight:700,color:on>0?"#dc2626":"#92400e",cursor:"pointer",fontFamily:"inherit"}}>{on>0?"All off":"All on"}</button>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-          {Object.entries(SCENES).map(([k,s])=>(
-            <button key={k} onClick={()=>applyScene(k)} style={{background:scene===k?s.border:s.bg,border:`1.5px solid ${s.border}`,borderRadius:16,padding:"12px 6px",textAlign:"center",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
-              <div style={{display:"flex",justifyContent:"center",marginBottom:4}}>{SCENE_ICONS[k]}</div>
-              <div style={{fontSize:12,fontWeight:700,color:s.text}}>{s.label}</div>
+    <button onClick={onToggle} disabled={disabled} style={{width:52,height:28,borderRadius:99,border:"none",cursor:disabled?"not-allowed":"pointer",background:on?"#fbbf24":"#e2e8f0",position:"relative",transition:"background 0.2s",flexShrink:0,opacity:disabled?0.4:1}}>
+      <div style={{position:"absolute",top:4,width:20,height:20,borderRadius:"50%",background:"#fff",left:on?"28px":"4px",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+    </button>
+  );
+}
+
+function LightsTab() {
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy,    setBusy]    = useState({});
+
+  const load = useCallback(async () => {
+    try { const d = await fetch(`${API}/lights`).then(r => r.json()); setDevices(Array.isArray(d) ? d : []); }
+    catch { setDevices([]); }
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
+
+  const toggle = async d => {
+    const next = !d.on;
+    setDevices(ds => ds.map(x => x.alias === d.alias ? { ...x, on: next } : x));
+    setBusy(b => ({ ...b, [d.alias]: true }));
+    await fetch(`${API}/lights/${encodeURIComponent(d.alias)}/${d.on ? "off" : "on"}`, { method: "POST" });
+    setBusy(b => ({ ...b, [d.alias]: false }));
+  };
+
+  const allOn  = async () => {
+    setDevices(ds => ds.map(d => ({ ...d, on: true })));
+    await fetch(`${API}/lights/scene`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scene: "bright" }) });
+    setTimeout(load, 800);
+  };
+  const allOff = async () => {
+    setDevices(ds => ds.map(d => ({ ...d, on: false })));
+    await fetch(`${API}/lights/scene`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scene: "away" }) });
+    setTimeout(load, 800);
+  };
+
+  const onCount = devices.filter(d => d.on).length;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+      {/* ── Living Room group card ── */}
+      <div style={{ ...CARD, padding: "22px 24px", background: onCount > 0 ? "linear-gradient(135deg,#fffbeb,#fef3c7)" : undefined, border: onCount > 0 ? "2px solid #fde68a" : undefined, boxShadow: onCount > 0 ? "0 4px 24px rgba(251,191,36,0.2)" : undefined }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#1e293b" }}>Living Room</div>
+            <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 2 }}>
+              {loading ? "Loading…" : `${onCount} of ${devices.length} on`}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={allOn} style={{ padding: "10px 20px", background: "#fbbf24", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#78350f" }}>
+              All On
             </button>
+            <button onClick={allOff} style={{ padding: "10px 20px", background: "#f1f5f9", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#64748b" }}>
+              All Off
+            </button>
+          </div>
+        </div>
+
+        {loading && <div style={{ textAlign: "center", color: "#94a3b8", padding: "12px 0" }}>Connecting to devices…</div>}
+        {!loading && devices.length === 0 && (
+          <div style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, lineHeight: 1.8 }}>
+            No devices connected.<br/>
+            Add <code>KASA_IP_GLOBE</code> and <code>KASA_IP_LAMP</code> to <code>.env</code> on the Pi,<br/>
+            then visit <code>/api/lights/debug</code> to check status.
+          </div>
+        )}
+
+        {/* Individual device rows */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {devices.map(d => (
+            <div key={d.alias} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 14, background: d.on ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.6)", border: `1.5px solid ${d.on ? "#fde68a" : "#f1f5f9"}` }}>
+              {/* Plug icon */}
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: d.on ? "#fef3c7" : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <rect x="7" y="2" width="10" height="12" rx="2" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8"/>
+                  <line x1="9" y1="2" x2="9" y2="6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
+                  <line x1="15" y1="2" x2="15" y2="6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
+                  <path d="M12 14v3M9 20h6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>{deviceLabel(d.alias)}</div>
+                <div style={{ fontSize: 12, color: d.on ? "#b45309" : d.unreachable ? "#ef4444" : "#94a3b8" }}>
+                  {d.unreachable ? "Unreachable" : d.on ? "On" : "Off"}
+                </div>
+              </div>
+              <Toggle on={d.on} onToggle={() => toggle(d)} disabled={busy[d.alias] || d.unreachable}/>
+            </div>
           ))}
         </div>
       </div>
-      {loading&&<div style={{...CARD,padding:32,textAlign:"center",color:"#94a3b8"}}>Discovering Kasa devices…</div>}
-      {!loading&&devices.length===0&&<div style={{...CARD,padding:32,textAlign:"center",color:"#94a3b8",fontSize:14,lineHeight:1.8}}>No Kasa devices found.<br/>Make sure you're on the same WiFi.</div>}
-      {!loading&&devices.length>0&&(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          {devices.map(d=>{
-            const isPlug=d.brightness===null;
-            return (
-              <div key={d.alias} style={{...CARD,padding:"16px",background:d.on?"#fffbeb":"rgba(255,255,255,0.95)",border:`2px solid ${d.on?"#fde68a":"#f1f5f9"}`,boxShadow:d.on?"0 4px 20px rgba(251,191,36,0.25)":"0 2px 10px rgba(0,0,0,0.04)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                  <div style={{width:36,height:36,borderRadius:"50%",background:d.on?"#fef3c7":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                    {isPlug
-                      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="12" rx="2" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8"/><line x1="9" y1="2" x2="9" y2="6" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/><line x1="15" y1="2" x2="15" y2="6" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/><path d="M12 14v3M9 20h6" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/></svg>
-                      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" fill={d.on?"#fef3c7":"none"}/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.5" strokeLinecap="round"/></svg>
-                    }
-                  </div>
-                  <button onClick={()=>toggle(d)} style={{width:48,height:26,borderRadius:99,border:"none",cursor:"pointer",background:d.on?"#fbbf24":"#e2e8f0",position:"relative",transition:"background 0.2s"}}>
-                    <div style={{position:"absolute",top:3,width:20,height:20,borderRadius:"50%",background:"#fff",left:d.on?"25px":"3px",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
-                  </button>
-                </div>
-                <div style={{fontSize:14,fontWeight:700,color:"#1e293b",marginBottom:3}}>{d.alias}</div>
-                <div style={{fontSize:12,color:d.on?"#b45309":"#94a3b8"}}>{d.on?(d.power_mw?`${(d.power_mw/1000).toFixed(1)}W`:"On"):"Off"}</div>
-                {!isPlug&&d.on&&(
-                  <div style={{marginTop:12}}>
-                    <input type="range" min={1} max={100} value={d.brightness??80} onChange={e=>setBr(d,parseInt(e.target.value))} style={{width:"100%",accentColor:"#fbbf24"}}/>
-                    <div style={{fontSize:11,color:"#94a3b8",textAlign:"right"}}>{d.brightness??80}%</div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -1444,6 +1501,49 @@ const CUISINE_COLORS = {
 };
 function cColor(c) { return CUISINE_COLORS[(c||'').toLowerCase()] || "#94a3b8"; }
 
+// ─── Saved recipes helpers (localStorage) ────────────────────────────────────
+const SAVED_KEY = 'clarabiner_saved_recipes';
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveSaved(arr) {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(arr));
+}
+
+// ─── Mini recipe card used in Recommended + Saved grids ──────────────────────
+function RecipeMiniCard({ recipe, onSelect, saved, onToggleSave }) {
+  const fmtTime = n => { if(!n) return null; if(n<60) return `${n}m`; return `${Math.floor(n/60)}h${n%60?` ${n%60}m`:''}`; };
+  return (
+    <div
+      onClick={() => onSelect(recipe)}
+      style={{...CARD,padding:0,overflow:"hidden",cursor:"pointer",position:"relative",transition:"box-shadow 0.15s",flexShrink:0}}
+    >
+      {recipe.image
+        ? <img src={recipe.image} alt={recipe.label} style={{width:"100%",height:110,objectFit:"cover",display:"block"}}/>
+        : <div style={{width:"100%",height:110,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:32}}>🍽</span></div>
+      }
+      {/* Save button */}
+      <button
+        onClick={e=>{ e.stopPropagation(); onToggleSave(recipe); }}
+        style={{position:"absolute",top:6,right:6,width:28,height:28,borderRadius:"50%",background:"rgba(0,0,0,0.45)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}
+        title={saved ? "Remove from saved" : "Save recipe"}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill={saved?"#f97316":"none"}>
+          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke={saved?"#f97316":"white"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      <div style={{padding:"10px 12px"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#1e293b",lineHeight:1.3,marginBottom:4,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{recipe.label}</div>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+          {fmtTime(recipe.totalTime) && <span style={{fontSize:10,fontWeight:600,background:"#f1f5f9",color:"#64748b",padding:"2px 6px",borderRadius:20}}>⏱ {fmtTime(recipe.totalTime)}</span>}
+          <span style={{fontSize:10,fontWeight:600,background:"#f0fdf4",color:"#166534",padding:"2px 6px",borderRadius:20}}>{recipe.ingredientLines?.length||0} ing.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecipesTab({ onIngredientsAdded }) {
   const [query,     setQuery]     = useState('');
   const [results,   setResults]   = useState(null);   // null=not searched, []=empty
@@ -1454,6 +1554,39 @@ function RecipesTab({ onIngredientsAdded }) {
   const [adding,    setAdding]    = useState(false);
   const [added,     setAdded]     = useState(null);   // {count, recipe} after success
   const [err,       setErr]       = useState(null);
+
+  // ── Recommended recipes (vegetarian + dairy-free, hourly refresh) ──
+  const [recs,      setRecs]      = useState([]);
+  const [recsLoading, setRecsLoading] = useState(false);
+
+  // ── Saved recipes (localStorage) ──
+  const [saved,     setSaved]     = useState(() => loadSaved());
+
+  const fetchRecommended = useCallback(async () => {
+    setRecsLoading(true);
+    try {
+      const d = await fetch(`${API}/recipes/recommended`).then(r => r.json());
+      if (!d.error) setRecs(d.hits?.map(h => h.recipe || h) || []);
+    } catch {}
+    finally { setRecsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    fetchRecommended();
+    const t = setInterval(fetchRecommended, 60 * 60 * 1000); // refresh every hour
+    return () => clearInterval(t);
+  }, [fetchRecommended]);
+
+  const toggleSave = useCallback((recipe) => {
+    setSaved(prev => {
+      const exists = prev.some(r => r.uri === recipe.uri);
+      const next   = exists ? prev.filter(r => r.uri !== recipe.uri) : [...prev, recipe];
+      saveSaved(next);
+      return next;
+    });
+  }, []);
+
+  const isSaved = (recipe) => saved.some(r => r.uri === recipe.uri);
 
   const search = async (url) => {
     if (!url && !query.trim()) return;
@@ -1501,6 +1634,55 @@ function RecipesTab({ onIngredientsAdded }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:0,height:"100%"}}>
+
+      {/* ── Recommended for You card ── */}
+      <div style={{...CARD,padding:"16px 20px",marginBottom:14,flexShrink:0}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:18}}>🌿</span>
+            <div>
+              <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Recommended for You</div>
+              <div style={{fontSize:11,color:"#94a3b8"}}>Vegetarian · Dairy-free · Refreshes hourly</div>
+            </div>
+          </div>
+          <button onClick={fetchRecommended} disabled={recsLoading}
+            style={{padding:"6px 14px",background:"#f97316",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,opacity:recsLoading?0.5:1}}>
+            {recsLoading ? "…" : "↺"}
+          </button>
+        </div>
+        {recsLoading && !recs.length && (
+          <div style={{textAlign:"center",color:"#94a3b8",fontSize:13,padding:"16px 0"}}>Finding recipes…</div>
+        )}
+        {recs.length > 0 && (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
+            {recs.slice(0,8).map((recipe,i) => (
+              <RecipeMiniCard key={recipe.uri||i} recipe={recipe} onSelect={selectRecipe}
+                saved={isSaved(recipe)} onToggleSave={toggleSave}/>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Saved Recipes card (only shown when there are saves) ── */}
+      {saved.length > 0 && (
+        <div style={{...CARD,padding:"16px 20px",marginBottom:14,flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:18}}>❤️</span>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Saved Recipes</div>
+                <div style={{fontSize:11,color:"#94a3b8"}}>{saved.length} recipe{saved.length!==1?"s":""} saved</div>
+              </div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
+            {saved.map((recipe,i) => (
+              <RecipeMiniCard key={recipe.uri||i} recipe={recipe} onSelect={selectRecipe}
+                saved={true} onToggleSave={toggleSave}/>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Search bar ── */}
       <div style={{...CARD,padding:"16px 20px",marginBottom:14,flexShrink:0}}>
@@ -1585,8 +1767,15 @@ function RecipesTab({ onIngredientsAdded }) {
                 <div style={{fontSize:17,fontWeight:800,color:"#fff",lineHeight:1.2}}>{selected.label}</div>
                 <div style={{fontSize:12,color:"rgba(255,255,255,0.75)",marginTop:3}}>{selected.source}</div>
               </div>
+              {/* Close button */}
               <button onClick={()=>setSelected(null)} style={{position:"absolute",top:10,right:10,width:30,height:30,borderRadius:"50%",background:"rgba(0,0,0,0.45)",border:"none",cursor:"pointer",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18" stroke="white" strokeWidth="2.5" strokeLinecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="white" strokeWidth="2.5" strokeLinecap="round"/></svg>
+              </button>
+              {/* Save / unsave button */}
+              <button onClick={()=>toggleSave(selected)} style={{position:"absolute",top:10,right:48,width:30,height:30,borderRadius:"50%",background:"rgba(0,0,0,0.45)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={isSaved(selected)?"#f97316":"none"}>
+                  <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke={isSaved(selected)?"#f97316":"white"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
             </div>
 
@@ -1995,12 +2184,40 @@ export default function App() {
   const hub  = useHub();
   const wide = useWide();
 
+  // ── Header lights toggle ──
+  const [headerLightsOn, setHeaderLightsOn] = useState(null); // null = unknown
+  const toggleAllLights = useCallback(async () => {
+    const next = !headerLightsOn;
+    setHeaderLightsOn(next);
+    try {
+      await fetch(`${API}/lights/group`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ on: next }),
+      });
+    } catch {}
+  }, [headerLightsOn]);
+
+  // Sync header lights state from /api/lights every 30s
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const devices = await fetch(`${API}/lights`).then(r => r.json());
+        if (Array.isArray(devices) && devices.length) {
+          setHeaderLightsOn(devices.some(d => d.on && !d.unreachable));
+        }
+      } catch {}
+    };
+    sync();
+    const t = setInterval(sync, 30000);
+    return () => clearInterval(t);
+  }, []);
+
   // ── Idle screensaver: activate after 5 min of no interaction ──
   const idleTimer = useRef(null);
   const resetIdle = useCallback(() => {
     clearTimeout(idleTimer.current);
     if (screensaver) return; // don't reset while screensaver is showing
-    idleTimer.current = setTimeout(() => setScreensaver(true), 5 * 60 * 1000);
+    idleTimer.current = setTimeout(() => setScreensaver(true), 2 * 60 * 1000);
   }, [screensaver]);
   useEffect(() => { resetIdle(); }, []);
 
@@ -2122,7 +2339,7 @@ export default function App() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts}/>
+      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
