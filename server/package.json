@@ -11,6 +11,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "googleapis": "^171.4.0",
     "node-fetch": "^3.3.2",
     "tplink-smarthome-api": "^3.1.0"
   },

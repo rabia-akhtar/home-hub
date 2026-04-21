@@ -1441,6 +1441,252 @@ function UpcomingTab({ tasks, projs, uidMap }) {
   );
 }
 
+// ─── BUDGET TAB ──────────────────────────────────────────────────────────────
+const CATEGORY_COLORS = {
+  "Furniture":         { bg:"#dbeafe", text:"#1e40af" },
+  "HOA/Insurance":     { bg:"#f0fdf4", text:"#166534" },
+  "Paint":             { bg:"#fef9c3", text:"#854d0e" },
+  "Installation Cost": { bg:"#f3e8ff", text:"#6b21a8" },
+  "Misc Household Cost":{ bg:"#fce7f3", text:"#9d174d" },
+  "Venmo":             { bg:"#e0f2fe", text:"#0369a1" },
+  "Cats":              { bg:"#fff7ed", text:"#9a3412" },
+  "Groceries":         { bg:"#dcfce7", text:"#15803d" },
+  "Utilities":         { bg:"#f0fdf4", text:"#166534" },
+};
+function catColor(cat) {
+  return CATEGORY_COLORS[cat] || { bg:"#f1f5f9", text:"#475569" };
+}
+
+const EMPTY_FORM = { category:"", item:"", date:"", paidBy:"Rabia", amount:"", reimbTo:"" };
+
+function BudgetTab() {
+  const [balances,  setBalances]  = useState(null);
+  const [expenses,  setExpenses]  = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [err,       setErr]       = useState(null);
+  const [filter,    setFilter]    = useState("");
+  const [showForm,  setShowForm]  = useState(false);   // "add" | {editing row} | null
+  const [form,      setForm]      = useState(EMPTY_FORM);
+  const [saving,    setSaving]    = useState(false);
+  const [lastSync,  setLastSync]  = useState(null);
+
+  const load = async () => {
+    try {
+      setLoading(true); setErr(null);
+      const [b, e] = await Promise.all([
+        fetch(`${API}/budget/balances`).then(r=>r.json()),
+        fetch(`${API}/budget/expenses`).then(r=>r.json()),
+      ]);
+      if(b.error) throw new Error(b.error);
+      if(e.error) throw new Error(e.error);
+      setBalances(b.people || []);
+      setExpenses(e.items  || []);
+      setLastSync(new Date());
+    } catch(e) { setErr(e.message); }
+    finally    { setLoading(false); }
+  };
+  useEffect(()=>{ load(); },[]);
+
+  const openAdd  = () => { setForm(EMPTY_FORM); setShowForm("add"); };
+  const openEdit = row => { setForm({ category:row.category, item:row.item, date:row.date, paidBy:row.paidBy, amount:row.amount.replace(/[$,]/g,''), reimbTo:row.reimbTo }); setShowForm(row); };
+  const closeForm = () => { setShowForm(null); };
+
+  const saveForm = async () => {
+    if(!form.item||!form.amount) return;
+    setSaving(true);
+    try {
+      if(showForm==="add") {
+        await fetch(`${API}/budget/expenses`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(form),
+        });
+      } else {
+        await fetch(`${API}/budget/expenses/${showForm._row}`, {
+          method:"PUT", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(form),
+        });
+      }
+      setShowForm(null);
+      await load();
+    } catch(e) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const fmtAmt = s => {
+    if(!s) return "—";
+    const n = parseFloat(s.toString().replace(/[$,]/g,''));
+    if(isNaN(n)) return s;
+    return n.toLocaleString("en-US",{style:"currency",currency:"USD"});
+  };
+
+  const filtered = (expenses||[]).filter(e =>
+    !filter ||
+    e.item.toLowerCase().includes(filter.toLowerCase()) ||
+    e.category.toLowerCase().includes(filter.toLowerCase()) ||
+    e.paidBy.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  // Group by category for summary
+  const totals = {};
+  (expenses||[]).forEach(e=>{
+    const n=parseFloat(e.amount.replace(/[$,]/g,'')); if(isNaN(n)) return;
+    totals[e.category]=(totals[e.category]||0)+n;
+  });
+  const grandTotal = Object.values(totals).reduce((a,b)=>a+b,0);
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* ── Error ── */}
+      {err && (
+        <div style={{...CARD,padding:"16px 20px",background:"#fef2f2",border:"1.5px solid #fca5a5",color:"#b91c1c",fontSize:14}}>
+          <strong>Sheets error:</strong> {err}
+          <button onClick={load} style={{marginLeft:12,padding:"4px 12px",background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:8,cursor:"pointer",color:"#b91c1c",fontSize:12}}>Retry</button>
+        </div>
+      )}
+
+      {/* ── Balances summary ── */}
+      <div style={{...CARD,padding:"20px 24px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#64748b",letterSpacing:0.8,textTransform:"uppercase"}}>Balances</div>
+          {lastSync && <div style={{fontSize:11,color:"#94a3b8"}}>Synced {lastSync.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>}
+        </div>
+        {loading && !balances ? (
+          <div style={{textAlign:"center",color:"#94a3b8",padding:20}}>Loading…</div>
+        ) : (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            {(balances||[]).map(p=>{
+              const bal = parseFloat(p.balance?.toString().replace(/[$,]/g,'')||0);
+              const isOwed = bal > 0;   // positive = owed money (red in sheet)
+              const person = p.name?.toLowerCase()==='rabia' ? RABIA : CLARE;
+              return (
+                <div key={p.name} style={{background:`linear-gradient(145deg,${person.color}14,${person.color}06)`,border:`2px solid ${person.color}30`,borderRadius:18,padding:"16px 18px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <Av person={person} size={36}/>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{p.name}</div>
+                      <div style={{fontSize:11,color:"#94a3b8"}}>{isOwed?"is owed":"owes"}</div>
+                    </div>
+                    <div style={{marginLeft:"auto",fontWeight:900,fontSize:22,color:isOwed?"#dc2626":"#16a34a"}}>
+                      {fmtAmt(Math.abs(bal).toString())}
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    {[["Paid",p.paid],["Owes",p.owes],["Reimb. Sent",p.reimbSent],["Reimb. Received",p.reimbReceived]].map(([label,val])=>(
+                      <div key={label} style={{background:"rgba(255,255,255,0.6)",borderRadius:10,padding:"6px 10px"}}>
+                        <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#1e293b",marginTop:1}}>{val||"—"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Expenses & Payments ── */}
+      <div style={{...CARD,padding:"20px 24px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:"#64748b",letterSpacing:0.8,textTransform:"uppercase"}}>Expenses &amp; Payments</div>
+            <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>Total: <strong style={{color:"#1e293b"}}>{fmtAmt(grandTotal.toFixed(2))}</strong> · {(expenses||[]).length} items</div>
+          </div>
+          <button onClick={openAdd} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#6366f1",color:"#fff",border:"none",borderRadius:12,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19" stroke="white" strokeWidth="2.5" strokeLinecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="white" strokeWidth="2.5" strokeLinecap="round"/></svg>
+            Add
+          </button>
+        </div>
+
+        {/* Search bar */}
+        <div style={{position:"relative",marginBottom:12}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"#94a3b8"}}><circle cx="11" cy="11" r="7" stroke="#94a3b8" strokeWidth="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>
+          <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Search items, categories…" style={{width:"100%",padding:"9px 12px 9px 36px",border:"1.5px solid #e2e8f0",borderRadius:12,fontSize:14,fontFamily:"inherit",outline:"none",background:"#f8fafc"}}/>
+        </div>
+
+        {/* Add/Edit form */}
+        {showForm && (
+          <div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:16,padding:"16px 18px",marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#1e293b",marginBottom:12}}>{showForm==="add"?"New Expense":"Edit Expense"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[
+                ["category","Category","text"],
+                ["item","Item / Description","text"],
+                ["date","Date","text"],
+                ["paidBy","Paid By","text"],
+                ["amount","Amount","text"],
+                ["reimbTo","Reimb. To (if any)","text"],
+              ].map(([key,label])=>(
+                <div key={key} style={{display:"flex",flexDirection:"column",gap:4}}>
+                  <label style={{fontSize:11,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:0.5}}>{label}</label>
+                  {key==="paidBy" ? (
+                    <select value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",background:"#fff",outline:"none"}}>
+                      <option>Rabia</option><option>Clare</option>
+                    </select>
+                  ) : (
+                    <input value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} placeholder={key==="date"?"6/2/2025":""} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff"}}/>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
+              <button onClick={closeForm} style={{padding:"8px 18px",background:"#f1f5f9",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>Cancel</button>
+              <button onClick={saveForm} disabled={saving||!form.item||!form.amount} style={{padding:"8px 20px",background:saving?"#a5b4fc":"#6366f1",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,opacity:(!form.item||!form.amount)?0.5:1}}>
+                {saving?"Saving…":"Save to Sheet"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* List */}
+        {loading && !expenses ? (
+          <div style={{textAlign:"center",color:"#94a3b8",padding:24}}>Loading expenses…</div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {filtered.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:20,fontSize:14}}>No items found.</div>}
+            {filtered.map(row=>{
+              const cc = catColor(row.category);
+              const isReimb = row.reimbTo || row.category?.toLowerCase()==='venmo';
+              const person = row.paidBy?.toLowerCase()==='rabia' ? RABIA : row.paidBy?.toLowerCase()==='clare' ? CLARE : null;
+              return (
+                <div key={row._row} onClick={()=>openEdit(row)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:"#fff",borderRadius:14,border:"1.5px solid #f1f5f9",cursor:"pointer",transition:"background 0.12s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                  onMouseLeave={e=>e.currentTarget.style.background="#fff"}
+                >
+                  {/* Category badge */}
+                  <div style={{flexShrink:0,padding:"3px 9px",borderRadius:20,background:cc.bg,color:cc.text,fontSize:11,fontWeight:700,whiteSpace:"nowrap",maxWidth:110,overflow:"hidden",textOverflow:"ellipsis"}}>{row.category||"—"}</div>
+                  {/* Description + date */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"#1e293b",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{row.item||"—"}</div>
+                    <div style={{fontSize:11,color:"#94a3b8",marginTop:1,display:"flex",gap:8}}>
+                      <span>{row.date}</span>
+                      {isReimb && <span style={{background:"#fef9c3",color:"#a16207",borderRadius:6,padding:"0 6px",fontWeight:600}}>Reimb → {row.reimbTo}</span>}
+                    </div>
+                  </div>
+                  {/* Paid by avatar */}
+                  {person && <Av person={person} size={22}/>}
+                  {/* Amount */}
+                  <div style={{fontSize:14,fontWeight:800,color:isReimb?"#dc2626":"#1e293b",whiteSpace:"nowrap"}}>{fmtAmt(row.amount)}</div>
+                  {/* Edit pen */}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{flexShrink:0,opacity:0.3}}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#64748b" strokeWidth="2" strokeLinecap="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth="2" strokeLinecap="round"/></svg>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Reload */}
+        <div style={{textAlign:"center",marginTop:14}}>
+          <button onClick={load} disabled={loading} style={{padding:"7px 20px",background:"#f1f5f9",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#64748b",opacity:loading?0.5:1}}>
+            {loading?"Syncing…":"↻ Sync with Sheet"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
   { id:"home",      label:"Home",      color:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
@@ -1452,6 +1698,7 @@ const NAV = [
   { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
+  { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
 ];
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
@@ -1538,6 +1785,7 @@ export default function App() {
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="lights"    && <LightsTab/>}
           {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
+          {tab==="budget"    && <BudgetTab/>}
         </div>
       </div>
 

@@ -6,6 +6,7 @@ const fetch      = (...a) => import('node-fetch').then(({ default: f }) => f(...
 const fs         = require('fs');
 const path       = require('path');
 const { exec }   = require('child_process');
+const { google } = require('googleapis');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -363,6 +364,112 @@ app.delete('/api/calendar/:calendarId/:eventId', async (req,res)=>{
     );
     res.json({ok:true});
   } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// ─── Budget — Google Sheets sync ─────────────────────────────────────────────
+const SPREADSHEET_ID   = '1h2hk_ia0lI6kJksTBga-Gni1dV84DraglBRH_-Dyje0';
+const SHEETS_CREDS_PATH = path.join(__dirname, '../sheets-credentials.json');
+
+function sheetsClient() {
+  const creds = JSON.parse(fs.readFileSync(SHEETS_CREDS_PATH, 'utf8'));
+  const auth  = new google.auth.GoogleAuth({
+    credentials: creds,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+  return google.sheets({ version: 'v4', auth });
+}
+
+// GET /api/budget/balances — read the Balances summary (rows 8-10, A=indicator B=name … G=balance)
+app.get('/api/budget/balances', async (req, res) => {
+  try {
+    const sheets = sheetsClient();
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Balances!A8:G10',
+    });
+    const rows = r.data.values || [];
+    // row[0]=unused, row[1]=Name, row[2]=Paid, row[3]=Owes,
+    // row[4]=ReimbSent, row[5]=ReimbReceived, row[6]=CurrentBalance
+    const people = rows.slice(1).map(row => ({
+      name:          row[1] || '',
+      paid:          row[2] || '',
+      owes:          row[3] || '',
+      reimbSent:     row[4] || '',
+      reimbReceived: row[5] || '',
+      balance:       row[6] || '',
+    }));
+    res.json({ people });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/budget/expenses — read Expenses & Payments tab (row 4 = header, 5+ = data)
+app.get('/api/budget/expenses', async (req, res) => {
+  try {
+    const sheets = sheetsClient();
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Expenses & Payments!A4:J2000',
+    });
+    const rows = r.data.values || [];
+    // rows[0] is the header row; data starts rows[1]
+    // A=empty, B=category, C=item, D=date, E=paidBy, F=amount, G=reimbTo, H=errorCheck, I=rabiaP, J=clareP
+    const items = rows.slice(1)
+      .map((row, i) => {
+        // skip fully empty rows
+        if (!row[1] && !row[2]) return null;
+        return {
+          _row:       i + 5,          // actual 1-indexed sheet row (header=4, data starts 5)
+          category:   row[1] || '',
+          item:       row[2] || '',
+          date:       row[3] || '',
+          paidBy:     row[4] || '',
+          amount:     row[5] || '',
+          reimbTo:    row[6] || '',
+          errorCheck: row[7] || '',
+          rabiaP:     row[8] || '',
+          clareP:     row[9] || '',
+        };
+      })
+      .filter(Boolean);
+    res.json({ items });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/budget/expenses — append a new row
+app.post('/api/budget/expenses', async (req, res) => {
+  try {
+    const sheets = sheetsClient();
+    const { category, item, date, paidBy, amount, reimbTo } = req.body;
+    // Column order: A=empty, B=category, C=item, D=date, E=paidBy, F=amount, G=reimbTo
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Expenses & Payments!A:J',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [['', category, item, date, paidBy, amount, reimbTo || '', '', '', '']],
+      },
+    });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/budget/expenses/:row — update columns A-G of a specific sheet row
+app.put('/api/budget/expenses/:row', async (req, res) => {
+  try {
+    const sheets = sheetsClient();
+    const row = parseInt(req.params.row, 10);
+    const { category, item, date, paidBy, amount, reimbTo } = req.body;
+    // Column order: A=empty, B=category, C=item, D=date, E=paidBy, F=amount, G=reimbTo
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Expenses & Payments!A${row}:G${row}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [['', category, item, date, paidBy, amount, reimbTo || '']],
+      },
+    });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── Kiosk control ───────────────────────────────────────────────────────────
