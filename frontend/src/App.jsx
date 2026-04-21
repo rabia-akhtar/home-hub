@@ -1508,23 +1508,23 @@ function cColor(c) { return CUISINE_COLORS[(c||'').toLowerCase()] || "#94a3b8"; 
 // ─── RECIPE CARD (Recipes tab — one suggestion at a time) ────────────────────
 
 function RecipeCard({ onIngredientsAdded }) {
-  // State
   const [recipe,   setRecipe]   = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [adding,   setAdding]   = useState(false);
   const [added,    setAdded]    = useState(false);
+  const [err,      setErr]      = useState(null);
 
-  // Fetch one random vegetarian + dairy-free recipe
   const fetchRecipe = useCallback(async () => {
-    setLoading(true); setAdded(false);
+    setLoading(true); setAdded(false); setErr(null);
     try {
       const d = await fetch(`${API}/recipes/recommended`).then(r => r.json());
-      const hits = d.hits || [];
-      if (hits.length) {
-        const hit = hits[Math.floor(Math.random() * hits.length)];
-        setRecipe(hit.recipe || hit);
-      }
-    } catch {}
+      if (d.error) { setErr(d.error); return; }
+      // Each hit from Edamam v2 has shape { recipe: {...}, _links: {...} }
+      const hits = (d.hits || []).filter(h => h.recipe || h.label);
+      if (!hits.length) { setErr('No recipes returned — check EDAMAM_APP_ID / EDAMAM_APP_KEY in .env'); return; }
+      const hit = hits[Math.floor(Math.random() * hits.length)];
+      setRecipe(hit.recipe ?? hit);
+    } catch(e) { setErr(e.message); }
     finally { setLoading(false); }
   }, []);
 
@@ -1564,6 +1564,14 @@ function RecipeCard({ onIngredientsAdded }) {
 
       {loading && !recipe && (
         <div style={{padding:"24px", textAlign:"center", color:"#94a3b8", fontSize:13}}>Finding a recipe…</div>
+      )}
+
+      {err && !loading && (
+        <div style={{margin:"0 18px 14px", padding:"12px 14px", background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:12}}>
+          <div style={{fontSize:12, fontWeight:700, color:"#dc2626", marginBottom:4}}>Recipe Suggestion unavailable</div>
+          <div style={{fontSize:11, color:"#b91c1c"}}>{err}</div>
+          <button onClick={fetchRecipe} style={{marginTop:8, fontSize:11, fontWeight:700, color:"#f97316", background:"none", border:"none", cursor:"pointer", fontFamily:"inherit", padding:0}}>Try again</button>
+        </div>
       )}
 
       {recipe && (
