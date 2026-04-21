@@ -569,10 +569,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
         {makeCol(CLARE, clareEvts, clareTasks)}
         {familyCol}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
-        {weekCard}
-        {grocCard}
-      </div>
+      {grocCard}
     </div>
   );
 
@@ -582,7 +579,6 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
       {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks)}
       {makeCol(CLARE, clareEvts, clareTasks)}
       {familyCol}
-      {weekCard}
       {grocCard}
     </div>
   );
@@ -925,6 +921,65 @@ function WeatherTab({ wx }) {
   );
 }
 
+// ─── MOON PHASE ICON ─────────────────────────────────────────────────────────
+// phase: 0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter
+function MoonIcon({ phase=0, size=40 }) {
+  const s = { width:size, height:size, flexShrink:0, display:"inline-block" };
+  const p = ((phase % 1) + 1) % 1; // normalise 0–1
+  // Map phase to one of 8 archetypal shapes
+  const seg = Math.round(p * 8) % 8;
+  // Shadow arc helper: returns SVG path for lit/dark crescent
+  // We draw a full circle then overlay a clip arc
+  const r = size * 0.38;
+  const cx = size / 2;
+  const cy = size / 2;
+  const glow = "rgba(200,210,255,0.18)";
+  const moonFill = "#c7d2fe";
+  const shadowFill = "#1e1b4b";
+
+  // For each seg: 0=new, 1=waxing crescent, 2=first quarter, 3=waxing gibbous,
+  //               4=full, 5=waning gibbous, 6=last quarter, 7=waning crescent
+  let litPath;
+  if(seg===0) {
+    // New moon – all dark with subtle rim
+    return <svg style={s} viewBox={`0 0 ${size} ${size}`} fill="none">
+      <circle cx={cx} cy={cy} r={r} fill="#1e1b4b" stroke="#4338ca" strokeWidth={size*0.04}/>
+    </svg>;
+  }
+  if(seg===4) {
+    // Full moon
+    return <svg style={s} viewBox={`0 0 ${size} ${size}`} fill="none">
+      <circle cx={cx} cy={cy} r={r} fill={moonFill}/>
+      <circle cx={cx-r*0.15} cy={cy-r*0.2} r={r*0.12} fill="rgba(255,255,255,0.25)"/>
+      <circle cx={cx+r*0.25} cy={cy+r*0.1} r={r*0.07} fill="rgba(255,255,255,0.2)"/>
+    </svg>;
+  }
+  // Crescent / gibbous: use two overlapping ellipses technique
+  // Lit side always shows; shadow side covered
+  const waxing = seg < 4; // 1,2,3 waxing; 5,6,7 waning
+  // terminator x-offset as fraction of radius (-1 to 1)
+  const offsets = [0, -0.9, 0, 0.9, 0, -0.9, 0, 0.9];
+  const tOff = offsets[seg]; // >0 = shadow covers left, <0 = shadow covers right
+  const termX = cx + tOff * r;
+  // Build clip path: lit half
+  const clipId = `mc${seg}s${Math.round(size)}`;
+  return <svg style={s} viewBox={`0 0 ${size} ${size}`} fill="none">
+    <defs>
+      <clipPath id={clipId}>
+        <rect x={waxing ? termX : cx-r} y={cy-r} width={waxing ? cx+r-termX : termX-(cx-r)} height={r*2}/>
+      </clipPath>
+    </defs>
+    {/* base circle – lit color */}
+    <circle cx={cx} cy={cy} r={r} fill={moonFill}/>
+    {/* shadow overlay for dark portion */}
+    <circle cx={cx} cy={cy} r={r} fill={shadowFill} clipPath={`url(#${clipId})`}/>
+    {/* thin rim */}
+    <circle cx={cx} cy={cy} r={r} stroke="#4338ca" strokeWidth={size*0.03} fill="none" opacity="0.6"/>
+    {/* small craters on lit side */}
+    {seg!==0&&<circle cx={cx+(waxing?r*0.2:-r*0.2)} cy={cy-r*0.2} r={r*0.09} fill="rgba(255,255,255,0.22)"/>}
+  </svg>;
+}
+
 // ─── SUN & MOON TAB ───────────────────────────────────────────────────────────
 function SunMoonTab({ sun }) {
   const [now,setNow]=useState(new Date());
@@ -968,14 +1023,14 @@ function SunMoonTab({ sun }) {
       <div style={{background:"linear-gradient(145deg,#1e1b4b,#312e81)",borderRadius:24,padding:"28px",color:"#fff",boxShadow:"0 8px 32px rgba(49,46,129,0.3)"}}>
         <div style={{fontSize:12,fontWeight:700,opacity:0.5,letterSpacing:1,textTransform:"uppercase",marginBottom:18}}>Moon tonight</div>
         <div style={{display:"flex",alignItems:"center",gap:24}}>
-          <div style={{fontSize:72,lineHeight:1}}>{sun.moon_icon}</div>
+          <MoonIcon phase={sun.moon_phase} size={72}/>
           <div><div style={{fontSize:24,fontWeight:800}}>{sun.moon_name}</div><div style={{fontSize:14,opacity:0.6,marginTop:6}}>{illumin}% illuminated · {sun.moon_age_days}d old</div></div>
         </div>
         <div style={{marginTop:22}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
-            {["🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘"].map((ic,i)=>{
+            {[0,1,2,3,4,5,6,7].map(i=>{
               const act=Math.abs(sun.moon_phase-i/7)<0.07;
-              return<div key={i} style={{fontSize:act?26:17,opacity:act?1:0.35,transform:act?"scale(1.2)":"scale(1)",transition:"all 0.3s"}}>{ic}</div>;
+              return<div key={i} style={{opacity:act?1:0.35,transform:act?"scale(1.3)":"scale(1)",transition:"all 0.3s"}}><MoonIcon phase={i/7} size={act?26:17}/></div>;
             })}
           </div>
           <div style={{height:4,background:"rgba(255,255,255,0.1)",borderRadius:99,overflow:"hidden"}}>
@@ -989,7 +1044,13 @@ function SunMoonTab({ sun }) {
 }
 
 // ─── LIGHTS TAB ───────────────────────────────────────────────────────────────
-const SCENES={bright:{label:"Bright",icon:"☀️",bg:"#fffbeb",border:"#fde68a",text:"#92400e"},relax:{label:"Relax",icon:"🌇",bg:"#fff7ed",border:"#fed7aa",text:"#9a3412"},night:{label:"Night",icon:"🌙",bg:"#eff6ff",border:"#bfdbfe",text:"#1e40af"},away:{label:"Away",icon:"🔒",bg:"#f8fafc",border:"#e2e8f0",text:"#475569"}};
+const SCENE_ICONS={
+  bright:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" fill="#fbbf24"/><line x1="12" y1="2" x2="12" y2="5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="2" y1="12" x2="5" y2="12" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="19" y1="12" x2="22" y2="12" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="4.9" y1="4.9" x2="7" y2="7" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="17" y1="17" x2="19.1" y2="19.1" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="17" y1="7" x2="19.1" y2="4.9" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="4.9" y1="19.1" x2="7" y2="17" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/></svg>,
+  relax:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" fill="#fb923c" opacity="0.9"/><path d="M3 18c3-3 6-4 9-2s6 1 9-2" stroke="#fb923c" strokeWidth="1.8" strokeLinecap="round" fill="none"/><line x1="3" y1="21" x2="21" y2="21" stroke="#fed7aa" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  night:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 118 4.5a6 6 0 0012 10z" fill="#93c5fd" opacity="0.8" stroke="#60a5fa" strokeWidth="1.5"/></svg>,
+  away:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="#94a3b8" strokeWidth="1.8"/><path d="M8 11V7a4 4 0 018 0v4" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/><circle cx="12" cy="16" r="1.5" fill="#94a3b8"/></svg>,
+};
+const SCENES={bright:{label:"Bright",bg:"#fffbeb",border:"#fde68a",text:"#92400e"},relax:{label:"Relax",bg:"#fff7ed",border:"#fed7aa",text:"#9a3412"},night:{label:"Night",bg:"#eff6ff",border:"#bfdbfe",text:"#1e40af"},away:{label:"Away",bg:"#f8fafc",border:"#e2e8f0",text:"#475569"}};
 
 function LightsTab() {
   const [devices,setDevices]=useState([]);
@@ -1011,7 +1072,7 @@ function LightsTab() {
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
           {Object.entries(SCENES).map(([k,s])=>(
             <button key={k} onClick={()=>applyScene(k)} style={{background:scene===k?s.border:s.bg,border:`1.5px solid ${s.border}`,borderRadius:16,padding:"12px 6px",textAlign:"center",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
-              <div style={{fontSize:24,marginBottom:4}}>{s.icon}</div>
+              <div style={{display:"flex",justifyContent:"center",marginBottom:4}}>{SCENE_ICONS[k]}</div>
               <div style={{fontSize:12,fontWeight:700,color:s.text}}>{s.label}</div>
             </button>
           ))}
@@ -1026,7 +1087,12 @@ function LightsTab() {
             return (
               <div key={d.alias} style={{...CARD,padding:"16px",background:d.on?"#fffbeb":"rgba(255,255,255,0.95)",border:`2px solid ${d.on?"#fde68a":"#f1f5f9"}`,boxShadow:d.on?"0 4px 20px rgba(251,191,36,0.25)":"0 2px 10px rgba(0,0,0,0.04)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                  <div style={{width:36,height:36,borderRadius:"50%",background:d.on?"#fef3c7":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{isPlug?"🔌":"💡"}</div>
+                  <div style={{width:36,height:36,borderRadius:"50%",background:d.on?"#fef3c7":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {isPlug
+                      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="12" rx="2" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8"/><line x1="9" y1="2" x2="9" y2="6" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/><line x1="15" y1="2" x2="15" y2="6" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/><path d="M12 14v3M9 20h6" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/></svg>
+                      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.8" fill={d.on?"#fef3c7":"none"}/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke={d.on?"#f59e0b":"#94a3b8"} strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    }
+                  </div>
                   <button onClick={()=>toggle(d)} style={{width:48,height:26,borderRadius:99,border:"none",cursor:"pointer",background:d.on?"#fbbf24":"#e2e8f0",position:"relative",transition:"background 0.2s"}}>
                     <div style={{position:"absolute",top:3,width:20,height:20,borderRadius:"50%",background:"#fff",left:d.on?"25px":"3px",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
                   </button>
@@ -1095,7 +1161,24 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
       {/* Confetti banner */}
       {confetti && (
         <div style={{...CARD,padding:"20px 24px",background:"linear-gradient(135deg,#fef3c7,#fed7aa)",border:"2px solid #fbbf24",textAlign:"center"}}>
-          <div style={{fontSize:32,marginBottom:6}}>🎉</div>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:6}}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+              {/* party popper */}
+              <path d="M2 22L8.5 8.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
+              <path d="M2 22L15.5 15.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
+              <path d="M2 22l5-2-2-5z" fill="#fbbf24"/>
+              <circle cx="9" cy="4" r="1.2" fill="#f472b6"/>
+              <circle cx="14" cy="2" r="0.9" fill="#60a5fa"/>
+              <circle cx="19" cy="6" r="1.1" fill="#34d399"/>
+              <circle cx="5" cy="8" r="0.8" fill="#a78bfa"/>
+              <line x1="12" y1="7" x2="13.5" y2="5" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="17" y1="10" x2="19" y2="9" stroke="#f472b6" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="20" y1="14" x2="22" y2="13" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="16" y1="18" x2="18" y2="19" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="20" cy="4" r="0.7" fill="#f59e0b"/>
+              <circle cx="6" cy="14" r="0.7" fill="#60a5fa"/>
+            </svg>
+          </div>
           <div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{confetti} redeemed!</div>
           <div style={{fontSize:14,color:"#b45309",marginTop:4}}>Enjoy your reward!</div>
         </div>
@@ -1297,14 +1380,76 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
   );
 }
 
+// ─── UPCOMING TAB ────────────────────────────────────────────────────────────
+function UpcomingTab({ tasks, projs, uidMap }) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const groceriesProj     = projs.find(p=>p.name.toLowerCase()==="groceries");
+  const rabiaPersonalProj = projs.find(p=>p.name.toLowerCase()==="rabia's personal");
+
+  const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
+  const weekTasks = tasks.filter(t=>{
+    if(!t.due?.date||t.checked) return false;
+    if(t.project_id===groceriesProj?.id) return false;
+    if(t.due?.is_recurring) return false;
+    const d=new Date(t.due.date+'T12:00:00');
+    return d>today && d<=weekEnd;
+  }).sort((a,b)=>a.due.date.localeCompare(b.due.date));
+
+  const weekRabia  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"||t.project_id===rabiaPersonalProj?.id; });
+  const weekClare  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
+  const weekFamily = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
+
+  const Col = ({person, color, wt}) => (
+    <div style={{...CARD,overflow:"hidden"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid #f1f5f9",background:`${color}10`,display:"flex",alignItems:"center",gap:10}}>
+        {person
+          ? <Av person={person} size={28}/>
+          : <div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>F</div>
+        }
+        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{person?.name||"Family"}</div>
+        <span style={{fontSize:12,color:"#94a3b8"}}>{wt.length} task{wt.length!==1?"s":""}</span>
+      </div>
+      {wt.length===0
+        ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>Nothing this week</div>
+        : wt.map((t,i)=>{
+            const due=fmtDue(t.due?.date);
+            return (
+              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:54,borderBottom:i<wt.length-1?"1px solid #f8fafc":"none",gap:12}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
+                  {t.project_name && <div style={{fontSize:11,color:"#94a3b8"}}>{t.project_name}</div>}
+                </div>
+                {due && <span style={{fontSize:12,fontWeight:700,color:due.color,flexShrink:0,whiteSpace:"nowrap"}}>{due.label}</span>}
+              </div>
+            );
+          })
+      }
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",paddingLeft:4}}>
+        Next 7 days · {weekTasks.length} task{weekTasks.length!==1?"s":""}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"start"}}>
+        <Col person={RABIA}  color={RABIA.color}  wt={weekRabia}/>
+        <Col person={CLARE}  color={CLARE.color}  wt={weekClare}/>
+        <Col person={null}   color="#6366f1"       wt={weekFamily}/>
+      </div>
+    </div>
+  );
+}
+
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
   { id:"home",      label:"Home",      color:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
-  { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
-  { id:"groceries", label:"Groceries", color:"#059669", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"weather",   label:"Weather",   color:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"sun",       label:"Sun",       color:"#f59e0b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 118 4.5a6 6 0 0012 10z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"upcoming",  label:"Upcoming",  color:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:"groceries", label:"Groceries", color:"#059669", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"sun",       label:"Sun",       color:"#f59e0b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="2" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="2" y1="12" x2="5" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="4.9" y1="4.9" x2="7" y2="7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="17" y1="17" x2="19.1" y2="19.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="17" y1="7" x2="19.1" y2="4.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="4.9" y1="19.1" x2="7" y2="17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
+  { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
 ];
@@ -1385,11 +1530,12 @@ export default function App() {
         {/* Scrollable content */}
         <div style={{ flex:1, minHeight:0, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
-          {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
-          {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
-          {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx}/>}
+          {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap}/>}
+          {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
           {tab==="sun"       && <SunMoonTab sun={hub.sun}/>}
+          {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
+          {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="lights"    && <LightsTab/>}
           {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
         </div>
