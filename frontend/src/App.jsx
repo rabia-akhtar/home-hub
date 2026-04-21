@@ -832,8 +832,10 @@ function CalendarTab({ evts, authOk, reload }) {
 }
 
 // ─── WEATHER TAB ──────────────────────────────────────────────────────────────
-function WeatherTab({ wx }) {
+function WeatherTab({ wx, sun }) {
   const [selDay, setSelDay] = useState(null);
+  const [now,setNow]=useState(new Date());
+  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),60000); return()=>clearInterval(t); },[]);
   if(!wx?.current) return <div style={{...CARD,padding:32,textAlign:"center",color:"#94a3b8"}}>Loading weather…</div>;
   const cur=wx.current, daily=wx.daily, hourly=wx.hourly, code=cur.weather_code;
 
@@ -904,7 +906,7 @@ function WeatherTab({ wx }) {
                   <div style={{fontSize:16,fontWeight:800,color:"#1e293b",flexShrink:0}}>{Math.round(hh.temp)}°</div>
                   {hh.precip_prob>10 && (
                     <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
-                      <span style={{fontSize:14}}>💧</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 10 5 15a7 7 0 0014 0C19 10 12 2 12 2z" fill="#60a5fa" opacity="0.8"/></svg>
                       <div style={{textAlign:"right"}}>
                         <div style={{fontSize:12,fontWeight:700,color:"#38bdf8"}}>{hh.precip_prob}%</div>
                         {hh.precip>0&&<div style={{fontSize:10,color:"#94a3b8"}}>{hh.precip.toFixed(1)}mm</div>}
@@ -917,6 +919,74 @@ function WeatherTab({ wx }) {
           </div>
         )}
       </div>
+
+      {/* ── Sun arc ── */}
+      {sun && (()=>{
+        const rise=new Date(sun.sunrise), set=new Date(sun.sunset);
+        const frac=Math.max(0,Math.min((now-rise)/(set-rise),1));
+        const dlMs=set-rise, dlH=Math.floor(dlMs/3600000), dlM=Math.floor((dlMs%3600000)/60000);
+        const W=320,H=150,R=120,scx=W/2,scy=H-12;
+        const sunX=scx-R*Math.cos(Math.PI*frac), sunY=scy-R*Math.sin(Math.PI*frac);
+        return (
+          <div style={{...CARD,padding:"24px 24px 20px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>Sun · today</div>
+            <div style={{display:"flex",justifyContent:"center"}}>
+              <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+                <defs><linearGradient id="ag" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#f2709c"/><stop offset="50%" stopColor="#fbbf24"/><stop offset="100%" stopColor="#f97316"/></linearGradient></defs>
+                <path d={`M ${scx-R},${scy} A ${R},${R} 0 0,1 ${scx+R},${scy}`} fill="none" stroke="#f1f5f9" strokeWidth="4" strokeDasharray="5 3"/>
+                {frac>0.01&&<path d={`M ${scx-R},${scy} A ${R},${R} 0 0,1 ${sunX.toFixed(1)},${sunY.toFixed(1)}`} fill="none" stroke="url(#ag)" strokeWidth="4" strokeLinecap="round"/>}
+                <line x1={scx-R-10} y1={scy} x2={scx+R+10} y2={scy} stroke="#e2e8f0" strokeWidth="1"/>
+                <circle cx={sunX.toFixed(1)} cy={sunY.toFixed(1)} r="12" fill="#fbbf24"/>
+                <circle cx={sunX.toFixed(1)} cy={sunY.toFixed(1)} r="6" fill="#fef3c7"/>
+                {[0,45,90,135,180,225,270,315].map(a=>{const r2=a*Math.PI/180;return<line key={a} x1={sunX+15*Math.cos(r2)} y1={sunY+15*Math.sin(r2)} x2={sunX+21*Math.cos(r2)} y2={sunY+21*Math.sin(r2)} stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>;})}
+              </svg>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
+              <div><div style={{fontSize:20,fontWeight:800,color:"#f97316"}}>{fmtFull12(sun.sunrise)}</div><div style={{fontSize:12,color:"#94a3b8"}}>Sunrise</div></div>
+              <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:"#1e293b"}}>{dlH}h {dlM}m</div><div style={{fontSize:12,color:"#94a3b8"}}>Daylight</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:20,fontWeight:800,color:"#6366f1"}}>{fmtFull12(sun.sunset)}</div><div style={{fontSize:12,color:"#94a3b8"}}>Sunset</div></div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Golden hour ── */}
+      {sun && (
+        <div style={{background:"linear-gradient(135deg,#fef3c7,#fed7aa)",borderRadius:22,padding:"20px 24px",boxShadow:"0 4px 16px rgba(251,191,36,0.2)"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#92400e",letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>Golden hour</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontSize:12,color:"#b45309"}}>Morning</div><div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{fmtFull12(sun.sunrise)}</div></div>
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" fill="#f59e0b"/><line x1="12" y1="2" x2="12" y2="4.5" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="4.2" y1="4.2" x2="5.9" y2="5.9" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round"/><line x1="19.8" y1="4.2" x2="18.1" y2="5.9" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round"/><line x1="2" y1="10" x2="4.5" y2="10" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="21.5" y1="10" x2="19" y2="10" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="2" y1="18" x2="22" y2="18" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/><path d="M6.5 18a5.5 5.5 0 0111 0" stroke="#b45309" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+            <div style={{textAlign:"right"}}><div style={{fontSize:12,color:"#b45309"}}>Evening</div><div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{sun.sunset?fmtFull12(new Date(new Date(sun.sunset).getTime()-3600000)):"--"}</div></div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Moon ── */}
+      {sun && (()=>{
+        const illumin=Math.round(Math.abs(Math.cos(sun.moon_phase*2*Math.PI))*100);
+        return (
+          <div style={{background:"linear-gradient(145deg,#1e1b4b,#312e81)",borderRadius:24,padding:"28px",color:"#fff",boxShadow:"0 8px 32px rgba(49,46,129,0.3)"}}>
+            <div style={{fontSize:12,fontWeight:700,opacity:0.5,letterSpacing:1,textTransform:"uppercase",marginBottom:18}}>Moon tonight</div>
+            <div style={{display:"flex",alignItems:"center",gap:24}}>
+              <MoonIcon phase={sun.moon_phase} size={72}/>
+              <div><div style={{fontSize:24,fontWeight:800}}>{sun.moon_name}</div><div style={{fontSize:14,opacity:0.6,marginTop:6}}>{illumin}% illuminated · {sun.moon_age_days}d old</div></div>
+            </div>
+            <div style={{marginTop:22}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                {[0,1,2,3,4,5,6,7].map(i=>{
+                  const act=Math.abs(sun.moon_phase-i/7)<0.07;
+                  return<div key={i} style={{opacity:act?1:0.35,transform:act?"scale(1.3)":"scale(1)",transition:"all 0.3s"}}><MoonIcon phase={i/7} size={act?26:17}/></div>;
+                })}
+              </div>
+              <div style={{height:4,background:"rgba(255,255,255,0.1)",borderRadius:99,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${Math.round(sun.moon_phase*100)}%`,background:"rgba(255,255,255,0.45)",borderRadius:99}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,opacity:0.35,marginTop:6}}><span>New</span><span>Full</span><span>New</span></div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -978,69 +1048,6 @@ function MoonIcon({ phase=0, size=40 }) {
     {/* small craters on lit side */}
     {seg!==0&&<circle cx={cx+(waxing?r*0.2:-r*0.2)} cy={cy-r*0.2} r={r*0.09} fill="rgba(255,255,255,0.22)"/>}
   </svg>;
-}
-
-// ─── SUN & MOON TAB ───────────────────────────────────────────────────────────
-function SunMoonTab({ sun }) {
-  const [now,setNow]=useState(new Date());
-  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),60000); return()=>clearInterval(t); },[]);
-  if(!sun) return <div style={{...CARD,padding:32,textAlign:"center",color:"#94a3b8"}}>Loading sun data…</div>;
-  const rise=new Date(sun.sunrise),set=new Date(sun.sunset);
-  const frac=Math.max(0,Math.min((now-rise)/(set-rise),1));
-  const dlMs=set-rise, dlH=Math.floor(dlMs/3600000), dlM=Math.floor((dlMs%3600000)/60000);
-  const illumin=Math.round(Math.abs(Math.cos(sun.moon_phase*2*Math.PI))*100);
-  const W=320,H=150,R=120,cx=W/2,cy=H-12;
-  const sunX=cx-R*Math.cos(Math.PI*frac), sunY=cy-R*Math.sin(Math.PI*frac);
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{...CARD,padding:"24px 24px 20px"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>Sun · today</div>
-        <div style={{display:"flex",justifyContent:"center"}}>
-          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-            <defs><linearGradient id="ag" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#f2709c"/><stop offset="50%" stopColor="#fbbf24"/><stop offset="100%" stopColor="#f97316"/></linearGradient></defs>
-            <path d={`M ${cx-R},${cy} A ${R},${R} 0 0,1 ${cx+R},${cy}`} fill="none" stroke="#f1f5f9" strokeWidth="4" strokeDasharray="5 3"/>
-            {frac>0.01&&<path d={`M ${cx-R},${cy} A ${R},${R} 0 0,1 ${sunX.toFixed(1)},${sunY.toFixed(1)}`} fill="none" stroke="url(#ag)" strokeWidth="4" strokeLinecap="round"/>}
-            <line x1={cx-R-10} y1={cy} x2={cx+R+10} y2={cy} stroke="#e2e8f0" strokeWidth="1"/>
-            <circle cx={sunX.toFixed(1)} cy={sunY.toFixed(1)} r="12" fill="#fbbf24"/>
-            <circle cx={sunX.toFixed(1)} cy={sunY.toFixed(1)} r="6"  fill="#fef3c7"/>
-            {[0,45,90,135,180,225,270,315].map(a=>{const r2=a*Math.PI/180;return<line key={a} x1={sunX+15*Math.cos(r2)} y1={sunY+15*Math.sin(r2)} x2={sunX+21*Math.cos(r2)} y2={sunY+21*Math.sin(r2)} stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>;})}
-          </svg>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-          <div><div style={{fontSize:20,fontWeight:800,color:"#f97316"}}>{fmtFull12(sun.sunrise)}</div><div style={{fontSize:12,color:"#94a3b8"}}>Sunrise</div></div>
-          <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:"#1e293b"}}>{dlH}h {dlM}m</div><div style={{fontSize:12,color:"#94a3b8"}}>Daylight</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontSize:20,fontWeight:800,color:"#6366f1"}}>{fmtFull12(sun.sunset)}</div><div style={{fontSize:12,color:"#94a3b8"}}>Sunset</div></div>
-        </div>
-      </div>
-      <div style={{background:"linear-gradient(135deg,#fef3c7,#fed7aa)",borderRadius:22,padding:"20px 24px",boxShadow:"0 4px 16px rgba(251,191,36,0.2)"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#92400e",letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>Golden hour</div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><div style={{fontSize:12,color:"#b45309"}}>Morning</div><div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{fmtFull12(sun.sunrise)}</div></div>
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" fill="#f59e0b"/><line x1="12" y1="2" x2="12" y2="4.5" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="4.2" y1="4.2" x2="5.9" y2="5.9" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round"/><line x1="19.8" y1="4.2" x2="18.1" y2="5.9" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round"/><line x1="2" y1="10" x2="4.5" y2="10" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="21.5" y1="10" x2="19" y2="10" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/><line x1="2" y1="18" x2="22" y2="18" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/><path d="M6.5 18a5.5 5.5 0 0111 0" stroke="#b45309" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
-          <div style={{textAlign:"right"}}><div style={{fontSize:12,color:"#b45309"}}>Evening</div><div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{sun.sunset?fmtFull12(new Date(new Date(sun.sunset).getTime()-3600000)):"--"}</div></div>
-        </div>
-      </div>
-      <div style={{background:"linear-gradient(145deg,#1e1b4b,#312e81)",borderRadius:24,padding:"28px",color:"#fff",boxShadow:"0 8px 32px rgba(49,46,129,0.3)"}}>
-        <div style={{fontSize:12,fontWeight:700,opacity:0.5,letterSpacing:1,textTransform:"uppercase",marginBottom:18}}>Moon tonight</div>
-        <div style={{display:"flex",alignItems:"center",gap:24}}>
-          <MoonIcon phase={sun.moon_phase} size={72}/>
-          <div><div style={{fontSize:24,fontWeight:800}}>{sun.moon_name}</div><div style={{fontSize:14,opacity:0.6,marginTop:6}}>{illumin}% illuminated · {sun.moon_age_days}d old</div></div>
-        </div>
-        <div style={{marginTop:22}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
-            {[0,1,2,3,4,5,6,7].map(i=>{
-              const act=Math.abs(sun.moon_phase-i/7)<0.07;
-              return<div key={i} style={{opacity:act?1:0.35,transform:act?"scale(1.3)":"scale(1)",transition:"all 0.3s"}}><MoonIcon phase={i/7} size={act?26:17}/></div>;
-            })}
-          </div>
-          <div style={{height:4,background:"rgba(255,255,255,0.1)",borderRadius:99,overflow:"hidden"}}>
-            <div style={{height:"100%",width:`${Math.round(sun.moon_phase*100)}%`,background:"rgba(255,255,255,0.45)",borderRadius:99}}/>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,opacity:0.35,marginTop:6}}><span>New</span><span>Full</span><span>New</span></div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─── LIGHTS TAB ───────────────────────────────────────────────────────────────
@@ -1693,7 +1700,6 @@ const NAV = [
   { id:"weather",   label:"Weather",   color:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"upcoming",  label:"Upcoming",  color:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"groceries", label:"Groceries", color:"#059669", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"sun",       label:"Sun",       color:"#f59e0b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="2" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="2" y1="12" x2="5" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="4.9" y1="4.9" x2="7" y2="7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="17" y1="17" x2="19.1" y2="19.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="17" y1="7" x2="19.1" y2="4.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="4.9" y1="19.1" x2="7" y2="17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
   { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
@@ -1777,10 +1783,9 @@ export default function App() {
         {/* Scrollable content */}
         <div style={{ flex:1, minHeight:0, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
-          {tab==="weather"   && <WeatherTab wx={hub.wx}/>}
+          {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
           {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap}/>}
           {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
-          {tab==="sun"       && <SunMoonTab sun={hub.sun}/>}
           {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="lights"    && <LightsTab/>}
