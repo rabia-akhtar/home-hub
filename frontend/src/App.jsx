@@ -1994,26 +1994,27 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
-  // ── Idle screensaver: activate after 5 min of no interaction ──
+  // ── Idle screensaver: activate after 2 min of no interaction ──
   const idleTimer = useRef(null);
+  const IDLE_MS = 2 * 60 * 1000;
+
   const resetIdle = useCallback(() => {
     clearTimeout(idleTimer.current);
-    if (screensaver) return; // don't reset while screensaver is showing
-    idleTimer.current = setTimeout(() => setScreensaver(true), 2 * 60 * 1000);
-  }, [screensaver]);
-  useEffect(() => { resetIdle(); }, []);
+    idleTimer.current = setTimeout(() => setScreensaver(true), IDLE_MS);
+  }, []); // no dependency on screensaver — always restarts the timer
+  useEffect(() => { resetIdle(); return () => clearTimeout(idleTimer.current); }, []);
 
-  // ── Poll /api/motion — wake screen if motion within 2 min ──
+  // ── Poll /api/motion every 3s — dismiss screensaver if motion detected ──
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
         const d = await fetch(`${API}/motion`).then(r => r.json());
         if (d.active) {
           setScreensaver(false);
-          resetIdle();
+          resetIdle(); // restart the idle countdown
         }
       } catch {}
-    }, 5000);
+    }, 3000);
     return () => clearInterval(poll);
   }, [resetIdle]);
 

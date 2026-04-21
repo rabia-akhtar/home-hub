@@ -8,23 +8,32 @@ const { exec }   = require('child_process');
 const { google } = require('googleapis');
 
 // ─── PIR motion sensor (Raspberry Pi GPIO via onoff) ──────────────────────────
-let lastMotion = null;
-let pirWatcher = null;
+let lastMotion  = null;
+let pirWatcher  = null;
+let pirReady    = false;
+let pirError    = null;
+let pirFires    = 0;   // total times value went HIGH
+let pirPin      = parseInt(process.env.PIR_GPIO || '17');
+
 try {
   const { Gpio } = require('onoff');
-  const PIR_PIN  = parseInt(process.env.PIR_GPIO || '17');
-  pirWatcher = new Gpio(PIR_PIN, 'in', 'both');
+  pirWatcher = new Gpio(pirPin, 'in', 'rising'); // 'rising' = only fires on HIGH edge
   pirWatcher.watch((err, value) => {
-    if (err) return;
+    if (err) { console.log('[PIR] watch error:', err.message); return; }
+    console.log(`[PIR] GPIO${pirPin} value=${value}`);
     if (value === 1) {
+      pirFires++;
       lastMotion = new Date();
       exec('DISPLAY=:0 xset dpms force on 2>/dev/null; DISPLAY=:0 xset s reset 2>/dev/null', ()=>{});
-      console.log('[PIR] Motion detected — screen woken');
+      console.log(`[PIR] Motion #${pirFires} detected at ${lastMotion.toISOString()}`);
     }
   });
-  console.log(`[PIR] Watching GPIO ${PIR_PIN}`);
+  pirReady = true;
+  console.log(`[PIR] Watching GPIO ${pirPin} (physical pin ${pirPin === 17 ? 11 : pirPin})`);
 } catch(e) {
-  console.log('[PIR] GPIO not available (non-Pi or onoff not installed):', e.message);
+  pirError = e.message;
+  console.log('[PIR] Not available:', e.message);
+  console.log('[PIR] Fix: cd ~/home-hub/server && npm install onoff');
 }
 
 const app  = express();
@@ -255,10 +264,26 @@ app.get('/api/motion', (req, res) => {
   res.json({ lastMotion: lastMotion?.toISOString() || null, secondsAgo: secAgo, active: secAgo !== null && secAgo < 120 });
 });
 app.post('/api/motion/simulate', (req, res) => {
-  // Useful for testing without hardware
   lastMotion = new Date();
   exec('DISPLAY=:0 xset dpms force on 2>/dev/null', ()=>{});
   res.json({ ok: true, lastMotion: lastMotion.toISOString() });
+});
+
+app.get('/api/motion/debug', (req, res) => {
+  res.json({
+    pirReady,
+    pirError,
+    pirPin,
+    pirFires,
+    lastMotion:  lastMotion?.toISOString() || null,
+    secondsAgo:  lastMotion ? Math.floor((Date.now() - lastMotion.getTime()) / 1000) : null,
+    active:      lastMotion ? (Date.now() - lastMotion.getTime()) < 120000 : false,
+    hint: !pirReady
+      ? 'Run: cd ~/home-hub/server && npm install onoff  then restart server'
+      : pirFires === 0
+        ? 'PIR loaded but no motion detected yet — check wiring: VCC→Pin2, GND→Pin6, OUT→Pin11'
+        : 'PIR working normally',
+  });
 });
 
 // ─── Weather ──────────────────────────────────────────────────────────────────
