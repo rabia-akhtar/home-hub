@@ -185,13 +185,7 @@ function ProgressRing({ pts, max=500, size=56, color }) {
 // ─── HEADER ───────────────────────────────────────────────────────────────────
 function Header({ wx, sun, pts }) {
   const [now, setNow] = useState(new Date());
-  const [kiosk, setKiosk] = useState(false);
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
-  useEffect(()=>{ setKiosk(!!document.fullscreenElement); const fn=()=>setKiosk(!!document.fullscreenElement); document.addEventListener('fullscreenchange',fn); return()=>document.removeEventListener('fullscreenchange',fn); },[]);
-  const toggleKiosk = () => {
-    if(document.fullscreenElement) { document.exitFullscreen(); }
-    else { document.documentElement.requestFullscreen().catch(()=>{}); }
-  };
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
 
   const cur  = wx?.current;
@@ -206,18 +200,12 @@ function Header({ wx, sun, pts }) {
         {/* Top row: title + clock + kiosk buttons */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
           <div>
-            <div style={{ fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.65)",letterSpacing:2,textTransform:"uppercase" }}>Akhtar-Tiedemann</div>
+            <div style={{ fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.65)",letterSpacing:2,textTransform:"uppercase" }}>Clarabiner</div>
             <div style={{ fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:2 }}>{fmtDate(now)}</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button onClick={toggleKiosk} title={kiosk?"Exit fullscreen":"Enter fullscreen"} style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {kiosk
-                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M16 21h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 00-2 2v3m13-5h3a2 2 0 012 2v3M16 21h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
-              }
-            </button>
-            <button onClick={exitKiosk} title="Close browser (exit kiosk)" style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18" stroke="white" strokeWidth="2" strokeLinecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+            <button onClick={exitKiosk} title="Exit kiosk / close browser" style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
             <div style={{ fontSize:52,fontWeight:200,color:"#fff",lineHeight:1,letterSpacing:-3 }}>{fmtTime(now)}</div>
           </div>
@@ -1713,46 +1701,57 @@ export default function App() {
   const hub = useHub();
   const wide = useWide();
 
-  // ── JS-driven touch scroll with momentum (bypasses CSS touch-action quirks on Pi) ──
-  const scrollRef   = useRef(null);
-  const touchState  = useRef(null);
-  const rafRef      = useRef(null);
+  // ── JS-driven scroll with momentum ──
+  // Handles BOTH touch events (proper touch screens) AND mouse-drag events
+  // (USB HID touchscreens on Linux/Pi often report as mouse, not touch)
+  const scrollRef  = useRef(null);
+  const dragState  = useRef(null);   // shared by touch + mouse handlers
+  const rafRef     = useRef(null);
 
-  const onTouchStart = useCallback(e => {
+  const startDrag = useCallback((clientY) => {
     cancelAnimationFrame(rafRef.current);
-    touchState.current = {
-      startY:    e.touches[0].clientY,
-      startTop:  scrollRef.current ? scrollRef.current.scrollTop : 0,
-      lastY:     e.touches[0].clientY,
-      lastT:     Date.now(),
-      vel:       0,
+    dragState.current = {
+      startY:   clientY,
+      startTop: scrollRef.current ? scrollRef.current.scrollTop : 0,
+      lastY:    clientY,
+      lastT:    Date.now(),
+      vel:      0,
     };
   }, []);
 
-  const onTouchMove = useCallback(e => {
-    if (!touchState.current || !scrollRef.current) return;
-    const y   = e.touches[0].clientY;
+  const moveDrag = useCallback((clientY) => {
+    if (!dragState.current || !scrollRef.current) return;
     const now = Date.now();
-    const dt  = now - touchState.current.lastT;
-    if (dt > 0) touchState.current.vel = (touchState.current.lastY - y) / dt;
-    touchState.current.lastY = y;
-    touchState.current.lastT = now;
-    scrollRef.current.scrollTop = touchState.current.startTop + (touchState.current.startY - y);
+    const dt  = now - dragState.current.lastT;
+    if (dt > 0) dragState.current.vel = (dragState.current.lastY - clientY) / dt;
+    dragState.current.lastY = clientY;
+    dragState.current.lastT = now;
+    scrollRef.current.scrollTop = dragState.current.startTop + (dragState.current.startY - clientY);
   }, []);
 
-  const onTouchEnd = useCallback(() => {
-    if (!touchState.current || !scrollRef.current) return;
-    let vel = touchState.current.vel * 16; // px per frame at 60fps
-    touchState.current = null;
+  const endDrag = useCallback(() => {
+    if (!dragState.current || !scrollRef.current) return;
+    let vel = dragState.current.vel * 16;
+    dragState.current = null;
     const el = scrollRef.current;
     const step = () => {
       if (Math.abs(vel) < 0.5) return;
       el.scrollTop += vel;
-      vel *= 0.93; // friction
+      vel *= 0.93;
       rafRef.current = requestAnimationFrame(step);
     };
     rafRef.current = requestAnimationFrame(step);
   }, []);
+
+  // Touch handlers
+  const onTouchStart = useCallback(e => startDrag(e.touches[0].clientY), [startDrag]);
+  const onTouchMove  = useCallback(e => moveDrag(e.touches[0].clientY),  [moveDrag]);
+  const onTouchEnd   = useCallback(() => endDrag(), [endDrag]);
+
+  // Mouse-drag handlers (fallback for HID touchscreens that send mouse events)
+  const onMouseDown  = useCallback(e => { if(e.button!==0) return; startDrag(e.clientY); }, [startDrag]);
+  const onMouseMove  = useCallback(e => { if(!dragState.current) return; moveDrag(e.clientY); }, [moveDrag]);
+  const onMouseUp    = useCallback(() => endDrag(), [endDrag]);
 
   const uidMap = {};
   hub.users.forEach(u=>{
@@ -1827,7 +1826,11 @@ export default function App() {
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          style={{ flex:1, minHeight:0, overflowY:"scroll", touchAction:"none", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          style={{ flex:1, minHeight:0, overflowY:"scroll", touchAction:"none", cursor: dragState.current ? "grabbing" : "default", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
         >
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
