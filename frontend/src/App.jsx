@@ -1713,6 +1713,47 @@ export default function App() {
   const hub = useHub();
   const wide = useWide();
 
+  // ── JS-driven touch scroll with momentum (bypasses CSS touch-action quirks on Pi) ──
+  const scrollRef   = useRef(null);
+  const touchState  = useRef(null);
+  const rafRef      = useRef(null);
+
+  const onTouchStart = useCallback(e => {
+    cancelAnimationFrame(rafRef.current);
+    touchState.current = {
+      startY:    e.touches[0].clientY,
+      startTop:  scrollRef.current ? scrollRef.current.scrollTop : 0,
+      lastY:     e.touches[0].clientY,
+      lastT:     Date.now(),
+      vel:       0,
+    };
+  }, []);
+
+  const onTouchMove = useCallback(e => {
+    if (!touchState.current || !scrollRef.current) return;
+    const y   = e.touches[0].clientY;
+    const now = Date.now();
+    const dt  = now - touchState.current.lastT;
+    if (dt > 0) touchState.current.vel = (touchState.current.lastY - y) / dt;
+    touchState.current.lastY = y;
+    touchState.current.lastT = now;
+    scrollRef.current.scrollTop = touchState.current.startTop + (touchState.current.startY - y);
+  }, []);
+
+  const onTouchEnd = useCallback(() => {
+    if (!touchState.current || !scrollRef.current) return;
+    let vel = touchState.current.vel * 16; // px per frame at 60fps
+    touchState.current = null;
+    const el = scrollRef.current;
+    const step = () => {
+      if (Math.abs(vel) < 0.5) return;
+      el.scrollTop += vel;
+      vel *= 0.93; // friction
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+  }, []);
+
   const uidMap = {};
   hub.users.forEach(u=>{
     if(u.email==='rabia1082@gmail.com')           uidMap[u.id]='rabia';
@@ -1748,8 +1789,8 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-        html, body { touch-action:manipulation; -webkit-user-select:none; user-select:none; }
-        input, textarea { user-select:text !important; -webkit-user-select:text !important; }
+        html, body { touch-action:none; -webkit-user-select:none; user-select:none; }
+        input, textarea { user-select:text !important; -webkit-user-select:text !important; touch-action:auto !important; }
         body { background:#f0f4f8; overscroll-behavior:none; }
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
@@ -1781,7 +1822,13 @@ export default function App() {
         )}
 
         {/* Scrollable content */}
-        <div style={{ flex:1, minHeight:0, overflowY:"scroll", WebkitOverflowScrolling:"touch", touchAction:"pan-y", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}>
+        <div
+          ref={scrollRef}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          style={{ flex:1, minHeight:0, overflowY:"scroll", touchAction:"none", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
+        >
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
           {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap}/>}

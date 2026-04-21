@@ -52,6 +52,9 @@ function countsForReward(projectName) {
 // ─── Kasa ─────────────────────────────────────────────────────────────────────
 const kasaClient = new Client();
 let deviceCache  = {};
+let kasaLog      = [];   // rolling log for /api/lights/debug
+
+function kasaInfo(msg) { const t=new Date().toISOString(); console.log('[Kasa]',msg); kasaLog.push(`${t} ${msg}`); if(kasaLog.length>50) kasaLog.shift(); }
 
 // Static IPs — bypass UDP discovery for known devices
 const STATIC_KASA_IPS = ['192.168.1.189'];
@@ -59,25 +62,45 @@ const STATIC_KASA_IPS = ['192.168.1.189'];
 async function connectStaticDevices() {
   for (const host of STATIC_KASA_IPS) {
     try {
+      kasaInfo(`Trying static IP ${host}…`);
       const device = await kasaClient.getDevice({ host });
       deviceCache[device.alias] = device;
-      console.log(`Kasa static: ${device.alias} @ ${host}`);
-    } catch(e) { console.warn(`Kasa static ${host} unreachable:`, e.message); }
+      kasaInfo(`✓ Static connected: "${device.alias}" @ ${host}`);
+    } catch(e) {
+      kasaInfo(`✗ Static ${host} failed: ${e.message}`);
+    }
   }
 }
 
 async function discoverKasa() {
   return new Promise(resolve => {
     const found = {};
-    kasaClient.startDiscovery({ discoveryTimeout:3000 })
-      .on('device-new', device => { found[device.alias]=device; deviceCache={...deviceCache,...found}; });
-    setTimeout(()=>resolve(found), 3500);
+    kasaInfo('Starting UDP discovery…');
+    kasaClient.startDiscovery({ discoveryTimeout: 4000 })
+      .on('device-new', device => {
+        kasaInfo(`✓ Discovered: "${device.alias}" @ ${device.host}`);
+        found[device.alias] = device;
+        deviceCache = { ...deviceCache, ...found };
+      });
+    setTimeout(() => {
+      kasaInfo(`Discovery done. Cache: [${Object.keys(deviceCache).join(', ') || 'empty'}]`);
+      resolve(found);
+    }, 4500);
   });
 }
 
 connectStaticDevices();
 discoverKasa();
 setInterval(()=>{ connectStaticDevices(); discoverKasa(); }, 30000);
+
+// Debug endpoint — call http://pi:3001/api/lights/debug to see what's happening
+app.get('/api/lights/debug', (req, res) => {
+  res.json({
+    cached: Object.keys(deviceCache).map(k => ({ alias: k, host: deviceCache[k].host })),
+    static_ips: STATIC_KASA_IPS,
+    log: kasaLog.slice(-30),
+  });
+});
 
 app.get('/api/lights', async (req,res) => {
   try {
