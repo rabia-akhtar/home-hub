@@ -1367,7 +1367,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
 }
 
 // ─── GROCERIES TAB ───────────────────────────────────────────────────────────
-function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
+function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd, onIngredientsAdded }) {
   const [newItem, setNewItem] = useState("");
   const [adding,  setAdding]  = useState(false);
 
@@ -1388,6 +1388,10 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* Recipe suggestion */}
+      <RecipeCard onIngredientsAdded={onIngredientsAdded}/>
+
       {/* Quick add */}
       <div style={{...CARD,padding:"14px 18px"}}>
         {adding ? (
@@ -1501,340 +1505,111 @@ const CUISINE_COLORS = {
 };
 function cColor(c) { return CUISINE_COLORS[(c||'').toLowerCase()] || "#94a3b8"; }
 
-// ─── Saved recipes helpers (localStorage) ────────────────────────────────────
-const SAVED_KEY = 'clarabiner_saved_recipes';
-function loadSaved() {
-  try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); }
-  catch { return []; }
-}
-function saveSaved(arr) {
-  localStorage.setItem(SAVED_KEY, JSON.stringify(arr));
-}
+// ─── RECIPE CARD (Recipes tab — one suggestion at a time) ────────────────────
 
-// ─── Mini recipe card used in Recommended + Saved grids ──────────────────────
-function RecipeMiniCard({ recipe, onSelect, saved, onToggleSave }) {
-  const fmtTime = n => { if(!n) return null; if(n<60) return `${n}m`; return `${Math.floor(n/60)}h${n%60?` ${n%60}m`:''}`; };
-  return (
-    <div
-      onClick={() => onSelect(recipe)}
-      style={{...CARD,padding:0,overflow:"hidden",cursor:"pointer",position:"relative",transition:"box-shadow 0.15s",flexShrink:0}}
-    >
-      {recipe.image
-        ? <img src={recipe.image} alt={recipe.label} style={{width:"100%",height:110,objectFit:"cover",display:"block"}}/>
-        : <div style={{width:"100%",height:110,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:32}}>🍽</span></div>
-      }
-      {/* Save button */}
-      <button
-        onClick={e=>{ e.stopPropagation(); onToggleSave(recipe); }}
-        style={{position:"absolute",top:6,right:6,width:28,height:28,borderRadius:"50%",background:"rgba(0,0,0,0.45)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}
-        title={saved ? "Remove from saved" : "Save recipe"}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill={saved?"#f97316":"none"}>
-          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke={saved?"#f97316":"white"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-      <div style={{padding:"10px 12px"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#1e293b",lineHeight:1.3,marginBottom:4,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{recipe.label}</div>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-          {fmtTime(recipe.totalTime) && <span style={{fontSize:10,fontWeight:600,background:"#f1f5f9",color:"#64748b",padding:"2px 6px",borderRadius:20}}>⏱ {fmtTime(recipe.totalTime)}</span>}
-          <span style={{fontSize:10,fontWeight:600,background:"#f0fdf4",color:"#166534",padding:"2px 6px",borderRadius:20}}>{recipe.ingredientLines?.length||0} ing.</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+function RecipeCard({ onIngredientsAdded }) {
+  // State
+  const [recipe,   setRecipe]   = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [adding,   setAdding]   = useState(false);
+  const [added,    setAdded]    = useState(false);
 
-function RecipesTab({ onIngredientsAdded }) {
-  const [query,     setQuery]     = useState('');
-  const [results,   setResults]   = useState(null);   // null=not searched, []=empty
-  const [nextUrl,   setNextUrl]   = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [selected,  setSelected]  = useState(null);   // selected recipe object
-  const [checked,   setChecked]   = useState({});     // ingredient index → bool
-  const [adding,    setAdding]    = useState(false);
-  const [added,     setAdded]     = useState(null);   // {count, recipe} after success
-  const [err,       setErr]       = useState(null);
-
-  // ── Recommended recipes (vegetarian + dairy-free, hourly refresh) ──
-  const [recs,      setRecs]      = useState([]);
-  const [recsLoading, setRecsLoading] = useState(false);
-
-  // ── Saved recipes (localStorage) ──
-  const [saved,     setSaved]     = useState(() => loadSaved());
-
-  const fetchRecommended = useCallback(async () => {
-    setRecsLoading(true);
+  // Fetch one random vegetarian + dairy-free recipe
+  const fetchRecipe = useCallback(async () => {
+    setLoading(true); setAdded(false);
     try {
       const d = await fetch(`${API}/recipes/recommended`).then(r => r.json());
-      if (!d.error) setRecs(d.hits?.map(h => h.recipe || h) || []);
+      const hits = d.hits || [];
+      if (hits.length) {
+        const hit = hits[Math.floor(Math.random() * hits.length)];
+        setRecipe(hit.recipe || hit);
+      }
     } catch {}
-    finally { setRecsLoading(false); }
-  }, []);
-
-  useEffect(() => {
-    fetchRecommended();
-    const t = setInterval(fetchRecommended, 60 * 60 * 1000); // refresh every hour
-    return () => clearInterval(t);
-  }, [fetchRecommended]);
-
-  const toggleSave = useCallback((recipe) => {
-    setSaved(prev => {
-      const exists = prev.some(r => r.uri === recipe.uri);
-      const next   = exists ? prev.filter(r => r.uri !== recipe.uri) : [...prev, recipe];
-      saveSaved(next);
-      return next;
-    });
-  }, []);
-
-  const isSaved = (recipe) => saved.some(r => r.uri === recipe.uri);
-
-  const search = async (url) => {
-    if (!url && !query.trim()) return;
-    setLoading(true); setErr(null); if (!url) { setResults(null); setNextUrl(null); }
-    try {
-      const endpoint = url
-        ? `${API}/recipes/search?next=${encodeURIComponent(url)}&q=${encodeURIComponent(query)}`
-        : `${API}/recipes/search?q=${encodeURIComponent(query)}`;
-      const d = await fetch(endpoint).then(r => r.json());
-      if (d.error) throw new Error(d.error);
-      setResults(prev => url ? [...(prev||[]), ...d.hits] : d.hits);
-      setNextUrl(d.next || null);
-    } catch(e) { setErr(e.message); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  const selectRecipe = recipe => {
-    setSelected(recipe);
-    setAdded(null);
-    // default: all ingredients checked
-    const c = {};
-    (recipe.ingredientLines||[]).forEach((_,i) => { c[i] = true; });
-    setChecked(c);
-  };
+  useEffect(() => { fetchRecipe(); }, [fetchRecipe]);
 
   const addToGroceries = async () => {
-    if (!selected) return;
-    const lines = selected.ingredientLines.filter((_,i) => checked[i]);
-    if (!lines.length) return;
+    if (!recipe) return;
     setAdding(true);
     try {
       const r = await fetch(`${API}/recipes/add-ingredients`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ingredients: lines, recipeName: selected.label }),
+        body: JSON.stringify({ ingredients: recipe.ingredientLines || [], recipeName: recipe.label }),
       }).then(r => r.json());
       if (r.error) throw new Error(r.error);
-      setAdded({ count: r.added, recipe: selected.label });
+      setAdded(true);
       if (onIngredientsAdded) onIngredientsAdded();
     } catch(e) { alert(e.message); }
     finally { setAdding(false); }
   };
 
-  const fmtCal = n => n ? `${Math.round(n)} cal` : null;
-  const fmtTime = n => { if(!n) return null; if(n<60) return `${n}m`; return `${Math.floor(n/60)}h${n%60?` ${n%60}m`:''}`; };
-
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:0,height:"100%"}}>
-
-      {/* ── Recommended for You card ── */}
-      <div style={{...CARD,padding:"16px 20px",marginBottom:14,flexShrink:0}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:18}}>🌿</span>
-            <div>
-              <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Recommended for You</div>
-              <div style={{fontSize:11,color:"#94a3b8"}}>Vegetarian · Dairy-free · Refreshes hourly</div>
-            </div>
+    <div style={{...CARD, padding: 0, overflow: "hidden", marginBottom: 14}}>
+      {/* Card header */}
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px 10px"}}>
+        <div style={{display:"flex", alignItems:"center", gap:8}}>
+          <span style={{fontSize:16}}>🌿</span>
+          <div>
+            <div style={{fontSize:13, fontWeight:800, color:"#1e293b"}}>Recipe Suggestion</div>
+            <div style={{fontSize:11, color:"#94a3b8"}}>Vegetarian · Dairy-free</div>
           </div>
-          <button onClick={fetchRecommended} disabled={recsLoading}
-            style={{padding:"6px 14px",background:"#f97316",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,opacity:recsLoading?0.5:1}}>
-            {recsLoading ? "…" : "↺"}
-          </button>
         </div>
-        {recsLoading && !recs.length && (
-          <div style={{textAlign:"center",color:"#94a3b8",fontSize:13,padding:"16px 0"}}>Finding recipes…</div>
-        )}
-        {recs.length > 0 && (
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
-            {recs.slice(0,8).map((recipe,i) => (
-              <RecipeMiniCard key={recipe.uri||i} recipe={recipe} onSelect={selectRecipe}
-                saved={isSaved(recipe)} onToggleSave={toggleSave}/>
-            ))}
-          </div>
-        )}
+        <button onClick={fetchRecipe} disabled={loading}
+          style={{padding:"6px 14px", background:"#f97316", color:"#fff", border:"none", borderRadius:10, cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700, opacity:loading?0.5:1}}>
+          {loading ? "…" : "↺ New"}
+        </button>
       </div>
 
-      {/* ── Saved Recipes card (only shown when there are saves) ── */}
-      {saved.length > 0 && (
-        <div style={{...CARD,padding:"16px 20px",marginBottom:14,flexShrink:0}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:18}}>❤️</span>
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Saved Recipes</div>
-                <div style={{fontSize:11,color:"#94a3b8"}}>{saved.length} recipe{saved.length!==1?"s":""} saved</div>
-              </div>
-            </div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
-            {saved.map((recipe,i) => (
-              <RecipeMiniCard key={recipe.uri||i} recipe={recipe} onSelect={selectRecipe}
-                saved={true} onToggleSave={toggleSave}/>
-            ))}
-          </div>
-        </div>
+      {loading && !recipe && (
+        <div style={{padding:"24px", textAlign:"center", color:"#94a3b8", fontSize:13}}>Finding a recipe…</div>
       )}
 
-      {/* ── Search bar ── */}
-      <div style={{...CARD,padding:"16px 20px",marginBottom:14,flexShrink:0}}>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <div style={{position:"relative",flex:1}}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}><circle cx="11" cy="11" r="7" stroke="#94a3b8" strokeWidth="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>
-            <input
-              value={query}
-              onChange={e=>setQuery(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&search()}
-              placeholder="Search recipes (e.g. pasta, chicken tacos, lentil soup)…"
-              style={{width:"100%",padding:"11px 12px 11px 36px",border:"1.5px solid #e2e8f0",borderRadius:14,fontSize:14,fontFamily:"inherit",outline:"none",background:"#f8fafc"}}
-            />
-          </div>
-          <button onClick={()=>search()} disabled={loading||!query.trim()} style={{padding:"11px 22px",background:"#f97316",color:"#fff",border:"none",borderRadius:14,cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700,flexShrink:0,opacity:(!query.trim()||loading)?0.5:1}}>
-            {loading?"…":"Search"}
-          </button>
-        </div>
-        {err && <div style={{marginTop:10,fontSize:13,color:"#dc2626",background:"#fef2f2",padding:"8px 12px",borderRadius:10}}>{err}</div>}
-      </div>
-
-      {/* ── Main content: two-panel on wide ── */}
-      <div style={{display:"flex",gap:14,flex:1,minHeight:0}}>
-
-        {/* ── Left: results grid ── */}
-        <div style={{flex: selected ? "0 0 42%" : "1", minWidth:0, display:"flex",flexDirection:"column",gap:14}}>
-          {results === null && !loading && (
-            <div style={{...CARD,padding:"40px 24px",textAlign:"center",color:"#94a3b8"}}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style={{margin:"0 auto 14px",display:"block",opacity:0.3}}><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" stroke="#94a3b8" strokeWidth="1.5"/><path d="M8 12s1.5 2 4 2 4-2 4-2" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="9" x2="9.01" y2="9" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/><line x1="15" y1="9" x2="15.01" y2="9" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>
-              <div style={{fontSize:15,fontWeight:600}}>Search for a recipe to get started</div>
-              <div style={{fontSize:13,marginTop:6,opacity:0.7}}>Try "chicken pasta", "vegan tacos", or "chocolate cake"</div>
+      {recipe && (
+        <>
+          {/* Image */}
+          {recipe.image && (
+            <div style={{position:"relative"}}>
+              <img src={recipe.image} alt={recipe.label} style={{width:"100%", height:160, objectFit:"cover", display:"block"}}/>
+              <div style={{position:"absolute", bottom:0, left:0, right:0, padding:"20px 16px 10px", background:"linear-gradient(to top, rgba(0,0,0,0.72), transparent)"}}>
+                <div style={{fontSize:15, fontWeight:800, color:"#fff", lineHeight:1.2}}>{recipe.label}</div>
+                {recipe.source && <div style={{fontSize:11, color:"rgba(255,255,255,0.7)", marginTop:2}}>{recipe.source}</div>}
+              </div>
             </div>
           )}
-          {results?.length===0 && !loading && (
-            <div style={{...CARD,padding:"32px",textAlign:"center",color:"#94a3b8"}}>No recipes found for "{query}"</div>
-          )}
-          {(results||[]).map((hit, i) => {
-            const r = hit.recipe;
-            const id = r.uri?.split('#recipe_')[1] || i;
-            const isSel = selected?.uri === r.uri;
-            const cuisine = r.cuisineType?.[0];
-            return (
-              <div key={id} onClick={()=>selectRecipe(r)}
-                style={{...CARD,padding:0,overflow:"hidden",cursor:"pointer",border:`2px solid ${isSel?"#f97316":"transparent"}`,transition:"border 0.15s,box-shadow 0.15s",boxShadow:isSel?"0 0 0 3px rgba(249,115,22,0.15)":undefined}}
-              >
-                <div style={{display:"flex",gap:0}}>
-                  {/* Image */}
-                  {r.image && (
-                    <div style={{width:96,flexShrink:0,background:"#f1f5f9",overflow:"hidden"}}>
-                      <img src={r.image} alt={r.label} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                    </div>
-                  )}
-                  {/* Info */}
-                  <div style={{flex:1,padding:"12px 14px",minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:700,color:"#1e293b",marginBottom:5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.label}</div>
-                    <div style={{fontSize:12,color:"#94a3b8",marginBottom:8}}>{r.source}</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {cuisine && <span style={{fontSize:11,fontWeight:700,background:cColor(cuisine)+"22",color:cColor(cuisine),padding:"2px 8px",borderRadius:20,textTransform:"capitalize"}}>{cuisine}</span>}
-                      {fmtTime(r.totalTime) && <span style={{fontSize:11,fontWeight:600,background:"#f1f5f9",color:"#64748b",padding:"2px 8px",borderRadius:20}}>⏱ {fmtTime(r.totalTime)}</span>}
-                      {fmtCal(r.calories/Math.max(r.yield||1,1)) && <span style={{fontSize:11,fontWeight:600,background:"#fef9c3",color:"#92400e",padding:"2px 8px",borderRadius:20}}>{fmtCal(r.calories/Math.max(r.yield||1,1))}/serving</span>}
-                      <span style={{fontSize:11,fontWeight:600,background:"#f0fdf4",color:"#166534",padding:"2px 8px",borderRadius:20}}>{r.ingredientLines?.length||0} ingredients</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {nextUrl && !loading && (
-            <button onClick={()=>search(nextUrl)} style={{padding:"12px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:14,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b",textAlign:"center"}}>Load more results</button>
-          )}
-          {loading && <div style={{...CARD,padding:"24px",textAlign:"center",color:"#94a3b8",fontSize:14}}>Searching recipes…</div>}
-        </div>
 
-        {/* ── Right: recipe detail ── */}
-        {selected && (
-          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:14}}>
-
-            {/* Header card */}
-            <div style={{borderRadius:22,overflow:"hidden",position:"relative",boxShadow:"0 4px 20px rgba(0,0,0,0.12)"}}>
-              {selected.image && <img src={selected.image} alt={selected.label} style={{width:"100%",height:180,objectFit:"cover",display:"block"}}/>}
-              <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"16px 18px",background:"linear-gradient(to top,rgba(0,0,0,0.75),transparent)"}}>
-                <div style={{fontSize:17,fontWeight:800,color:"#fff",lineHeight:1.2}}>{selected.label}</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.75)",marginTop:3}}>{selected.source}</div>
-              </div>
-              {/* Close button */}
-              <button onClick={()=>setSelected(null)} style={{position:"absolute",top:10,right:10,width:30,height:30,borderRadius:"50%",background:"rgba(0,0,0,0.45)",border:"none",cursor:"pointer",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18" stroke="white" strokeWidth="2.5" strokeLinecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="white" strokeWidth="2.5" strokeLinecap="round"/></svg>
-              </button>
-              {/* Save / unsave button */}
-              <button onClick={()=>toggleSave(selected)} style={{position:"absolute",top:10,right:48,width:30,height:30,borderRadius:"50%",background:"rgba(0,0,0,0.45)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill={isSaved(selected)?"#f97316":"none"}>
-                  <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke={isSaved(selected)?"#f97316":"white"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+          {/* Ingredients */}
+          <div style={{padding:"12px 18px"}}>
+            <div style={{fontSize:12, fontWeight:700, color:"#64748b", marginBottom:8, textTransform:"uppercase", letterSpacing:0.5}}>
+              Ingredients ({recipe.ingredientLines?.length || 0})
             </div>
-
-            {/* Stats row */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-              {[
-                [fmtTime(selected.totalTime)||"–","Cook time",<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#f97316" strokeWidth="1.8"/><polyline points="12 7 12 12 15 15" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round"/></svg>],
-                [Math.round(selected.calories/(Math.max(selected.yield||1,1)))+" cal","Per serving",<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round"/></svg>],
-                [(selected.yield||"?")+` serving${selected.yield===1?"":"s"}`,"Yield",<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round"/><circle cx="9" cy="7" r="4" stroke="#f97316" strokeWidth="1.8"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round"/></svg>],
-              ].map(([val,label,icon])=>(
-                <div key={label} style={{...CARD,padding:"12px",textAlign:"center"}}>
-                  <div style={{display:"flex",justifyContent:"center",marginBottom:4}}>{icon}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{val}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>{label}</div>
+            <div style={{display:"flex", flexDirection:"column", gap:5}}>
+              {(recipe.ingredientLines || []).map((line, i) => (
+                <div key={i} style={{display:"flex", alignItems:"flex-start", gap:8, fontSize:13, color:"#334155", lineHeight:1.4}}>
+                  <span style={{color:"#f97316", fontWeight:700, flexShrink:0, marginTop:1}}>·</span>
+                  <span>{line}</span>
                 </div>
               ))}
             </div>
+          </div>
 
-            {/* Ingredients checklist */}
-            <div style={{...CARD,padding:"18px 20px",flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>Ingredients <span style={{color:"#94a3b8",fontWeight:400}}>({Object.values(checked).filter(Boolean).length} selected)</span></div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>{ const c={}; selected.ingredientLines.forEach((_,i)=>{c[i]=true;}); setChecked(c); }} style={{fontSize:12,fontWeight:600,color:"#f97316",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit"}}>All</button>
-                  <button onClick={()=>setChecked({})} style={{fontSize:12,fontWeight:600,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit"}}>None</button>
-                </div>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                {(selected.ingredientLines||[]).map((line,i)=>(
-                  <div key={i} onClick={()=>setChecked(c=>({...c,[i]:!c[i]}))}
-                    style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:10,background:checked[i]?"#fff7ed":"#f8fafc",border:`1.5px solid ${checked[i]?"#fed7aa":"#f1f5f9"}`,cursor:"pointer",transition:"all 0.12s"}}
-                  >
-                    <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${checked[i]?"#f97316":"#cbd5e1"}`,background:checked[i]?"#f97316":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.12s"}}>
-                      {checked[i]&&<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                    </div>
-                    <span style={{fontSize:13,color:checked[i]?"#1e293b":"#94a3b8",textDecoration:checked[i]?"none":"line-through",transition:"all 0.12s"}}>{line}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Add to groceries button */}
+          {/* Add button */}
+          <div style={{padding:"0 18px 16px"}}>
             {added ? (
-              <div style={{...CARD,padding:"18px 20px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",textAlign:"center"}}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style={{margin:"0 auto 8px",display:"block"}}><circle cx="12" cy="12" r="10" fill="#22c55e"/><polyline points="7,12 10,15 17,8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                <div style={{fontSize:16,fontWeight:800,color:"#15803d"}}>{added.count} ingredients added to Groceries!</div>
-                <div style={{fontSize:13,color:"#16a34a",marginTop:4}}>From: {added.recipe}</div>
-                <button onClick={()=>setAdded(null)} style={{marginTop:12,padding:"8px 20px",background:"#22c55e",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>Add another recipe</button>
+              <div style={{display:"flex", alignItems:"center", gap:8, padding:"12px 16px", background:"#f0fdf4", borderRadius:14, border:"1.5px solid #86efac"}}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#22c55e"/><polyline points="7,12 10,15 17,8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <span style={{fontSize:13, fontWeight:700, color:"#15803d"}}>Added to groceries!</span>
               </div>
             ) : (
-              <button onClick={addToGroceries} disabled={adding||!Object.values(checked).some(Boolean)}
-                style={{padding:"16px",background:adding?"#fed7aa":"linear-gradient(135deg,#f97316,#ef4444)",color:"#fff",border:"none",borderRadius:18,cursor:"pointer",fontFamily:"inherit",fontSize:15,fontWeight:800,textAlign:"center",boxShadow:"0 4px 16px rgba(249,115,22,0.4)",opacity:!Object.values(checked).some(Boolean)?0.4:1,transition:"opacity 0.15s"}}
-              >
-                {adding ? "Adding…" : `🛒 Add ${Object.values(checked).filter(Boolean).length} ingredients to Groceries`}
+              <button onClick={addToGroceries} disabled={adding}
+                style={{width:"100%", padding:"13px", background:"linear-gradient(135deg,#059669,#10b981)", color:"#fff", border:"none", borderRadius:14, cursor:"pointer", fontFamily:"inherit", fontSize:14, fontWeight:800, opacity:adding?0.6:1}}>
+                {adding ? "Adding…" : `+ Add all ingredients to Groceries`}
               </button>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
@@ -2169,10 +1944,9 @@ const NAV = [
   { id:"weather",   label:"Weather",   color:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"upcoming",  label:"Upcoming",  color:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"groceries", label:"Groceries", color:"#059669", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"recipes",   label:"Recipes",   color:"#f97316", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 8h1a4 4 0 010 8h-1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><line x1="6" y1="1" x2="6" y2="4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="10" y1="1" x2="10" y2="4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="14" y1="1" x2="14" y2="4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
   { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
-  { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
 ];
@@ -2373,8 +2147,7 @@ export default function App() {
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
           {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap}/>}
-          {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
-          {tab==="recipes"   && <RecipesTab onIngredientsAdded={hub.reload.tasks}/>}
+          {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} onIngredientsAdded={hub.reload.tasks}/>}
           {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="lights"    && <LightsTab/>}
