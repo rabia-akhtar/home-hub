@@ -1367,7 +1367,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
 }
 
 // ─── GROCERIES TAB ───────────────────────────────────────────────────────────
-function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd, onIngredientsAdded }) {
+function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
   const [newItem, setNewItem] = useState("");
   const [adding,  setAdding]  = useState(false);
 
@@ -1388,9 +1388,6 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd, onIngredients
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-
-      {/* Recipe suggestion */}
-      <RecipeCard onIngredientsAdded={onIngredientsAdded}/>
 
       {/* Quick add */}
       <div style={{...CARD,padding:"14px 18px"}}>
@@ -1996,7 +1993,7 @@ export default function App() {
 
   // ── Idle screensaver: activate after 2 min of no interaction ──
   const idleTimer = useRef(null);
-  const IDLE_MS = 2 * 60 * 1000;
+  const IDLE_MS = 1 * 60 * 1000;
 
   const resetIdle = useCallback(() => {
     clearTimeout(idleTimer.current);
@@ -2156,7 +2153,7 @@ export default function App() {
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
           {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap}/>}
-          {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} onIngredientsAdded={hub.reload.tasks}/>}
+          {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
           {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="lights"    && <LightsTab/>}
