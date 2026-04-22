@@ -1876,7 +1876,14 @@ function BudgetTab() {
               ].map(([key,label])=>(
                 <div key={key} style={{display:"flex",flexDirection:"column",gap:4}}>
                   <label style={{fontSize:11,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:0.5}}>{label}</label>
-                  {key==="paidBy" ? (
+                  {key==="category" ? (
+                    <select value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",background:"#fff",outline:"none"}}>
+                      <option value="">— Select —</option>
+                      {["Cat","Dining out/groceries","Furniture","HOA/Insurance","Installation Cost","Misc Household Cost","Paint","Travel","Utilities","Venmo"].map(c=>(
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  ) : key==="paidBy" ? (
                     <select value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",background:"#fff",outline:"none"}}>
                       <option>Rabia</option><option>Clare</option>
                     </select>
