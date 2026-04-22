@@ -1780,7 +1780,7 @@ function BudgetTab() {
     e.item.toLowerCase().includes(filter.toLowerCase()) ||
     e.category.toLowerCase().includes(filter.toLowerCase()) ||
     e.paidBy.toLowerCase().includes(filter.toLowerCase())
-  );
+  ).slice().reverse(); // most recent (last row in sheet) first
 
   // Group by category for summary
   const totals = {};
