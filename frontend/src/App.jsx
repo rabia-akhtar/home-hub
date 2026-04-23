@@ -183,7 +183,7 @@ function ProgressRing({ pts, max=500, size=56, color }) {
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, pts, lightsOn, onToggleLights }) {
+function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -212,6 +212,17 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights }) {
                   <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
                     stroke={lightsOn ? "#fde68a" : "rgba(255,255,255,0.85)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                     fill={lightsOn ? "rgba(253,230,138,0.4)" : "none"}/>
+                </svg>
+              </button>
+            )}
+            {onStartScreensaver && (
+              <button onClick={onStartScreensaver} title="Start screensaver"
+                style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
+                {/* Picture / art frame icon */}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="3" width="18" height="18" rx="3" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8"/>
+                  <circle cx="8.5" cy="8.5" r="1.5" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5"/>
+                  <path d="M3 15l5-5 4 4 3-3 6 6" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
             )}
@@ -2117,7 +2128,7 @@ function DebugTab() {
         </Section>
 
         {/* Motion sensor */}
-        <Section title="Motion Sensor (PIR)" icon="🚶" color="#f472b6">
+        <Section title="Motion Sensor (PIR)" icon="👁" color="#f472b6">
           <Row label="Status" value={motion.ready?"Ready":motion.error||"Not ready"} status={motion.ready?"ok":motion.error?"error":"warn"}/>
           <Row label="Library" value={motion.lib}/>
           <Row label="GPIO Pin" value={`GPIO ${motion.pin} (Pin ${motion.pin===17?11:motion.pin})`} mono/>
@@ -2135,7 +2146,7 @@ function DebugTab() {
         </Section>
 
         {/* Weather */}
-        <Section title="Weather (Open-Meteo)" icon="🌤️" color="#0ea5e9">
+        <Section title="Weather (Open-Meteo)" icon="⛅" color="#0ea5e9">
           <Row label="Status" value={weather.status} status={statusColor(weather.status)}/>
           <Row label="Location" value={`${weather.location.city} (${weather.location.lat}, ${weather.location.lon})`}/>
           {weather.error && (
@@ -2153,7 +2164,7 @@ function DebugTab() {
         </Section>
 
         {/* Google Calendar */}
-        <Section title="Google Calendar" icon="📅" color="#38bdf8">
+        <Section title="Google Calendar" icon="📆" color="#38bdf8">
           <Row label="Client ID" value={gcal.client_id_set?"Set in .env ✓":"Missing GOOGLE_CLIENT_ID"} status={gcal.client_id_set?"ok":"error"}/>
           <Row label="Client Secret" value={gcal.client_secret_set?"Set in .env ✓":"Missing GOOGLE_CLIENT_SECRET"} status={gcal.client_secret_set?"ok":"error"}/>
           <Row label="OAuth tokens" value={gcal.tokens_saved?"Saved ✓":"Not authenticated"} status={gcal.tokens_saved?"ok":"warn"}/>
@@ -2201,6 +2212,13 @@ export default function App() {
   const hub  = useHub();
   const wide = useWide();
 
+  // ── Manual screensaver — suppress motion dismiss for 10s ──
+  const startScreensaver = useCallback(() => {
+    motionPausedUntil.current = Date.now() + 10_000;
+    setScreensaver(true);
+    clearTimeout(idleTimer.current); // don't auto-dismiss while manually locked
+  }, []);
+
   // ── Header lights toggle ──
   const [headerLightsOn, setHeaderLightsOn] = useState(null); // null = unknown
   const toggleAllLights = useCallback(async () => {
@@ -2232,6 +2250,7 @@ export default function App() {
   // ── Idle screensaver: activate after 2 min of no interaction ──
   const idleTimer = useRef(null);
   const IDLE_MS = 1 * 60 * 1000;
+  const motionPausedUntil = useRef(0); // timestamp — suppress motion dismissal until this time
 
   const resetIdle = useCallback(() => {
     clearTimeout(idleTimer.current);
@@ -2244,7 +2263,7 @@ export default function App() {
     const poll = setInterval(async () => {
       try {
         const d = await fetch(`${API}/motion`).then(r => r.json());
-        if (d.active) {
+        if (d.active && Date.now() > motionPausedUntil.current) {
           setScreensaver(false);
           resetIdle(); // restart the idle countdown
         }
@@ -2357,7 +2376,7 @@ export default function App() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights}/>
+      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
