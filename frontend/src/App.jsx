@@ -192,6 +192,26 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver }) 
   const code = cur?.weather_code;
   const sunset = sun?.sunset;
 
+  // ── Weather advisories (shown as slim strip in header) ────────────────────
+  const todayStr2 = new Date().toISOString().slice(0,10);
+  const advisories2 = [];
+  const uv2 = wx?.current?.uv_index ?? 0;
+  if(uv2>=11) advisories2.push({icon:"🚨",msg:`Extreme UV (${uv2}) — avoid going outside midday, max SPF, full cover.`});
+  else if(uv2>=8) advisories2.push({icon:"🔆",msg:`Very high UV (${uv2}) — minimize time outdoors, SPF 50+.`});
+  else if(uv2>=6) advisories2.push({icon:"☀️",msg:`High UV (${uv2}) — sunscreen, sunglasses, and a hat are a must!`});
+  else if(uv2>=3) advisories2.push({icon:"🕶️",msg:`Moderate UV (${uv2}) — pop on some SPF before heading out.`});
+  const todayHrs2 = wx?.hourly?.time?.reduce((acc,t,i)=>{
+    if(t.startsWith(todayStr2)) acc.push({prob:wx.hourly.precipitation_probability?.[i]??0,code:wx.hourly.weather_code?.[i]??0});
+    return acc;
+  },[]) ?? [];
+  const maxRain2 = Math.max(0,...todayHrs2.map(h=>h.prob));
+  const hasStorm2 = todayHrs2.some(h=>h.code>=95);
+  if(hasStorm2) advisories2.push({icon:"⛈️",msg:"Thunderstorms expected today."});
+  else if(maxRain2>=70) advisories2.push({icon:"☔",msg:`High chance of rain (${maxRain2}%) — don't forget your umbrella!`});
+  else if(maxRain2>=40) advisories2.push({icon:"☔",msg:`Possible rain (${maxRain2}%) — worth packing an umbrella.`});
+  const windMph2 = wx?.current?.wind_speed_10m ?? 0;
+  if(windMph2>=35) advisories2.push({icon:"💨",msg:`Very windy (${Math.round(windMph2)} mph) — hold onto your hat!`});
+
   return (
     <div style={{ background:GRAD, padding:"28px 28px 24px", flexShrink:0, position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute",top:-60,right:-60,width:240,height:240,borderRadius:"50%",background:"rgba(255,255,255,0.07)" }}/>
@@ -266,6 +286,17 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver }) 
             </div>
           </div>
         </div>
+        {/* Advisory strip — only shown when there are active advisories */}
+        {advisories2.length>0 && (
+          <div style={{marginTop:12,display:"flex",flexWrap:"wrap",gap:8}}>
+            {advisories2.map((a,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(8px)",borderRadius:99,padding:"6px 14px"}}>
+                <span style={{fontSize:16}}>{a.icon}</span>
+                <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{a.msg}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -346,40 +377,6 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     return d>today && d<=weekEnd;
   }).sort((a,b)=>a.due.date.localeCompare(b.due.date));
 
-  // ── Weather advisories ───────────────────────────────────────────────────
-  const advisories = [];
-  const uv = wx?.current?.uv_index ?? 0;
-  if(uv>=11) advisories.push({icon:"🚨",bg:"#581c87",text:"#faf5ff",msg:`Extreme UV (${uv}) — avoid going outside midday, max SPF, full cover.`,badge:"Extreme"});
-  else if(uv>=8) advisories.push({icon:"🔆",bg:"#fee2e2",text:"#991b1b",msg:`Very high UV (${uv}) — minimize time outdoors, SPF 50+, seek shade.`,badge:"Very High"});
-  else if(uv>=6) advisories.push({icon:"☀️",bg:"#fff7ed",text:"#9a3412",msg:`High UV today (${uv}) — sunscreen, sunglasses, and a hat are a must!`,badge:"High"});
-  else if(uv>=3) advisories.push({icon:"🕶️",bg:"#fefce8",text:"#854d0e",msg:`Moderate UV (${uv}) — pop on some SPF 30+ before heading out.`,badge:"Moderate"});
-
-  const todayHours = wx?.hourly?.time?.reduce((acc,t,i)=>{
-    if(t.startsWith(todayStr)) acc.push({prob:wx.hourly.precipitation_probability?.[i]??0, amt:wx.hourly.precipitation?.[i]??0, code:wx.hourly.weather_code?.[i]??0});
-    return acc;
-  },[]) ?? [];
-  const maxRain = Math.max(0,...todayHours.map(h=>h.prob));
-  const hasStorm = todayHours.some(h=>h.code>=95);
-  if(hasStorm) advisories.push({icon:"⛈️",bg:"#e0f2fe",text:"#0c4a6e",msg:"Thunderstorms expected today — stay safe indoors during heavy bursts.",badge:"Storm"});
-  else if(maxRain>=70) advisories.push({icon:"☔",bg:"#eff6ff",text:"#1e40af",msg:`High chance of rain today (${maxRain}%) — don't forget your umbrella!`,badge:"Rain"});
-  else if(maxRain>=40) advisories.push({icon:"☔",bg:"#f0fdf4",text:"#166534",msg:`Possible rain today (${maxRain}%) — worth packing an umbrella just in case.`,badge:"Maybe Rain"});
-
-  const windMph = wx?.current?.wind_speed_10m ?? 0;
-  if(windMph>=35) advisories.push({icon:"💨",bg:"#f1f5f9",text:"#334155",msg:`Very windy today (${Math.round(windMph)} mph) — hold onto your hat!`,badge:"Windy"});
-
-  const advisoryBanner = advisories.length>0 ? (
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {advisories.map((a,i)=>(
-        <div key={i} style={{borderRadius:18,padding:"14px 18px",background:a.bg,display:"flex",alignItems:"center",gap:14,boxShadow:"0 2px 10px rgba(0,0,0,0.06)"}}>
-          <span style={{fontSize:28,flexShrink:0}}>{a.icon}</span>
-          <div style={{flex:1}}>
-            <span style={{fontSize:11,fontWeight:800,color:a.text,background:`${a.text}18`,padding:"2px 8px",borderRadius:99,marginRight:8}}>{a.badge}</span>
-            <span style={{fontSize:13,color:a.text,fontWeight:500}}>{a.msg}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  ) : null;
 
   // ── Column builder ────────────────────────────────────────────────────────
   const CalIcon = ({color}) => (
@@ -635,7 +632,6 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {advisoryBanner}
       {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks)}
       {makeCol(CLARE, clareEvts, clareTasks)}
       {familyCol}
