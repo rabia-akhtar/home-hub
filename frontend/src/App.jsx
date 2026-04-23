@@ -193,7 +193,8 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver }) 
   const sunset = sun?.sunset;
 
   // ── Weather advisories (shown as slim strip in header) ────────────────────
-  const todayStr2 = new Date().toISOString().slice(0,10);
+  const _today2 = new Date(); _today2.setHours(0,0,0,0);
+  const todayStr2 = _today2.toISOString().slice(0,10);
   const advisories2 = [];
   const uv2 = wx?.current?.uv_index ?? 0;
   if(uv2>=11) advisories2.push({icon:"🚨",msg:`Extreme UV (${uv2}) — avoid going outside midday, max SPF, full cover.`});
@@ -2060,10 +2061,10 @@ function DebugTab() {
     }}/>
   );
 
-  const Section = ({title, color, icon, children}) => (
+  const Section = ({title, color, children}) => (
     <div style={{...CARD,overflow:"hidden"}}>
       <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:20}}>{icon}</span>
+        <div style={{width:10,height:10,borderRadius:3,background:color,flexShrink:0}}/>
         <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{title}</div>
       </div>
       <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
@@ -2101,7 +2102,7 @@ function DebugTab() {
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16}}>
 
         {/* Lights */}
-        <Section title="Lights (Tapo)" icon="💡" color="#fbbf24">
+        <Section title="Lights (Tapo)" color="#fbbf24">
           <Row label="Status" value={lights.status} status={statusColor(lights.status)}/>
           <Row label="Credentials" value={lights.credentials_set ? "Set ✓" : "Missing in .env"} status={lights.credentials_set?"ok":"error"}/>
           {lights.devices.length===0 && <Row label="Devices" value="None configured (check .env IPs)" status="warn"/>}
@@ -2124,7 +2125,7 @@ function DebugTab() {
         </Section>
 
         {/* Motion sensor */}
-        <Section title="Motion Sensor (PIR)" icon="👁" color="#f472b6">
+        <Section title="Motion Sensor (PIR)" color="#f472b6">
           <Row label="Status" value={motion.ready?"Ready":motion.error||"Not ready"} status={motion.ready?"ok":motion.error?"error":"warn"}/>
           <Row label="Library" value={motion.lib}/>
           <Row label="GPIO Pin" value={`GPIO ${motion.pin} (Pin ${motion.pin===17?11:motion.pin})`} mono/>
@@ -2142,7 +2143,7 @@ function DebugTab() {
         </Section>
 
         {/* Weather */}
-        <Section title="Weather (Open-Meteo)" icon="⛅" color="#0ea5e9">
+        <Section title="Weather (Open-Meteo)" color="#0ea5e9">
           <Row label="Status" value={weather.status} status={statusColor(weather.status)}/>
           <Row label="Location" value={`${weather.location.city} (${weather.location.lat}, ${weather.location.lon})`}/>
           {weather.error && (
@@ -2151,7 +2152,7 @@ function DebugTab() {
         </Section>
 
         {/* Todoist */}
-        <Section title="Todoist" icon="✅" color="#10b981">
+        <Section title="Todoist" color="#10b981">
           <Row label="Token" value={todoist.token_set?"Set in .env ✓":"Missing TODOIST_TOKEN in .env"} status={todoist.token_set?"ok":"error"}/>
           <Row label="API connection" value={todoist.status} status={statusColor(todoist.status)}/>
           {todoist.error && (
@@ -2160,7 +2161,7 @@ function DebugTab() {
         </Section>
 
         {/* Google Calendar */}
-        <Section title="Google Calendar" icon="📆" color="#38bdf8">
+        <Section title="Google Calendar" color="#38bdf8">
           <Row label="Client ID" value={gcal.client_id_set?"Set in .env ✓":"Missing GOOGLE_CLIENT_ID"} status={gcal.client_id_set?"ok":"error"}/>
           <Row label="Client Secret" value={gcal.client_secret_set?"Set in .env ✓":"Missing GOOGLE_CLIENT_SECRET"} status={gcal.client_secret_set?"ok":"error"}/>
           <Row label="OAuth tokens" value={gcal.tokens_saved?"Saved ✓":"Not authenticated"} status={gcal.tokens_saved?"ok":"warn"}/>
@@ -2174,7 +2175,7 @@ function DebugTab() {
         </Section>
 
         {/* Environment */}
-        <Section title="Environment" icon="⚙️" color="#6366f1">
+        <Section title="Environment" color="#6366f1">
           <Row label="Port" value={env.port} mono/>
           <Row label="Node env" value={env.node_env} mono/>
           <Row label="Latitude" value={env.lat} mono/>
