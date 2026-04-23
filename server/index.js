@@ -727,6 +727,99 @@ app.post('/api/kiosk/exit', (req, res) => {
   setTimeout(()=>exec('pkill -f chromium'), 300);
 });
 
+// ─── Voice assistant ──────────────────────────────────────────────────────────
+const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://localhost:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:1b';
+
+// POST /api/voice/parse — send transcript to Ollama, get back intent JSON
+app.post('/api/voice/parse', async (req, res) => {
+  const { transcript } = req.body;
+  if (!transcript) return res.status(400).json({ error: 'No transcript provided' });
+
+  const prompt = `You are a home assistant. Parse the voice command below and return ONLY a JSON object — no explanation, no extra text.
+
+Supported actions:
+- add_grocery  → add an item to the grocery list
+- add_task     → add a task (with optional due date and assignee "rabia" or "clare")
+- lights_on    → turn all lights on
+- lights_off   → turn all lights off
+- unknown      → you don't understand the command
+
+Return format:
+{"action":"add_grocery","content":"item name"}
+{"action":"add_task","content":"task name","due":"tomorrow","assignee":"rabia"}
+{"action":"lights_on"}
+{"action":"unknown"}
+
+Voice command: "${transcript}"`;
+
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false, format: 'json' }),
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      if (r.status === 404 || txt.includes('not found')) {
+        return res.status(503).json({ error: `Ollama model "${OLLAMA_MODEL}" not found. Run: ollama pull ${OLLAMA_MODEL}` });
+      }
+      return res.status(503).json({ error: `Ollama error: ${txt}` });
+    }
+    const { response } = await r.json();
+    let intent;
+    try { intent = JSON.parse(response); }
+    catch { intent = { action: 'unknown' }; }
+    res.json(intent);
+  } catch (e) {
+    if (e.code === 'ECONNREFUSED') return res.status(503).json({ error: 'Ollama is not running. Start it with: ollama serve' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/voice/execute — execute a parsed intent
+app.post('/api/voice/execute', async (req, res) => {
+  const intent = req.body;
+
+  try {
+    if (intent.action === 'add_grocery') {
+      const projects = await fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json());
+      const grocProj = todoList(projects).find(p => p.name.toLowerCase() === 'groceries');
+      if (!grocProj) return res.status(404).json({ ok: false, message: 'Groceries project not found in Todoist' });
+      await fetch(`${TODO_BASE}/tasks`, {
+        method: 'POST', headers: TODO_HDR,
+        body: JSON.stringify({ content: intent.content, project_id: grocProj.id }),
+      });
+      return res.json({ ok: true, message: `Added "${intent.content}" to Groceries` });
+    }
+
+    if (intent.action === 'add_task') {
+      const body = { content: intent.content };
+      if (intent.due)      body.due_string = intent.due;
+      if (intent.assignee) {
+        // find the collaborator and set responsible_uid if available
+        // for now just add as a plain task; assignee shown in content if needed
+      }
+      await fetch(`${TODO_BASE}/tasks`, { method: 'POST', headers: TODO_HDR, body: JSON.stringify(body) });
+      const extra = [intent.due && `due ${intent.due}`, intent.assignee && `for ${intent.assignee}`].filter(Boolean).join(', ');
+      return res.json({ ok: true, message: `Added task "${intent.content}"${extra ? ` (${extra})` : ''}` });
+    }
+
+    if (intent.action === 'lights_on' || intent.action === 'lights_off') {
+      const on = intent.action === 'lights_on';
+      const results = await Promise.allSettled(
+        Object.values(tapoCache).map(d => tapoSetPower(d.alias, on))
+      );
+      const ok = results.some(r => r.status === 'fulfilled');
+      return res.json({ ok, message: ok ? `Lights turned ${on ? 'on' : 'off'}` : 'Could not reach lights' });
+    }
+
+    return res.json({ ok: false, message: 'Unknown action — nothing was done' });
+  } catch (e) {
+    res.status(500).json({ ok: false, message: e.message });
+  }
+});
+
 // ─── System debug — aggregated status for all integrations ───────────────────
 app.get('/api/debug/system', async (req, res) => {
   const data   = loadData();

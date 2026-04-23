@@ -2033,6 +2033,187 @@ function BudgetTab() {
   );
 }
 
+// ─── VOICE TAB ───────────────────────────────────────────────────────────────
+function VoiceTab() {
+  const API = import.meta.env.VITE_API_URL || '';
+  // state: idle | listening | thinking | confirming | executing | done | error
+  const [state,      setState]      = useState('idle');
+  const [transcript, setTranscript] = useState('');
+  const [interim,    setInterim]    = useState('');
+  const [intent,     setIntent]     = useState(null);   // parsed intent from server
+  const [result,     setResult]     = useState(null);   // execution result
+  const [errMsg,     setErrMsg]     = useState('');
+  const [history,    setHistory]    = useState([]);
+  const recognitionRef = useRef(null);
+
+  const start = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setErrMsg('Speech recognition not available in this browser.'); setState('error'); return; }
+    setTranscript(''); setInterim(''); setIntent(null); setResult(null); setErrMsg('');
+    const r = new SR();
+    r.continuous = false;
+    r.interimResults = true;
+    r.lang = 'en-US';
+    r.onstart  = () => setState('listening');
+    r.onresult = e => {
+      let fin = '', tmp = '';
+      for (const res of e.results) {
+        if (res.isFinal) fin += res[0].transcript;
+        else tmp += res[0].transcript;
+      }
+      setInterim(tmp);
+      if (fin) { setTranscript(fin); setInterim(''); parseIntent(fin); }
+    };
+    r.onerror = e => { setErrMsg(`Mic error: ${e.error}`); setState('error'); };
+    r.onend   = () => { if (state === 'listening') setState('idle'); };
+    recognitionRef.current = r;
+    r.start();
+  };
+
+  const stopListening = () => { recognitionRef.current?.stop(); };
+
+  const parseIntent = async text => {
+    setState('thinking');
+    try {
+      const res  = await fetch(`${API}/api/voice/parse`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({transcript:text}) });
+      const data = await res.json();
+      if (data.error) { setErrMsg(data.error); setState('error'); return; }
+      setIntent(data);
+      setState('confirming');
+    } catch(e) { setErrMsg(e.message); setState('error'); }
+  };
+
+  const confirm = async () => {
+    setState('executing');
+    try {
+      const res  = await fetch(`${API}/api/voice/execute`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(intent) });
+      const data = await res.json();
+      setResult(data);
+      setHistory(h => [{ transcript, intent, result:data, ts:new Date() }, ...h.slice(0,9)]);
+      setState('done');
+      setTimeout(() => { setState('idle'); setTranscript(''); setIntent(null); setResult(null); }, 4000);
+    } catch(e) { setErrMsg(e.message); setState('error'); }
+  };
+
+  const reject = () => { setState('idle'); setTranscript(''); setIntent(null); };
+  const reset  = () => { setState('idle'); setTranscript(''); setIntent(null); setErrMsg(''); setResult(null); };
+
+  // ── Action label helpers ────────────────────────────────────────────────────
+  const actionLabel = a => ({add_grocery:'Add to Groceries', add_task:'Add Task', lights_on:'Lights On', lights_off:'Lights Off', unknown:'Unknown'})[a] || a;
+  const actionColor = a => ({add_grocery:'#059669', add_task:'#6366f1', lights_on:'#fbbf24', lights_off:'#94a3b8', unknown:'#ef4444'})[a] || '#94a3b8';
+
+  // ── Mic button visuals ──────────────────────────────────────────────────────
+  const micBg    = state==='listening' ? '#ef4444' : state==='thinking'||state==='executing' ? '#6366f1' : state==='done' ? '#10b981' : '#f1f5f9';
+  const micColor = state==='idle' ? '#64748b' : '#fff';
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:20,alignItems:'center',paddingTop:20}}>
+      {/* Mic button */}
+      <div style={{position:'relative',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+        {state==='listening' && (
+          <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:110,height:110,borderRadius:'50%',background:'#ef444420',animation:'pulse 1.2s ease-in-out infinite'}}/>
+        )}
+        <button
+          onClick={state==='idle'?start : state==='listening'?stopListening : undefined}
+          disabled={state==='thinking'||state==='executing'||state==='confirming'||state==='done'}
+          style={{width:88,height:88,borderRadius:'50%',border:'none',background:micBg,cursor:state==='idle'||state==='listening'?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.3s',boxShadow:`0 4px 24px ${micBg}55`,position:'relative',zIndex:1}}
+        >
+          {state==='thinking'||state==='executing'
+            ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={micColor} strokeWidth="2" strokeDasharray="31.4" strokeDashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
+            : state==='done'
+            ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            : <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <rect x="9" y="3" width="6" height="11" rx="3" stroke={micColor} strokeWidth="2"/>
+                <path d="M5 10a7 7 0 0014 0" stroke={micColor} strokeWidth="2" strokeLinecap="round"/>
+                <line x1="12" y1="19" x2="12" y2="22" stroke={micColor} strokeWidth="2" strokeLinecap="round"/>
+                <line x1="8" y1="22" x2="16" y2="22" stroke={micColor} strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+          }
+        </button>
+        <div style={{fontSize:13,fontWeight:600,color:'#64748b',textAlign:'center'}}>
+          {state==='idle'      && 'Tap to speak'}
+          {state==='listening' && 'Listening… tap to stop'}
+          {state==='thinking'  && 'Thinking…'}
+          {state==='confirming'&& 'Confirm below'}
+          {state==='executing' && 'Executing…'}
+          {state==='done'      && 'Done!'}
+          {state==='error'     && 'Something went wrong'}
+        </div>
+      </div>
+
+      {/* Transcript */}
+      {(transcript||interim) && (
+        <div style={{...CARD,padding:'16px 20px',maxWidth:520,width:'100%',textAlign:'center'}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>You said</div>
+          <div style={{fontSize:18,color:'#1e293b',fontWeight:500}}>
+            {transcript || <span style={{color:'#94a3b8'}}>{interim}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Intent confirmation card */}
+      {state==='confirming' && intent && (
+        <div style={{...CARD,padding:'20px 24px',maxWidth:520,width:'100%'}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',letterSpacing:1,textTransform:'uppercase',marginBottom:12}}>Understood as</div>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+            <span style={{fontSize:13,fontWeight:800,color:actionColor(intent.action),background:`${actionColor(intent.action)}15`,padding:'4px 12px',borderRadius:99}}>{actionLabel(intent.action)}</span>
+            {intent.content && <span style={{fontSize:16,fontWeight:600,color:'#1e293b'}}>"{intent.content}"</span>}
+            {intent.due && <span style={{fontSize:12,color:'#6366f1',fontWeight:600}}>due {intent.due}</span>}
+            {intent.assignee && <span style={{fontSize:12,color:'#94a3b8'}}>→ {intent.assignee}</span>}
+          </div>
+          {intent.action==='unknown'
+            ? <div style={{fontSize:13,color:'#ef4444',marginBottom:16}}>Could not understand the command. Try again.</div>
+            : null
+          }
+          <div style={{display:'flex',gap:12}}>
+            {intent.action!=='unknown' && (
+              <button onClick={confirm} style={{flex:1,padding:'14px',borderRadius:14,border:'none',background:'#10b981',color:'#fff',fontSize:15,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
+                Yes, do it
+              </button>
+            )}
+            <button onClick={reject} style={{flex:1,padding:'14px',borderRadius:14,border:'1px solid #e2e8f0',background:'#fff',color:'#64748b',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              {intent.action==='unknown' ? 'Try again' : 'No, cancel'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {state==='error' && (
+        <div style={{...CARD,padding:'16px 20px',maxWidth:520,width:'100%',background:'#fef2f2',border:'1px solid #fecaca'}}>
+          <div style={{fontSize:13,color:'#ef4444',marginBottom:12}}>{errMsg}</div>
+          <button onClick={reset} style={{padding:'10px 20px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Try again</button>
+        </div>
+      )}
+
+      {/* Result */}
+      {state==='done' && result && (
+        <div style={{...CARD,padding:'16px 20px',maxWidth:520,width:'100%',background:'#f0fdf4',border:'1px solid #bbf7d0',textAlign:'center'}}>
+          <div style={{fontSize:15,fontWeight:600,color:'#059669'}}>{result.message}</div>
+        </div>
+      )}
+
+      {/* History */}
+      {history.length>0 && (
+        <div style={{maxWidth:520,width:'100%'}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#94a3b8',letterSpacing:1,textTransform:'uppercase',marginBottom:10}}>Recent</div>
+          <div style={{...CARD,overflow:'hidden'}}>
+            {history.map((h,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',padding:'10px 16px',borderBottom:i<history.length-1?'1px solid #f8fafc':'none',gap:10}}>
+                <span style={{fontSize:11,fontWeight:800,color:actionColor(h.intent?.action),background:`${actionColor(h.intent?.action)}15`,padding:'2px 8px',borderRadius:99,flexShrink:0}}>{actionLabel(h.intent?.action)}</span>
+                <span style={{fontSize:13,color:'#1e293b',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h.transcript}</span>
+                <span style={{fontSize:11,color:'#94a3b8',flexShrink:0}}>{h.ts.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes pulse { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6} 50%{transform:translate(-50%,-50%) scale(1.4);opacity:0.2} }`}</style>
+    </div>
+  );
+}
+
 // ─── DEBUG TAB ───────────────────────────────────────────────────────────────
 function DebugTab() {
   const API = import.meta.env.VITE_API_URL || '';
@@ -2199,6 +2380,7 @@ const NAV = [
   { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:"voice",     label:"Voice",     color:"#f43f5e", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.8"/><path d="M5 10a7 7 0 0014 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="22" x2="16" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
 ];
 
@@ -2413,6 +2595,7 @@ export default function App() {
           {tab==="lights"    && <LightsTab/>}
           {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
           {tab==="budget"    && <BudgetTab/>}
+          {tab==="voice"     && <VoiceTab/>}
           {tab==="debug"     && <DebugTab/>}
         </div>
       </div>
