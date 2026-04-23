@@ -622,18 +622,6 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </div>
   ) : null;
 
-  if(wide) return (
-    <div style={{display:"flex",flexDirection:"column",gap:16,height:"100%"}}>
-      {advisoryBanner}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"stretch",flex:1,minHeight:0}}>
-        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, true)}
-        {makeCol(CLARE, clareEvts, clareTasks, [], true)}
-        {familyWideCol}
-      </div>
-      {weekCard}
-    </div>
-  );
-
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       {advisoryBanner}
