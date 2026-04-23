@@ -351,7 +351,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   const hasStorm = todayHours.some(h=>h.code>=95);
   if(hasStorm) advisories.push({icon:"⛈️",bg:"#e0f2fe",text:"#0c4a6e",msg:"Thunderstorms expected today — stay safe indoors during heavy bursts.",badge:"Storm"});
   else if(maxRain>=70) advisories.push({icon:"☔",bg:"#eff6ff",text:"#1e40af",msg:`High chance of rain today (${maxRain}%) — don't forget your umbrella!`,badge:"Rain"});
-  else if(maxRain>=40) advisories.push({icon:"🌂",bg:"#f0fdf4",text:"#166534",msg:`Possible rain today (${maxRain}%) — worth packing an umbrella just in case.`,badge:"Maybe Rain"});
+  else if(maxRain>=40) advisories.push({icon:"☔",bg:"#f0fdf4",text:"#166534",msg:`Possible rain today (${maxRain}%) — worth packing an umbrella just in case.`,badge:"Maybe Rain"});
 
   const windMph = wx?.current?.wind_speed_10m ?? 0;
   if(windMph>=35) advisories.push({icon:"💨",bg:"#f1f5f9",text:"#334155",msg:`Very windy today (${Math.round(windMph)} mph) — hold onto your hat!`,badge:"Windy"});
@@ -387,13 +387,13 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </svg>
   );
 
-  const makeCol = (person, myEvts, myTasks, personalTasks=[]) => {
+  const makeCol = (person, myEvts, myTasks, personalTasks=[], growable=false) => {
     const pKey  = person.name.toLowerCase();
     const points= pts[`${pKey}_points`]||0;
     const next  = [100,250,500,750,1000].find(m=>m>points)||1000;
     const prog  = Math.round((points/next)*100);
     return (
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",flexDirection:"column",gap:12,...(growable?{height:"100%"}:{})}}>
         {/* Avatar + points */}
         <div style={{...CARD,overflow:"hidden"}}>
           <div style={{background:`linear-gradient(135deg,${person.color}22,${person.color}08)`,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
@@ -411,28 +411,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
           </div>
         </div>
 
-        {/* Calendar events */}
-        <div style={{...CARD,overflow:"hidden"}}>
-          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
-            <CalIcon color={person.color}/>
-            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Today</div>
-            {authOk===false && <a href="/api/auth/google" target="_blank" rel="noreferrer" style={{fontSize:10,color:person.color,fontWeight:600,marginLeft:"auto"}}>Connect →</a>}
-          </div>
-          {myEvts.length===0
-            ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
-            : myEvts.map((e,i)=>(
-              <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
-                <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-
-        {/* Due today */}
+        {/* Due today — shown near top so it's always visible */}
         {myTasks.length>0 && (
           <div style={{...CARD,overflow:"hidden"}}>
             <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
@@ -455,11 +434,50 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
             {personalTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
           </div>
         )}
+
+        {/* Calendar events — grows to fill remaining column height */}
+        <div style={{...CARD,overflow:"hidden",...(growable?{flex:1,display:"flex",flexDirection:"column",minHeight:0}:{})}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+            <CalIcon color={person.color}/>
+            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Today</div>
+            {authOk===false && <a href="/api/auth/google" target="_blank" rel="noreferrer" style={{fontSize:10,color:person.color,fontWeight:600,marginLeft:"auto"}}>Connect →</a>}
+          </div>
+          {growable
+            ? <div style={{flex:1,overflowY:"auto",minHeight:60}}>
+                {myEvts.length===0
+                  ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
+                  : myEvts.map((e,i)=>(
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
+                      <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
+                        <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            : <>
+                {myEvts.length===0
+                  ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
+                  : myEvts.map((e,i)=>(
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
+                      <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
+                        <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
+                      </div>
+                    </div>
+                  ))
+                }
+              </>
+          }
+        </div>
       </div>
     );
   };
 
-  // ── Family column ─────────────────────────────────────────────────────────
+  // ── Family column (narrow) ────────────────────────────────────────────────
   const familyCol = (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{...CARD,overflow:"hidden",border:"1px solid #a78bfa30"}}>
@@ -484,8 +502,52 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </div>
   );
 
+  // ── Family column (wide — includes groceries as growing card) ──────────────
+  const familyWideCol = (
+    <div style={{display:"flex",flexDirection:"column",gap:12,height:"100%"}}>
+      <div style={{...CARD,overflow:"hidden",border:"1px solid #a78bfa30"}}>
+        <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:"3px solid rgba(255,255,255,0.85)",flexShrink:0}}>F</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>Family</div>
+        </div>
+      </div>
+      {familyTasks.length>0 && (
+        <div style={{...CARD,overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
+            <TaskIcon color="#6366f1"/>
+            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
+            <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
+          </div>
+          {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+        </div>
+      )}
+      {/* Groceries — grows to fill remaining column height */}
+      <div style={{...CARD,overflow:"hidden",flex:1,display:"flex",flexDirection:"column",minHeight:0,border:"1px solid #bbf7d040"}}>
+        <div style={{padding:"10px 16px",borderBottom:"1px solid #f0fdf4",background:"#f0fdf4",display:"flex",alignItems:"center",gap:8,flexShrink:0,justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="1.8" strokeLinecap="round"/></svg>
+            <span style={{fontSize:12,fontWeight:700,color:"#059669"}}>Groceries</span>
+            <span style={{fontSize:11,color:"#94a3b8"}}>{groceryTasks.length}</span>
+          </div>
+          <button onClick={()=>onSetTab("groceries")} style={{fontSize:11,padding:"4px 10px",borderRadius:99,border:"1px solid #059669",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto",minHeight:60}}>
+          {groceryTasks.length===0
+            ? <div style={{padding:"14px 16px",fontSize:12,color:"#94a3b8"}}>All clear! 🛒</div>
+            : groceryTasks.map((t,i)=>(
+              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 16px",minHeight:42,borderBottom:i<groceryTasks.length-1?"1px solid #f8fafc":"none",gap:10}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
+                <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  );
+
   // ── Bottom row ────────────────────────────────────────────────────────────
-  const [weekOpen, setWeekOpen] = useState(false);
+  const [weekOpen, setWeekOpen] = useState(true);
 
   const weekRabia  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"||t.project_id===rabiaPersonalProj?.id; });
   const weekClare  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
@@ -561,14 +623,14 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   ) : null;
 
   if(wide) return (
-    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+    <div style={{display:"flex",flexDirection:"column",gap:16,height:"100%"}}>
       {advisoryBanner}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"start"}}>
-        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks)}
-        {makeCol(CLARE, clareEvts, clareTasks)}
-        {familyCol}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"stretch",flex:1,minHeight:0}}>
+        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, true)}
+        {makeCol(CLARE, clareEvts, clareTasks, [], true)}
+        {familyWideCol}
       </div>
-      {grocCard}
+      {weekCard}
     </div>
   );
 
@@ -873,7 +935,7 @@ function WeatherTab({ wx, sun }) {
         <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>7-day forecast — tap a day for hourly detail</div>
         <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:4}}>
           {(daily?.time||[]).map((date,i)=>{
-            const d=new Date(date),isT=i===0,isSel=selDay===i;
+            const d=new Date(date+'T12:00:00'),isT=i===0,isSel=selDay===i;
             return (
               <div key={i} onClick={()=>setSelDay(v=>v===i?null:i)}
                 style={{flex:"0 0 auto",width:88,textAlign:"center",background:isSel?"#e0f2fe":isT?"#eff6ff":"#f8fafc",border:isSel?"2px solid #0ea5e9":isT?"2px solid #38bdf850":"1px solid #f1f5f9",borderRadius:18,padding:"14px 8px",cursor:"pointer",transition:"all 0.15s"}}>
@@ -1975,6 +2037,161 @@ function BudgetTab() {
   );
 }
 
+// ─── DEBUG TAB ───────────────────────────────────────────────────────────────
+function DebugTab() {
+  const API = import.meta.env.VITE_API_URL || '';
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+  const [ts,      setTs]      = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const d = await fetch(`${API}/api/debug/system`).then(r=>r.json());
+      setData(d);
+      setTs(new Date());
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [API]);
+
+  useEffect(()=>{ load(); }, [load]);
+
+  const Dot = ({ok, warn}) => (
+    <span style={{
+      display:"inline-block",width:10,height:10,borderRadius:"50%",flexShrink:0,
+      background: ok==="ok"?"#10b981": ok==="warn"?"#f59e0b": ok==="error"?"#ef4444":"#94a3b8",
+      boxShadow: ok==="ok"?"0 0 0 3px #10b98120": ok==="warn"?"0 0 0 3px #f59e0b20": ok==="error"?"0 0 0 3px #ef444420":"none",
+    }}/>
+  );
+
+  const Section = ({title, color, icon, children}) => (
+    <div style={{...CARD,overflow:"hidden"}}>
+      <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:20}}>{icon}</span>
+        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{title}</div>
+      </div>
+      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+        {children}
+      </div>
+    </div>
+  );
+
+  const Row = ({label, value, status, mono=false}) => (
+    <div style={{display:"flex",alignItems:"flex-start",gap:10,minHeight:24}}>
+      {status && <Dot ok={status} style={{marginTop:4}}/>}
+      <span style={{fontSize:12,fontWeight:600,color:"#64748b",minWidth:140,flexShrink:0}}>{label}</span>
+      <span style={{fontSize:12,color:"#1e293b",fontFamily:mono?"monospace":"inherit",wordBreak:"break-all",flex:1}}>{value??<span style={{color:"#94a3b8"}}>—</span>}</span>
+    </div>
+  );
+
+  const statusColor = s => s==="ok"||s==="authenticated"?"ok": s==="not_configured"||s==="initializing"?"warn":"error";
+
+  if (loading) return <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>Loading system status…</div>;
+  if (error)   return <div style={{padding:40,textAlign:"center",color:"#ef4444",fontSize:14}}>Error: {error}</div>;
+  if (!data)   return null;
+
+  const { lights, motion, weather, todoist, google_calendar: gcal, env } = data;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{fontSize:20,fontWeight:800,color:"#1e293b"}}>System Status</div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          {ts && <span style={{fontSize:11,color:"#94a3b8"}}>Updated {ts.toLocaleTimeString()}</span>}
+          <button onClick={load} style={{fontSize:12,padding:"7px 16px",borderRadius:99,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#64748b"}}>↻ Refresh</button>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16}}>
+
+        {/* Lights */}
+        <Section title="Lights (Tapo)" icon="💡" color="#fbbf24">
+          <Row label="Status" value={lights.status} status={statusColor(lights.status)}/>
+          <Row label="Credentials" value={lights.credentials_set ? "Set ✓" : "Missing in .env"} status={lights.credentials_set?"ok":"error"}/>
+          {lights.devices.length===0 && <Row label="Devices" value="None configured (check .env IPs)" status="warn"/>}
+          {lights.devices.map(d=>(
+            <div key={d.alias} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:d.unreachable?"#fef2f2":d.connected?"#f0fdf4":"#fefce8",borderRadius:10}}>
+              <Dot ok={d.unreachable?"error":d.connected?"ok":"warn"}/>
+              <span style={{fontSize:12,fontWeight:600,color:"#1e293b",flex:1}}>{d.alias}</span>
+              <span style={{fontSize:11,color:"#64748b",fontFamily:"monospace"}}>{d.host}</span>
+              <span style={{fontSize:11,fontWeight:700,color:d.on?"#10b981":"#94a3b8",marginLeft:4}}>{d.unreachable?"unreachable":d.connected?(d.on?"ON":"OFF"):"connecting…"}</span>
+            </div>
+          ))}
+          {lights.log.length>0 && (
+            <details>
+              <summary style={{fontSize:11,color:"#94a3b8",cursor:"pointer"}}>Last {lights.log.length} log entries</summary>
+              <div style={{marginTop:6,background:"#f8fafc",borderRadius:8,padding:"8px 10px",maxHeight:160,overflowY:"auto"}}>
+                {lights.log.map((l,i)=><div key={i} style={{fontSize:10,fontFamily:"monospace",color:"#475569",lineHeight:1.6}}>{l}</div>)}
+              </div>
+            </details>
+          )}
+        </Section>
+
+        {/* Motion sensor */}
+        <Section title="Motion Sensor (PIR)" icon="🚶" color="#f472b6">
+          <Row label="Status" value={motion.ready?"Ready":motion.error||"Not ready"} status={motion.ready?"ok":motion.error?"error":"warn"}/>
+          <Row label="Library" value={motion.lib}/>
+          <Row label="GPIO Pin" value={`GPIO ${motion.pin} (Pin ${motion.pin===17?11:motion.pin})`} mono/>
+          <Row label="Fires detected" value={motion.fires} status={motion.fires>0?"ok":motion.ready?"warn":undefined}/>
+          <Row label="Last motion" value={motion.last_motion ? `${motion.seconds_ago}s ago (${new Date(motion.last_motion).toLocaleTimeString()})` : "Never"} status={motion.last_motion?(motion.seconds_ago<120?"ok":"warn"):undefined}/>
+          {motion.error && (
+            <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",fontFamily:"monospace",wordBreak:"break-all"}}>{motion.error}</div>
+          )}
+          <button onClick={async()=>{
+            await fetch(`${API}/api/motion/simulate`,{method:"POST"});
+            setTimeout(load,500);
+          }} style={{alignSelf:"flex-start",fontSize:11,padding:"5px 12px",borderRadius:99,border:"1px solid #f472b640",background:"#fdf2f8",color:"#db2777",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
+            🚶 Simulate motion
+          </button>
+        </Section>
+
+        {/* Weather */}
+        <Section title="Weather (Open-Meteo)" icon="🌤️" color="#0ea5e9">
+          <Row label="Status" value={weather.status} status={statusColor(weather.status)}/>
+          <Row label="Location" value={`${weather.location.city} (${weather.location.lat}, ${weather.location.lon})`}/>
+          {weather.error && (
+            <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",wordBreak:"break-all"}}>{weather.error}</div>
+          )}
+        </Section>
+
+        {/* Todoist */}
+        <Section title="Todoist" icon="✅" color="#10b981">
+          <Row label="Token" value={todoist.token_set?"Set in .env ✓":"Missing TODOIST_TOKEN in .env"} status={todoist.token_set?"ok":"error"}/>
+          <Row label="API connection" value={todoist.status} status={statusColor(todoist.status)}/>
+          {todoist.error && (
+            <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",wordBreak:"break-all"}}>{todoist.error}</div>
+          )}
+        </Section>
+
+        {/* Google Calendar */}
+        <Section title="Google Calendar" icon="📅" color="#38bdf8">
+          <Row label="Client ID" value={gcal.client_id_set?"Set in .env ✓":"Missing GOOGLE_CLIENT_ID"} status={gcal.client_id_set?"ok":"error"}/>
+          <Row label="Client Secret" value={gcal.client_secret_set?"Set in .env ✓":"Missing GOOGLE_CLIENT_SECRET"} status={gcal.client_secret_set?"ok":"error"}/>
+          <Row label="OAuth tokens" value={gcal.tokens_saved?"Saved ✓":"Not authenticated"} status={gcal.tokens_saved?"ok":"warn"}/>
+          {gcal.token_expiry && <Row label="Token expires" value={new Date(gcal.token_expiry).toLocaleString()}/>}
+          <Row label="Overall status" value={gcal.status} status={statusColor(gcal.status==="authenticated"?"ok":gcal.status)}/>
+          {!gcal.tokens_saved && gcal.client_id_set && (
+            <a href="/api/auth/google" target="_blank" rel="noreferrer" style={{alignSelf:"flex-start",fontSize:11,padding:"5px 12px",borderRadius:99,border:"1px solid #38bdf440",background:"#f0f9ff",color:"#0284c7",fontWeight:600,display:"inline-block"}}>
+              🔗 Authenticate with Google
+            </a>
+          )}
+        </Section>
+
+        {/* Environment */}
+        <Section title="Environment" icon="⚙️" color="#6366f1">
+          <Row label="Port" value={env.port} mono/>
+          <Row label="Node env" value={env.node_env} mono/>
+          <Row label="Latitude" value={env.lat} mono/>
+          <Row label="Longitude" value={env.lon} mono/>
+          <Row label="City" value={env.city}/>
+        </Section>
+
+      </div>
+    </div>
+  );
+}
+
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
   { id:"home",      label:"Home",      color:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
@@ -1986,6 +2203,7 @@ const NAV = [
   { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
 ];
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
@@ -2191,6 +2409,7 @@ export default function App() {
           {tab==="lights"    && <LightsTab/>}
           {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
           {tab==="budget"    && <BudgetTab/>}
+          {tab==="debug"     && <DebugTab/>}
         </div>
       </div>
 

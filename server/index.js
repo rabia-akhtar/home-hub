@@ -727,6 +727,80 @@ app.post('/api/kiosk/exit', (req, res) => {
   setTimeout(()=>exec('pkill -f chromium'), 300);
 });
 
+// ─── System debug — aggregated status for all integrations ───────────────────
+app.get('/api/debug/system', async (req, res) => {
+  const data   = loadData();
+  const hasGoogleTokens = !!(data.google_tokens?.access_token);
+
+  // Quick Todoist connectivity check
+  let todoistStatus = 'not_configured';
+  let todoistError  = null;
+  if (process.env.TODOIST_TOKEN) {
+    try {
+      const r = await fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR });
+      todoistStatus = r.ok ? 'ok' : `http_${r.status}`;
+      if (!r.ok) todoistError = await r.text();
+    } catch (e) { todoistStatus = 'error'; todoistError = e.message; }
+  }
+
+  // Quick weather check
+  const lat = process.env.LAT || '40.7128', lon = process.env.LON || '-74.0060';
+  let weatherStatus = 'unknown';
+  let weatherError  = null;
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&forecast_days=1`);
+    weatherStatus = r.ok ? 'ok' : `http_${r.status}`;
+    if (!r.ok) weatherError = await r.text();
+  } catch (e) { weatherStatus = 'error'; weatherError = e.message; }
+
+  res.json({
+    timestamp: new Date().toISOString(),
+    lights: {
+      status: tapoReady ? 'ok' : (!(process.env.KASA_EMAIL && process.env.KASA_PASSWORD) ? 'not_configured' : 'initializing'),
+      credentials_set: !!(process.env.KASA_EMAIL && process.env.KASA_PASSWORD),
+      devices: Object.values(tapoCache).map(d => ({
+        alias: d.alias, host: d.host, on: d.on,
+        connected: !!d.device, unreachable: !!d.unreachable,
+      })),
+      log: tapoLog.slice(-10),
+    },
+    motion: {
+      status: pirReady ? 'ok' : (pirError ? 'error' : 'initializing'),
+      ready: pirReady,
+      lib: pirLib,
+      pin: pirPin,
+      fires: pirFires,
+      error: pirError,
+      last_motion: lastMotion?.toISOString() || null,
+      seconds_ago: lastMotion ? Math.floor((Date.now() - lastMotion.getTime()) / 1000) : null,
+    },
+    weather: {
+      status: weatherStatus,
+      error: weatherError,
+      location: { lat, lon, city: process.env.CITY || 'unknown' },
+    },
+    todoist: {
+      status: todoistStatus,
+      token_set: !!process.env.TODOIST_TOKEN,
+      error: todoistError,
+    },
+    google_calendar: {
+      status: hasGoogleTokens ? 'authenticated' : (process.env.GOOGLE_CLIENT_ID ? 'not_authenticated' : 'not_configured'),
+      client_id_set: !!process.env.GOOGLE_CLIENT_ID,
+      client_secret_set: !!process.env.GOOGLE_CLIENT_SECRET,
+      tokens_saved: hasGoogleTokens,
+      token_expiry: data.google_tokens?.expiry ? new Date(data.google_tokens.expiry).toISOString() : null,
+    },
+    env: {
+      port: PORT,
+      node_env: process.env.NODE_ENV || 'production',
+      lat: process.env.LAT || '(default)',
+      lon: process.env.LON || '(default)',
+      city: process.env.CITY || '(default)',
+    },
+  });
+});
+
 // Serve built frontend (production / Pi)
 const DIST = path.join(__dirname, '../frontend/dist');
 if (fs.existsSync(DIST)) {
