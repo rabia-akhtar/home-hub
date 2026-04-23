@@ -8,11 +8,12 @@ const { exec }   = require('child_process');
 const { google } = require('googleapis');
 
 // ─── PIR motion sensor ────────────────────────────────────────────────────────
-// Tries pigpio first (works on modern Pi OS / Bookworm), falls back to onoff
+// Spawns pir_watch.py (uses gpiozero — pre-installed on all Pi OS versions)
+// Create server/pir_watch.py on the Pi — see instructions below
 let lastMotion  = null;
 let pirReady    = false;
 let pirError    = null;
-let pirLib      = null;   // 'pigpio' | 'onoff'
+let pirLib      = 'python/gpiozero';
 let pirFires    = 0;
 let pirPin      = parseInt(process.env.PIR_GPIO || '17');
 
@@ -23,29 +24,22 @@ function onMotion() {
   console.log(`[PIR] Motion #${pirFires} at ${lastMotion.toISOString()}`);
 }
 
-// ── Try pigpio (recommended for Pi OS Bookworm / newer kernels) ──
-try {
-  const { Gpio } = require('pigpio');
-  const pir = new Gpio(pirPin, { mode: Gpio.INPUT, pullUpDown: Gpio.PUD_DOWN, edge: Gpio.RISING_EDGE });
-  pir.on('interrupt', () => onMotion());
-  pirReady = true;
-  pirLib   = 'pigpio';
-  console.log(`[PIR] Using pigpio — GPIO ${pirPin}`);
-} catch(e) {
-  console.log('[PIR] pigpio failed:', e.message);
-  // ── Fall back to onoff (older Pi OS / sysfs) ──
-  try {
-    const { Gpio } = require('onoff');
-    const pir = new Gpio(pirPin, 'in', 'rising');
-    pir.watch((err, value) => { if (!err && value === 1) onMotion(); });
-    pirReady = true;
-    pirLib   = 'onoff';
-    console.log(`[PIR] Using onoff — GPIO ${pirPin}`);
-  } catch(e2) {
-    pirError = e2.message;
-    console.log('[PIR] Both pigpio and onoff failed:', e2.message);
-    console.log('[PIR] Fix: sudo apt install pigpio && sudo systemctl start pigpiod && npm install pigpio');
-  }
+const PIR_SCRIPT = path.join(__dirname, 'pir_watch.py');
+if (fs.existsSync(PIR_SCRIPT)) {
+  const { spawn } = require('child_process');
+  const py = spawn('python3', [PIR_SCRIPT], {
+    env: { ...process.env, PIR_GPIO: String(pirPin) },
+  });
+  py.stdout.on('data', data => {
+    const msg = data.toString().trim();
+    if (msg.includes('ready')) { pirReady = true; console.log(`[PIR] Python watcher ready on GPIO ${pirPin}`); }
+    if (msg.includes('motion')) onMotion();
+  });
+  py.stderr.on('data', data => { pirError = data.toString().trim(); console.log('[PIR] stderr:', pirError); });
+  py.on('exit', code => { pirReady = false; pirError = `pir_watch.py exited (code ${code})`; console.log('[PIR]', pirError); });
+} else {
+  pirError = 'pir_watch.py missing — create it in ~/home-hub/server/ (see hint in /api/motion/debug)';
+  console.log('[PIR]', pirError);
 }
 
 const app  = express();
@@ -292,7 +286,7 @@ app.get('/api/motion/debug', (req, res) => {
     secondsAgo:  lastMotion ? Math.floor((Date.now() - lastMotion.getTime()) / 1000) : null,
     active:      lastMotion ? (Date.now() - lastMotion.getTime()) < 120000 : false,
     hint: !pirReady
-      ? 'Run: sudo apt install pigpio && sudo systemctl enable pigpiod && sudo systemctl start pigpiod && cd ~/home-hub/server && npm install pigpio && restart server'
+      ? 'Create ~/home-hub/server/pir_watch.py (see README), then restart server'
       : pirFires === 0
         ? 'PIR loaded but no motion detected yet — check wiring: VCC→Pin2, GND→Pin6, OUT→Pin11'
         : `PIR working normally (${pirLib})`,
