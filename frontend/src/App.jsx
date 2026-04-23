@@ -1623,6 +1623,17 @@ function RecipeCard({ onIngredientsAdded }) {
 // Uses Art Institute of Chicago public API — free, no auth needed
 const AIC_BASE = 'https://api.artic.edu/api/v1';
 
+// Fine art classification IDs from AIC:
+// Painting=26, Drawing and Watercolor=3, Print=9
+const AIC_FINE_ART_QUERY = encodeURIComponent(JSON.stringify({
+  bool: {
+    must: [
+      { term: { is_public_domain: true } },
+      { terms: { 'artwork_type_title.keyword': ['Painting', 'Drawing and Watercolor', 'Print'] } },
+    ],
+  },
+}));
+
 function Screensaver({ onDismiss }) {
   const [artworks, setArtworks]   = useState([]);
   const [idx,      setIdx]        = useState(0);
@@ -1630,16 +1641,30 @@ function Screensaver({ onDismiss }) {
   const [fade,     setFade]       = useState(true);
 
   useEffect(() => {
-    fetch(`${AIC_BASE}/artworks?fields=id,title,artist_display,date_display,image_id&limit=100&is_public_domain=true&page=${Math.ceil(Math.random()*5)}`)
+    // Use search endpoint with fine-art filter + random page
+    const page = Math.ceil(Math.random() * 8);
+    fetch(`${AIC_BASE}/artworks/search?query=${AIC_FINE_ART_QUERY}&fields=id,title,artist_display,date_display,image_id,artwork_type_title&limit=100&page=${page}`)
       .then(r => r.json())
       .then(d => {
         const valid = (d.data || []).filter(a => a.image_id);
         setArtworks(valid);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Fallback: plain fetch filtered client-side
+        fetch(`${AIC_BASE}/artworks?fields=id,title,artist_display,date_display,image_id,artwork_type_title&limit=100&is_public_domain=true&page=${page}`)
+          .then(r => r.json())
+          .then(d => {
+            const FINE_ART = ['painting', 'drawing and watercolor', 'print'];
+            const valid = (d.data || []).filter(a =>
+              a.image_id && FINE_ART.includes((a.artwork_type_title || '').toLowerCase())
+            );
+            setArtworks(valid);
+          })
+          .catch(() => {});
+      });
   }, []);
 
-  // Rotate every 20 seconds
+  // Rotate every hour
   useEffect(() => {
     if (!artworks.length) return;
     const t = setInterval(() => {
@@ -1649,7 +1674,7 @@ function Screensaver({ onDismiss }) {
         setLoaded(false);
         setFade(true);
       }, 600);
-    }, 20000);
+    }, 60 * 60 * 1000);
     return () => clearInterval(t);
   }, [artworks]);
 
