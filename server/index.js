@@ -731,8 +731,8 @@ app.post('/api/kiosk/exit', (req, res) => {
 
 // ─── Voice assistant ──────────────────────────────────────────────────────────
 const OLLAMA_URL      = process.env.OLLAMA_URL      || 'http://localhost:11434';
-const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:1b';
-const WHISPER_MODEL   = process.env.WHISPER_MODEL   || 'tiny.en'; // tiny.en is 4x faster than base, accurate enough for short commands
+const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:3b';
+const WHISPER_MODEL   = process.env.WHISPER_MODEL   || 'small.en';
 const WHISPER_SCRIPT  = path.join(__dirname, 'whisper_transcribe.py');
 
 // POST /api/voice/transcribe — receive raw audio, run faster-whisper, return transcript
