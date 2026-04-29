@@ -25,7 +25,7 @@ except ImportError:
     sys.exit(1)
 
 last_err = None
-for chip in (0, 4):
+for chip in (4, 0):  # Pi 5 uses chip 4; Pi 4 and earlier use chip 0
     try:
         Device.pin_factory = LGPIOFactory(chip=chip)
         pir = MotionSensor(pin, queue_len=1, threshold=0.5, sample_rate=10)
