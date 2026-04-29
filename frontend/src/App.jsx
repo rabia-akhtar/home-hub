@@ -2036,41 +2036,48 @@ function BudgetTab() {
 // ─── VOICE TAB ───────────────────────────────────────────────────────────────
 function VoiceTab() {
   const API = import.meta.env.VITE_API_URL || '';
-  // state: idle | listening | thinking | confirming | executing | done | error
+  // state: idle | listening | transcribing | thinking | confirming | executing | done | error
   const [state,      setState]      = useState('idle');
   const [transcript, setTranscript] = useState('');
-  const [interim,    setInterim]    = useState('');
-  const [intent,     setIntent]     = useState(null);   // parsed intent from server
-  const [result,     setResult]     = useState(null);   // execution result
+  const [intent,     setIntent]     = useState(null);
+  const [result,     setResult]     = useState(null);
   const [errMsg,     setErrMsg]     = useState('');
   const [history,    setHistory]    = useState([]);
-  const recognitionRef = useRef(null);
+  const mediaRecRef  = useRef(null);
+  const chunksRef    = useRef([]);
 
-  const start = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setErrMsg('Speech recognition not available in this browser.'); setState('error'); return; }
-    setTranscript(''); setInterim(''); setIntent(null); setResult(null); setErrMsg('');
-    const r = new SR();
-    r.continuous = false;
-    r.interimResults = true;
-    r.lang = 'en-US';
-    r.onstart  = () => setState('listening');
-    r.onresult = e => {
-      let fin = '', tmp = '';
-      for (const res of e.results) {
-        if (res.isFinal) fin += res[0].transcript;
-        else tmp += res[0].transcript;
-      }
-      setInterim(tmp);
-      if (fin) { setTranscript(fin); setInterim(''); parseIntent(fin); }
-    };
-    r.onerror = e => { setErrMsg(`Mic error: ${e.error}`); setState('error'); };
-    r.onend   = () => { if (state === 'listening') setState('idle'); };
-    recognitionRef.current = r;
-    r.start();
+  const start = async () => {
+    setTranscript(''); setIntent(null); setResult(null); setErrMsg('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        sendAudio(blob);
+      };
+      mr.start();
+      mediaRecRef.current = mr;
+      setState('listening');
+    } catch(e) { setErrMsg(`Mic error: ${e.message}`); setState('error'); }
   };
 
-  const stopListening = () => { recognitionRef.current?.stop(); };
+  const stopListening = () => { mediaRecRef.current?.stop(); };
+
+  const sendAudio = async blob => {
+    setState('transcribing');
+    try {
+      const res  = await fetch(`${API}/api/voice/transcribe`, { method:'POST', headers:{'Content-Type':'audio/webm'}, body: blob });
+      const data = await res.json();
+      if (data.error) { setErrMsg(data.error); setState('error'); return; }
+      const text = data.transcript;
+      if (!text) { setErrMsg("Couldn't hear anything — try again."); setState('error'); return; }
+      setTranscript(text);
+      parseIntent(text);
+    } catch(e) { setErrMsg(e.message); setState('error'); }
+  };
 
   const parseIntent = async text => {
     setState('thinking');
@@ -2103,7 +2110,8 @@ function VoiceTab() {
   const actionColor = a => ({add_grocery:'#059669', add_task:'#6366f1', lights_on:'#fbbf24', lights_off:'#94a3b8', unknown:'#ef4444'})[a] || '#94a3b8';
 
   // ── Mic button visuals ──────────────────────────────────────────────────────
-  const micBg    = state==='listening' ? '#ef4444' : state==='thinking'||state==='executing' ? '#6366f1' : state==='done' ? '#10b981' : '#f1f5f9';
+  const busy     = ['transcribing','thinking','executing'].includes(state);
+  const micBg    = state==='listening' ? '#ef4444' : busy ? '#6366f1' : state==='done' ? '#10b981' : '#f1f5f9';
   const micColor = state==='idle' ? '#64748b' : '#fff';
 
   return (
@@ -2115,10 +2123,10 @@ function VoiceTab() {
         )}
         <button
           onClick={state==='idle'?start : state==='listening'?stopListening : undefined}
-          disabled={state==='thinking'||state==='executing'||state==='confirming'||state==='done'}
+          disabled={busy||state==='confirming'||state==='done'}
           style={{width:88,height:88,borderRadius:'50%',border:'none',background:micBg,cursor:state==='idle'||state==='listening'?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.3s',boxShadow:`0 4px 24px ${micBg}55`,position:'relative',zIndex:1}}
         >
-          {state==='thinking'||state==='executing'
+          {busy
             ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={micColor} strokeWidth="2" strokeDasharray="31.4" strokeDashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
             : state==='done'
             ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -2131,23 +2139,22 @@ function VoiceTab() {
           }
         </button>
         <div style={{fontSize:13,fontWeight:600,color:'#64748b',textAlign:'center'}}>
-          {state==='idle'      && 'Tap to speak'}
-          {state==='listening' && 'Listening… tap to stop'}
-          {state==='thinking'  && 'Thinking…'}
-          {state==='confirming'&& 'Confirm below'}
-          {state==='executing' && 'Executing…'}
-          {state==='done'      && 'Done!'}
-          {state==='error'     && 'Something went wrong'}
+          {state==='idle'         && 'Tap to speak'}
+          {state==='listening'    && 'Listening… tap to stop'}
+          {state==='transcribing' && 'Transcribing…'}
+          {state==='thinking'     && 'Thinking…'}
+          {state==='confirming'   && 'Confirm below'}
+          {state==='executing'    && 'Executing…'}
+          {state==='done'         && 'Done!'}
+          {state==='error'        && 'Something went wrong'}
         </div>
       </div>
 
       {/* Transcript */}
-      {(transcript||interim) && (
+      {transcript && (
         <div style={{...CARD,padding:'16px 20px',maxWidth:520,width:'100%',textAlign:'center'}}>
           <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>You said</div>
-          <div style={{fontSize:18,color:'#1e293b',fontWeight:500}}>
-            {transcript || <span style={{color:'#94a3b8'}}>{interim}</span>}
-          </div>
+          <div style={{fontSize:18,color:'#1e293b',fontWeight:500}}>{transcript}</div>
         </div>
       )}
 

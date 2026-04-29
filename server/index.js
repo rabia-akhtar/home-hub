@@ -5,6 +5,8 @@ const fetch      = (...a) => import('node-fetch').then(({ default: f }) => f(...
 const fs         = require('fs');
 const path       = require('path');
 const { exec }   = require('child_process');
+const { promisify } = require('util');
+const execAsync  = promisify(exec);
 const { google } = require('googleapis');
 
 // ─── PIR motion sensor ────────────────────────────────────────────────────────
@@ -728,8 +730,32 @@ app.post('/api/kiosk/exit', (req, res) => {
 });
 
 // ─── Voice assistant ──────────────────────────────────────────────────────────
-const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:1b';
+const OLLAMA_URL      = process.env.OLLAMA_URL      || 'http://localhost:11434';
+const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:1b';
+const WHISPER_MODEL   = process.env.WHISPER_MODEL   || 'base';
+const WHISPER_SCRIPT  = path.join(__dirname, 'whisper_transcribe.py');
+
+// POST /api/voice/transcribe — receive raw audio, run faster-whisper, return transcript
+app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), async (req, res) => {
+  const id      = Date.now();
+  const webm    = `/tmp/hub_voice_${id}.webm`;
+  const wav     = `/tmp/hub_voice_${id}.wav`;
+  try {
+    fs.writeFileSync(webm, req.body);
+    // convert to 16kHz mono WAV (required by Whisper)
+    await execAsync(`ffmpeg -y -i ${webm} -ar 16000 -ac 1 ${wav} 2>/dev/null`);
+    const { stdout } = await execAsync(`python3 ${WHISPER_SCRIPT} ${wav} ${WHISPER_MODEL}`);
+    res.json({ transcript: stdout.trim() });
+  } catch (e) {
+    console.error('[Whisper]', e.message);
+    if (e.message.includes('ffmpeg')) return res.status(500).json({ error: 'ffmpeg not found — run: sudo apt install ffmpeg' });
+    if (e.message.includes('faster_whisper') || e.message.includes('No module')) return res.status(500).json({ error: 'faster-whisper not installed — run: pip3 install faster-whisper' });
+    res.status(500).json({ error: e.message });
+  } finally {
+    try { fs.unlinkSync(webm); } catch {}
+    try { fs.unlinkSync(wav);  } catch {}
+  }
+});
 
 // POST /api/voice/parse — send transcript to Ollama, get back intent JSON
 app.post('/api/voice/parse', async (req, res) => {
