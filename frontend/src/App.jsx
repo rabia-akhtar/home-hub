@@ -183,7 +183,7 @@ function ProgressRing({ pts, max=500, size=56, color }) {
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver }) {
+function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, onOpenVoice }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -233,6 +233,17 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver }) 
                   <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
                     stroke={lightsOn ? "#fde68a" : "rgba(255,255,255,0.85)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                     fill={lightsOn ? "rgba(253,230,138,0.4)" : "none"}/>
+                </svg>
+              </button>
+            )}
+            {onOpenVoice && (
+              <button onClick={onOpenVoice} title="Voice assistant"
+                style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <rect x="9" y="3" width="6" height="11" rx="3" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8"/>
+                  <path d="M5 10a7 7 0 0014 0" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
+                  <line x1="12" y1="19" x2="12" y2="22" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
+                  <line x1="8" y1="22" x2="16" y2="22" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
                 </svg>
               </button>
             )}
@@ -2034,7 +2045,7 @@ function BudgetTab() {
 }
 
 // ─── VOICE TAB ───────────────────────────────────────────────────────────────
-function VoiceTab() {
+function VoiceTab({ triggerRecord = 0 }) {
   const API = import.meta.env.VITE_API_URL || '';
   // state: idle | listening | transcribing | thinking | confirming | executing | done | error
   const [state,      setState]      = useState('idle');
@@ -2045,6 +2056,9 @@ function VoiceTab() {
   const [history,    setHistory]    = useState([]);
   const mediaRecRef  = useRef(null);
   const chunksRef    = useRef([]);
+
+  // Auto-start when triggered from header button
+  useEffect(() => { if (triggerRecord > 0) start(); }, [triggerRecord]);
 
   const start = async () => {
     setTranscript(''); setIntent(null); setResult(null); setErrMsg('');
@@ -2398,6 +2412,13 @@ export default function App() {
   const hub  = useHub();
   const wide = useWide();
 
+  // ── Voice tab — open and auto-start mic from header button ──
+  const [voiceTrigger, setVoiceTrigger] = useState(0);
+  const openVoice = useCallback(() => {
+    setTab('voice');
+    setVoiceTrigger(t => t + 1);
+  }, []);
+
   // ── Manual screensaver — suppress motion dismiss for 10s ──
   const startScreensaver = useCallback(() => {
     motionPausedUntil.current = Date.now() + 10_000;
@@ -2562,7 +2583,7 @@ export default function App() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver}/>
+      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onOpenVoice={openVoice}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
@@ -2602,7 +2623,7 @@ export default function App() {
           {tab==="lights"    && <LightsTab/>}
           {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
           {tab==="budget"    && <BudgetTab/>}
-          {tab==="voice"     && <VoiceTab/>}
+          {tab==="voice"     && <VoiceTab triggerRecord={voiceTrigger}/>}
           {tab==="debug"     && <DebugTab/>}
         </div>
       </div>
