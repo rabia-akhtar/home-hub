@@ -744,7 +744,8 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
     fs.writeFileSync(webm, req.body);
     // convert to 16kHz mono WAV (required by Whisper)
     await execAsync(`ffmpeg -y -i ${webm} -ar 16000 -ac 1 ${wav} 2>/dev/null`);
-    const { stdout } = await execAsync(`python3 ${WHISPER_SCRIPT} ${wav} ${WHISPER_MODEL}`);
+    const python = process.env.WHISPER_PYTHON || 'python3';
+    const { stdout } = await execAsync(`${python} ${WHISPER_SCRIPT} ${wav} ${WHISPER_MODEL}`);
     res.json({ transcript: stdout.trim() });
   } catch (e) {
     console.error('[Whisper]', e.message);
