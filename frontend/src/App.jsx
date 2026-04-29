@@ -224,22 +224,12 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
             <div style={{ fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.65)",letterSpacing:2,textTransform:"uppercase" }}>Clarabiner</div>
             <div style={{ fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:2 }}>{fmtDate(now)}</div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {/* Lights toggle button */}
-            {onToggleLights && (
-              <button onClick={onToggleLights} title={lightsOn ? "Turn all lights off" : "Turn all lights on"}
-                style={{width:34,height:34,borderRadius:"50%",border:"none",background:lightsOn?"rgba(255,237,100,0.35)":"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
-                    stroke={lightsOn ? "#fde68a" : "rgba(255,255,255,0.85)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    fill={lightsOn ? "rgba(253,230,138,0.4)" : "none"}/>
-                </svg>
-              </button>
-            )}
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {/* Voice — first */}
             {onOpenVoice && (
               <button onClick={onOpenVoice} title="Voice assistant"
-                style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                   <rect x="9" y="3" width="6" height="11" rx="3" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8"/>
                   <path d="M5 10a7 7 0 0014 0" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
                   <line x1="12" y1="19" x2="12" y2="22" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
@@ -247,19 +237,31 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
                 </svg>
               </button>
             )}
+            {/* Lights */}
+            {onToggleLights && (
+              <button onClick={onToggleLights} title={lightsOn ? "Turn all lights off" : "Turn all lights on"}
+                style={{width:44,height:44,borderRadius:"50%",border:"none",background:lightsOn?"rgba(255,237,100,0.35)":"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
+                    stroke={lightsOn ? "#fde68a" : "rgba(255,255,255,0.85)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    fill={lightsOn ? "rgba(253,230,138,0.4)" : "none"}/>
+                </svg>
+              </button>
+            )}
+            {/* Screensaver */}
             {onStartScreensaver && (
               <button onClick={onStartScreensaver} title="Start screensaver"
-                style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
-                {/* Picture / art frame icon */}
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                   <rect x="3" y="3" width="18" height="18" rx="3" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8"/>
                   <circle cx="8.5" cy="8.5" r="1.5" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5"/>
                   <path d="M3 15l5-5 4 4 3-3 6 6" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
             )}
-            <button onClick={exitKiosk} title="Exit kiosk / close browser" style={{width:34,height:34,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+            {/* Exit */}
+            <button onClick={exitKiosk} title="Exit kiosk / close browser" style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
             <div style={{ fontSize:52,fontWeight:200,color:"#fff",lineHeight:1,letterSpacing:-3 }}>{fmtTime(now)}</div>
           </div>
@@ -2289,7 +2291,7 @@ function DebugTab() {
   if (error)   return <div style={{padding:40,textAlign:"center",color:"#ef4444",fontSize:14}}>Error: {error}</div>;
   if (!data)   return null;
 
-  const { lights, motion, weather, todoist, google_calendar: gcal, env } = data;
+  const { lights, motion, weather, todoist, google_calendar: gcal, voice, env } = data;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -2375,6 +2377,29 @@ function DebugTab() {
             </a>
           )}
         </Section>
+
+        {/* Voice */}
+        {voice && (
+        <Section title="Voice Assistant" color="#f43f5e">
+          <Row label="Ollama" value={voice.ollama.status} status={voice.ollama.status==='ok'?'ok':voice.ollama.status==='not_running'?'error':'warn'}/>
+          <Row label="Ollama URL" value={voice.ollama.url} mono/>
+          <Row label="Intent model" value={voice.ollama.model} status={voice.ollama.model_ready?'ok':'warn'}/>
+          {voice.ollama.models_installed.length>0 && <Row label="Installed models" value={voice.ollama.models_installed.join(', ')} mono/>}
+          {voice.ollama.error && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",fontFamily:"monospace",wordBreak:"break-all"}}>{voice.ollama.error}</div>}
+          {!voice.ollama.model_ready && voice.ollama.status==='ok' && (
+            <div style={{background:"#fefce8",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#854d0e"}}>Model not installed — run: <code>ollama pull {voice.ollama.model}</code></div>
+          )}
+          {voice.ollama.status==='not_running' && (
+            <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Ollama not running — run: <code>ollama serve &amp;</code></div>
+          )}
+          <Row label="ffmpeg" value={voice.ffmpeg.ok?"Installed ✓":"Missing"} status={voice.ffmpeg.ok?"ok":"error"}/>
+          {!voice.ffmpeg.ok && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Run: <code>sudo apt install ffmpeg</code></div>}
+          <Row label="faster-whisper" value={voice.whisper.ok?"Installed ✓":voice.whisper.error||"Missing"} status={voice.whisper.ok?"ok":"error"}/>
+          <Row label="Whisper model" value={voice.whisper.model}/>
+          <Row label="Python" value={voice.whisper.python} mono/>
+          {!voice.whisper.ok && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Run: <code>pip3 install faster-whisper</code> or use venv</div>}
+        </Section>
+        )}
 
         {/* Environment */}
         <Section title="Environment" color="#6366f1">

@@ -732,7 +732,7 @@ app.post('/api/kiosk/exit', (req, res) => {
 // ─── Voice assistant ──────────────────────────────────────────────────────────
 const OLLAMA_URL      = process.env.OLLAMA_URL      || 'http://localhost:11434';
 const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:1b';
-const WHISPER_MODEL   = process.env.WHISPER_MODEL   || 'base';
+const WHISPER_MODEL   = process.env.WHISPER_MODEL   || 'tiny.en'; // tiny.en is 4x faster than base, accurate enough for short commands
 const WHISPER_SCRIPT  = path.join(__dirname, 'whisper_transcribe.py');
 
 // POST /api/voice/transcribe — receive raw audio, run faster-whisper, return transcript
@@ -873,8 +873,30 @@ app.get('/api/debug/system', async (req, res) => {
     if (!r.ok) weatherError = await r.text();
   } catch (e) { weatherStatus = 'error'; weatherError = e.message; }
 
+  // Voice — check Ollama + ffmpeg + faster-whisper
+  let ollamaStatus = 'unknown', ollamaModels = [], ollamaError = null;
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/tags`);
+    if (r.ok) { const d = await r.json(); ollamaStatus = 'ok'; ollamaModels = (d.models||[]).map(m=>m.name); }
+    else { ollamaStatus = `http_${r.status}`; ollamaError = await r.text(); }
+  } catch(e) { ollamaStatus = e.code==='ECONNREFUSED'?'not_running':'error'; ollamaError = e.message; }
+
+  let ffmpegOk = false;
+  try { await execAsync('ffmpeg -version'); ffmpegOk = true; } catch {}
+
+  const whisperPython = process.env.WHISPER_PYTHON || 'python3';
+  let whisperOk = false, whisperError = null;
+  try { await execAsync(`${whisperPython} -c "import faster_whisper"`); whisperOk = true; }
+  catch(e) { whisperError = e.message.split('\n')[0]; }
+
   res.json({
     timestamp: new Date().toISOString(),
+    voice: {
+      ollama: { status: ollamaStatus, url: OLLAMA_URL, model: OLLAMA_MODEL, models_installed: ollamaModels, error: ollamaError,
+        model_ready: ollamaModels.some(m => m.startsWith(OLLAMA_MODEL.split(':')[0])) },
+      whisper: { ok: whisperOk, model: WHISPER_MODEL, python: whisperPython, error: whisperError },
+      ffmpeg: { ok: ffmpegOk },
+    },
     lights: {
       status: tapoReady ? 'ok' : (!(process.env.KASA_EMAIL && process.env.KASA_PASSWORD) ? 'not_configured' : 'initializing'),
       credentials_set: !!(process.env.KASA_EMAIL && process.env.KASA_PASSWORD),
