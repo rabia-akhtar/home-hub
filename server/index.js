@@ -953,4 +953,19 @@ if (fs.existsSync(DIST)) {
 app.listen(PORT,()=>{
   console.log(`\n🏠  Hub → http://localhost:${PORT}`);
   console.log(`📅  Connect Google → http://localhost:${PORT}/api/auth/google\n`);
+
+  // Warm up Ollama so the first voice command is fast
+  setTimeout(async () => {
+    try {
+      console.log(`[Ollama] Warming up ${OLLAMA_MODEL}…`);
+      await fetch(`${OLLAMA_URL}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: OLLAMA_MODEL, prompt: 'hi', stream: false }),
+      });
+      console.log('[Ollama] Model warm and ready');
+    } catch (e) {
+      console.log('[Ollama] Warm-up skipped (not running):', e.message);
+    }
+  }, 3000); // wait 3s for server to fully settle before hitting Ollama
 });
