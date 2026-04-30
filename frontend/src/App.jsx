@@ -198,9 +198,9 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
   const advisories2 = [];
   const uv2 = wx?.current?.uv_index ?? 0;
   if(uv2>=11) advisories2.push({icon:"🚨",msg:`Extreme UV (${uv2}) — avoid going outside midday, max SPF, full cover.`});
-  else if(uv2>=8) advisories2.push({icon:"🔆",msg:`Very high UV (${uv2}) — minimize time outdoors, SPF 50+.`});
+  else if(uv2>=8) advisories2.push({icon:"⚠️",msg:`Very high UV (${uv2}) — minimize time outdoors, SPF 50+.`});
   else if(uv2>=6) advisories2.push({icon:"☀️",msg:`High UV (${uv2}) — sunscreen, sunglasses, and a hat are a must!`});
-  else if(uv2>=3) advisories2.push({icon:"🕶️",msg:`Moderate UV (${uv2}) — pop on some SPF before heading out.`});
+  else if(uv2>=3) advisories2.push({icon:"☀️",msg:`Moderate UV (${uv2}) — pop on some SPF before heading out.`});
   const todayHrs2 = wx?.hourly?.time?.reduce((acc,t,i)=>{
     if(t.startsWith(todayStr2)) acc.push({prob:wx.hourly.precipitation_probability?.[i]??0,code:wx.hourly.weather_code?.[i]??0});
     return acc;
