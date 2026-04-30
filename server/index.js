@@ -93,19 +93,25 @@ function countsForReward(projectName) {
 const KASA_EMAIL    = process.env.KASA_EMAIL;
 const KASA_PASSWORD = process.env.KASA_PASSWORD;
 
-// Static device list — add IPs in .env, e.g. KASA_IP_FLOWER=192.168.1.x
-// To find IPs: run  nmap -sn 192.168.1.0/24  on the Pi and look for TP-Link entries
+// Static device list — configure in .env:
+//   KASA_IP_FLOWER=192.168.1.x   KASA_LABEL_FLOWER=Flower Lamp
+//   KASA_IP_GLOBE=192.168.1.x    KASA_LABEL_GLOBE=Globe Lamp
+//   KASA_IP_LAMP=192.168.1.x     KASA_LABEL_LAMP=Long Lamp
+//   KASA_IP_BEDROOM_1=...        KASA_LABEL_BEDROOM_1=Bedside Lamp
+//   KASA_IP_BEDROOM_2=...        KASA_LABEL_BEDROOM_2=Closet Light
+//   KASA_IP_KITCHEN_1=...        KASA_LABEL_KITCHEN_1=Counter Light
+//   KASA_IP_KITCHEN_2=...        KASA_LABEL_KITCHEN_2=Island Light
 const TAPO_DEVICES = [
   // Living Room
-  { alias: 'Smart Plug Flower',    group: 'living_room', host: process.env.KASA_IP_FLOWER     || '192.168.1.189' },
-  { alias: 'Smart Plug Globe',     group: 'living_room', host: process.env.KASA_IP_GLOBE      || '' },
-  { alias: 'Smart Plug Long Lamp', group: 'living_room', host: process.env.KASA_IP_LAMP       || '' },
-  // Bedroom — set KASA_IP_BEDROOM_1 / KASA_IP_BEDROOM_2 in .env
-  { alias: 'Bedroom Lamp',         group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_1  || '' },
-  { alias: 'Bedroom Lamp 2',       group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_2  || '' },
-  // Kitchen — set KASA_IP_KITCHEN_1 / KASA_IP_KITCHEN_2 in .env
-  { alias: 'Kitchen Light',        group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_1  || '' },
-  { alias: 'Kitchen Light 2',      group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_2  || '' },
+  { alias: 'Smart Plug Flower',    group: 'living_room', host: process.env.KASA_IP_FLOWER     || '192.168.1.189', label: process.env.KASA_LABEL_FLOWER     || 'Flower Lamp'    },
+  { alias: 'Smart Plug Globe',     group: 'living_room', host: process.env.KASA_IP_GLOBE      || '',              label: process.env.KASA_LABEL_GLOBE      || 'Globe Lamp'     },
+  { alias: 'Smart Plug Long Lamp', group: 'living_room', host: process.env.KASA_IP_LAMP       || '',              label: process.env.KASA_LABEL_LAMP       || 'Long Lamp'      },
+  // Bedroom
+  { alias: 'Bedroom Lamp',         group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_1  || '',              label: process.env.KASA_LABEL_BEDROOM_1  || 'Bedroom Lamp'   },
+  { alias: 'Bedroom Lamp 2',       group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_2  || '',              label: process.env.KASA_LABEL_BEDROOM_2  || 'Bedroom Lamp 2' },
+  // Kitchen
+  { alias: 'Kitchen Light',        group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_1  || '',              label: process.env.KASA_LABEL_KITCHEN_1  || 'Kitchen Light'  },
+  { alias: 'Kitchen Light 2',      group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_2  || '',              label: process.env.KASA_LABEL_KITCHEN_2  || 'Kitchen Light 2'},
 ].filter(d => d.host.trim());
 
 let tapo        = null;   // tp-link-tapo-connect client
@@ -197,6 +203,7 @@ app.get('/api/lights', async (req, res) => {
     const devices = Object.values(tapoCache).map(d => ({
       id:          d.alias.toLowerCase().replace(/\s+/g, '_'),
       alias:       d.alias,
+      label:       d.label || d.alias,
       group:       d.group || 'living_room',
       on:          d.on,
       unreachable: d.unreachable || false,

@@ -1129,17 +1129,7 @@ const SCENE_ICONS={
 };
 const SCENES={bright:{label:"Bright",bg:"#fffbeb",border:"#fde68a",text:"#92400e"},relax:{label:"Relax",bg:"#fff7ed",border:"#fed7aa",text:"#9a3412"},night:{label:"Night",bg:"#eff6ff",border:"#bfdbfe",text:"#1e40af"},away:{label:"Away",bg:"#f8fafc",border:"#e2e8f0",text:"#475569"}};
 
-// Friendly display names for known devices
-const DEVICE_LABELS = {
-  'smart plug flower':    'Flower Lamp',
-  'smart plug globe':     'Globe Lamp',
-  'smart plug long lamp': 'Long Lamp',
-  'bedroom lamp':         'Bedroom Lamp',
-  'bedroom lamp 2':       'Bedroom Lamp 2',
-  'kitchen light':        'Kitchen Light',
-  'kitchen light 2':      'Kitchen Light 2',
-};
-function deviceLabel(alias) { return DEVICE_LABELS[alias.toLowerCase()] || alias; }
+// Device labels come from the server (set KASA_LABEL_* in .env on the Pi)
 
 function Toggle({ on, onToggle, disabled }) {
   return (
@@ -1167,7 +1157,7 @@ function DeviceRow({ d, busy, onToggle }) {
         </svg>
       </div>
       <div style={{ flex:1 }}>
-        <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{deviceLabel(d.alias)}</div>
+        <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{d.label || d.alias}</div>
         <div style={{ fontSize:12, color: d.on ? "#b45309" : d.unreachable ? "#ef4444" : "#94a3b8" }}>
           {d.unreachable ? "Unreachable" : d.on ? "On" : "Off"}
         </div>
