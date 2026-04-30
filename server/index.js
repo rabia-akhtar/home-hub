@@ -103,7 +103,7 @@ const KASA_PASSWORD = process.env.KASA_PASSWORD;
 //   KASA_IP_KITCHEN_2=...        KASA_LABEL_KITCHEN_2=Island Light
 const TAPO_DEVICES = [
   // Living Room
-  { alias: 'Smart Plug Flower',    group: 'living_room', host: process.env.KASA_IP_FLOWER     || '192.168.1.189', label: process.env.KASA_LABEL_FLOWER     || 'Flower Lamp'    },
+  { alias: 'Smart Plug Flower',    group: 'living_room', host: process.env.KASA_IP_FLOWER     || '',              label: process.env.KASA_LABEL_FLOWER     || 'Flower Lamp'    },
   { alias: 'Smart Plug Globe',     group: 'living_room', host: process.env.KASA_IP_GLOBE      || '',              label: process.env.KASA_LABEL_GLOBE      || 'Globe Lamp'     },
   { alias: 'Smart Plug Long Lamp', group: 'living_room', host: process.env.KASA_IP_LAMP       || '',              label: process.env.KASA_LABEL_LAMP       || 'Long Lamp'      },
   // Bedroom
