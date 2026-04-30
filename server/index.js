@@ -93,13 +93,19 @@ function countsForReward(projectName) {
 const KASA_EMAIL    = process.env.KASA_EMAIL;
 const KASA_PASSWORD = process.env.KASA_PASSWORD;
 
-// Static device list — add more entries as needed
-// Device IPs: set KASA_IP_GLOBE and KASA_IP_LAMP in .env
+// Static device list — add IPs in .env, e.g. KASA_IP_FLOWER=192.168.1.x
 // To find IPs: run  nmap -sn 192.168.1.0/24  on the Pi and look for TP-Link entries
 const TAPO_DEVICES = [
-  { alias: 'Smart Plug Flower',    host: process.env.KASA_IP_FLOWER || '192.168.1.189' },
-  { alias: 'Smart Plug Globe',     host: process.env.KASA_IP_GLOBE  || '' },
-  { alias: 'Smart Plug Long Lamp', host: process.env.KASA_IP_LAMP   || '' },
+  // Living Room
+  { alias: 'Smart Plug Flower',    group: 'living_room', host: process.env.KASA_IP_FLOWER     || '192.168.1.189' },
+  { alias: 'Smart Plug Globe',     group: 'living_room', host: process.env.KASA_IP_GLOBE      || '' },
+  { alias: 'Smart Plug Long Lamp', group: 'living_room', host: process.env.KASA_IP_LAMP       || '' },
+  // Bedroom — set KASA_IP_BEDROOM_1 / KASA_IP_BEDROOM_2 in .env
+  { alias: 'Bedroom Lamp',         group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_1  || '' },
+  { alias: 'Bedroom Lamp 2',       group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_2  || '' },
+  // Kitchen — set KASA_IP_KITCHEN_1 / KASA_IP_KITCHEN_2 in .env
+  { alias: 'Kitchen Light',        group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_1  || '' },
+  { alias: 'Kitchen Light 2',      group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_2  || '' },
 ].filter(d => d.host.trim());
 
 let tapo        = null;   // tp-link-tapo-connect client
@@ -191,6 +197,7 @@ app.get('/api/lights', async (req, res) => {
     const devices = Object.values(tapoCache).map(d => ({
       id:          d.alias.toLowerCase().replace(/\s+/g, '_'),
       alias:       d.alias,
+      group:       d.group || 'living_room',
       on:          d.on,
       unreachable: d.unreachable || false,
       host:        d.host,
@@ -245,7 +252,7 @@ app.post('/api/lights/scene', async (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/lights/group — turn all devices on or off at once
+// POST /api/lights/group — turn ALL devices on or off (used by header button)
 app.post('/api/lights/group', async (req, res) => {
   const { on } = req.body;
   if (typeof on !== 'boolean') return res.status(400).json({ error: 'body must include { on: true|false }' });
@@ -254,6 +261,20 @@ app.post('/api/lights/group', async (req, res) => {
   );
   const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
   res.json({ ok: true, on, failed });
+});
+
+// POST /api/lights/group/:group/on|off — control one room group
+app.post('/api/lights/group/:group/on',  async (req, res) => {
+  const devs = Object.values(tapoCache).filter(d => d.group === req.params.group);
+  if (!devs.length) return res.status(404).json({ error: 'No devices in group' });
+  await Promise.allSettled(devs.map(d => tapoSetPower(d.alias, true)));
+  res.json({ ok: true, group: req.params.group, on: true });
+});
+app.post('/api/lights/group/:group/off', async (req, res) => {
+  const devs = Object.values(tapoCache).filter(d => d.group === req.params.group);
+  if (!devs.length) return res.status(404).json({ error: 'No devices in group' });
+  await Promise.allSettled(devs.map(d => tapoSetPower(d.alias, false)));
+  res.json({ ok: true, group: req.params.group, on: false });
 });
 
 // Debug

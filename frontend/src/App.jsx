@@ -1134,6 +1134,10 @@ const DEVICE_LABELS = {
   'smart plug flower':    'Flower Lamp',
   'smart plug globe':     'Globe Lamp',
   'smart plug long lamp': 'Long Lamp',
+  'bedroom lamp':         'Bedroom Lamp',
+  'bedroom lamp 2':       'Bedroom Lamp 2',
+  'kitchen light':        'Kitchen Light',
+  'kitchen light 2':      'Kitchen Light 2',
 };
 function deviceLabel(alias) { return DEVICE_LABELS[alias.toLowerCase()] || alias; }
 
@@ -1142,6 +1146,34 @@ function Toggle({ on, onToggle, disabled }) {
     <button onClick={onToggle} disabled={disabled} style={{width:52,height:28,borderRadius:99,border:"none",cursor:disabled?"not-allowed":"pointer",background:on?"#fbbf24":"#e2e8f0",position:"relative",transition:"background 0.2s",flexShrink:0,opacity:disabled?0.4:1}}>
       <div style={{position:"absolute",top:4,width:20,height:20,borderRadius:"50%",background:"#fff",left:on?"28px":"4px",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
     </button>
+  );
+}
+
+const GROUP_META = [
+  { id: 'living_room', label: 'Living Room' },
+  { id: 'bedroom',     label: 'Bedroom'     },
+  { id: 'kitchen',     label: 'Kitchen'     },
+];
+
+function DeviceRow({ d, busy, onToggle }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", borderRadius:14, background: d.on ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.6)", border:`1.5px solid ${d.on ? "#fde68a" : "#f1f5f9"}` }}>
+      <div style={{ width:36, height:36, borderRadius:"50%", background: d.on ? "#fef3c7" : "#f1f5f9", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <rect x="7" y="2" width="10" height="12" rx="2" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8"/>
+          <line x1="9" y1="2" x2="9" y2="6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
+          <line x1="15" y1="2" x2="15" y2="6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
+          <path d="M12 14v3M9 20h6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{deviceLabel(d.alias)}</div>
+        <div style={{ fontSize:12, color: d.on ? "#b45309" : d.unreachable ? "#ef4444" : "#94a3b8" }}>
+          {d.unreachable ? "Unreachable" : d.on ? "On" : "Off"}
+        </div>
+      </div>
+      <Toggle on={d.on} onToggle={onToggle} disabled={busy || d.unreachable}/>
+    </div>
   );
 }
 
@@ -1161,78 +1193,60 @@ function LightsTab() {
     const next = !d.on;
     setDevices(ds => ds.map(x => x.alias === d.alias ? { ...x, on: next } : x));
     setBusy(b => ({ ...b, [d.alias]: true }));
-    await fetch(`${API}/lights/${encodeURIComponent(d.alias)}/${d.on ? "off" : "on"}`, { method: "POST" });
+    await fetch(`${API}/lights/${encodeURIComponent(d.alias)}/${d.on ? "off" : "on"}`, { method:"POST" });
     setBusy(b => ({ ...b, [d.alias]: false }));
-  };
-
-  const allOn  = async () => {
-    setDevices(ds => ds.map(d => ({ ...d, on: true })));
-    await fetch(`${API}/lights/scene`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scene: "bright" }) });
-    setTimeout(load, 800);
-  };
-  const allOff = async () => {
-    setDevices(ds => ds.map(d => ({ ...d, on: false })));
-    await fetch(`${API}/lights/scene`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scene: "away" }) });
     setTimeout(load, 800);
   };
 
-  const onCount = devices.filter(d => d.on).length;
+  const groupOn  = async id => {
+    setDevices(ds => ds.map(d => d.group === id ? { ...d, on: true }  : d));
+    await fetch(`${API}/lights/group/${id}/on`,  { method:"POST" });
+    setTimeout(load, 800);
+  };
+  const groupOff = async id => {
+    setDevices(ds => ds.map(d => d.group === id ? { ...d, on: false } : d));
+    await fetch(`${API}/lights/group/${id}/off`, { method:"POST" });
+    setTimeout(load, 800);
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-      {/* ── Living Room group card ── */}
-      <div style={{ ...CARD, padding: "22px 24px", background: onCount > 0 ? "linear-gradient(135deg,#fffbeb,#fef3c7)" : undefined, border: onCount > 0 ? "2px solid #fde68a" : undefined, boxShadow: onCount > 0 ? "0 4px 24px rgba(251,191,36,0.2)" : undefined }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#1e293b" }}>Living Room</div>
-            <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 2 }}>
-              {loading ? "Loading…" : `${onCount} of ${devices.length} on`}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={allOn} style={{ padding: "10px 20px", background: "#fbbf24", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#78350f" }}>
-              All On
-            </button>
-            <button onClick={allOff} style={{ padding: "10px 20px", background: "#f1f5f9", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#64748b" }}>
-              All Off
-            </button>
-          </div>
-        </div>
-
-        {loading && <div style={{ textAlign: "center", color: "#94a3b8", padding: "12px 0" }}>Connecting to devices…</div>}
-        {!loading && devices.length === 0 && (
-          <div style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, lineHeight: 1.8 }}>
-            No devices connected.<br/>
-            Add <code>KASA_IP_GLOBE</code> and <code>KASA_IP_LAMP</code> to <code>.env</code> on the Pi,<br/>
-            then visit <code>/api/lights/debug</code> to check status.
-          </div>
-        )}
-
-        {/* Individual device rows */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {devices.map(d => (
-            <div key={d.alias} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 14, background: d.on ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.6)", border: `1.5px solid ${d.on ? "#fde68a" : "#f1f5f9"}` }}>
-              {/* Plug icon */}
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: d.on ? "#fef3c7" : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <rect x="7" y="2" width="10" height="12" rx="2" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8"/>
-                  <line x1="9" y1="2" x2="9" y2="6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
-                  <line x1="15" y1="2" x2="15" y2="6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
-                  <path d="M12 14v3M9 20h6" stroke={d.on ? "#f59e0b" : "#94a3b8"} strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>{deviceLabel(d.alias)}</div>
-                <div style={{ fontSize: 12, color: d.on ? "#b45309" : d.unreachable ? "#ef4444" : "#94a3b8" }}>
-                  {d.unreachable ? "Unreachable" : d.on ? "On" : "Off"}
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      {GROUP_META.map(({ id, label }) => {
+        const grpDevs = devices.filter(d => d.group === id);
+        if (!loading && grpDevs.length === 0) return null;
+        const onCount = grpDevs.filter(d => d.on).length;
+        const lit = onCount > 0;
+        return (
+          <div key={id} style={{ ...CARD, padding:"20px 22px", background: lit ? "linear-gradient(135deg,#fffbeb,#fef3c7)" : undefined, border: lit ? "2px solid #fde68a" : undefined, boxShadow: lit ? "0 4px 24px rgba(251,191,36,0.2)" : undefined }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: grpDevs.length ? 16 : 0 }}>
+              <div>
+                <div style={{ fontSize:18, fontWeight:800, color:"#1e293b" }}>{label}</div>
+                <div style={{ fontSize:13, color:"#94a3b8", marginTop:2 }}>
+                  {loading ? "Loading…" : `${onCount} of ${grpDevs.length} on`}
                 </div>
               </div>
-              <Toggle on={d.on} onToggle={() => toggle(d)} disabled={busy[d.alias] || d.unreachable}/>
+              {grpDevs.length > 0 && (
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={() => groupOn(id)}  style={{ padding:"8px 18px", background:"#fbbf24", border:"none", borderRadius:10, cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700, color:"#78350f" }}>On</button>
+                  <button onClick={() => groupOff(id)} style={{ padding:"8px 18px", background:"#f1f5f9", border:"none", borderRadius:10, cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700, color:"#64748b" }}>Off</button>
+                </div>
+              )}
             </div>
-          ))}
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {grpDevs.map(d => (
+                <DeviceRow key={d.alias} d={d} busy={busy[d.alias]} onToggle={() => toggle(d)}/>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {!loading && devices.length === 0 && (
+        <div style={{ ...CARD, padding:"30px 24px", textAlign:"center", color:"#94a3b8", fontSize:13, lineHeight:1.8 }}>
+          No devices connected.<br/>
+          Add device IPs to <code>.env</code> on the Pi (e.g. <code>KASA_IP_FLOWER=192.168.1.x</code>),<br/>
+          then restart the server.
         </div>
-      </div>
+      )}
     </div>
   );
 }
