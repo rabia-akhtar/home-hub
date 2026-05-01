@@ -2396,19 +2396,10 @@ function DebugTab() {
         {/* Voice */}
         {voice && (
         <Section title="Voice Assistant" color="#f43f5e">
-          <Row label="Ollama" value={voice.ollama.status} status={voice.ollama.status==='ok'?'ok':voice.ollama.status==='not_running'?'error':'warn'}/>
-          <Row label="Ollama URL" value={voice.ollama.url} mono/>
-          <Row label="Intent model" value={voice.ollama.model} status={voice.ollama.model_ready?'ok':'warn'}/>
-          {voice.ollama.models_installed.length>0 && <Row label="Installed models" value={voice.ollama.models_installed.join(', ')} mono/>}
-          {voice.ollama.error && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",fontFamily:"monospace",wordBreak:"break-all"}}>{voice.ollama.error}</div>}
-          {!voice.ollama.model_ready && voice.ollama.status==='ok' && (
-            <div style={{background:"#fefce8",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#854d0e"}}>Model not installed — run: <code>ollama pull {voice.ollama.model}</code></div>
-          )}
-          {voice.ollama.status==='not_running' && (
-            <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Ollama not running — run: <code>ollama serve &amp;</code></div>
-          )}
-          <Row label="Groq STT" value={voice.groq_stt?.key_set?"API key set ✓":"API key missing"} status={voice.groq_stt?.key_set?"ok":"error"}/>
+          <Row label="Groq STT" value={voice.groq_stt?.key_set?"API key set ✓":"Missing"} status={voice.groq_stt?.key_set?"ok":"error"}/>
           <Row label="STT model" value={voice.groq_stt?.model||"whisper-large-v3-turbo"}/>
+          <Row label="Groq LLM" value={voice.groq_llm?.key_set?"API key set ✓":"Missing"} status={voice.groq_llm?.key_set?"ok":"error"}/>
+          <Row label="Intent model" value={voice.groq_llm?.model||"llama-3.1-8b-instant"}/>
           {!voice.groq_stt?.key_set && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Add <code>GROQ_API_KEY=...</code> to .env — free key at console.groq.com</div>}
         </Section>
         )}

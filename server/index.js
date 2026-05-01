@@ -795,10 +795,12 @@ app.post('/api/kiosk/exit', (req, res) => {
 });
 
 // ─── Voice assistant ──────────────────────────────────────────────────────────
-const OLLAMA_URL      = process.env.OLLAMA_URL      || 'http://localhost:11434';
-const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:3b';
 const GROQ_API_KEY    = process.env.GROQ_API_KEY    || '';
 const GROQ_STT_MODEL  = process.env.GROQ_STT_MODEL  || 'whisper-large-v3-turbo';
+const GROQ_LLM_MODEL  = process.env.GROQ_LLM_MODEL  || 'llama-3.1-8b-instant';
+// Ollama kept as fallback — not used for intent parsing anymore
+const OLLAMA_URL      = process.env.OLLAMA_URL      || 'http://localhost:11434';
+const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:3b';
 
 // POST /api/voice/transcribe — send audio to Groq Whisper API, return transcript
 // Groq accepts webm directly — no ffmpeg needed. Free tier at console.groq.com
@@ -829,48 +831,45 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
   }
 });
 
-// POST /api/voice/parse — send transcript to Ollama, get back intent JSON
+// POST /api/voice/parse — send transcript to Groq, get back intent JSON
 app.post('/api/voice/parse', async (req, res) => {
   const { transcript } = req.body;
   if (!transcript) return res.status(400).json({ error: 'No transcript provided' });
-
-  const prompt = `You are a home assistant. Parse the voice command below and return ONLY a JSON object — no explanation, no extra text.
-
-Supported actions:
-- add_grocery  → add an item to the grocery list
-- add_task     → add a task (with optional due date and assignee "rabia" or "clare")
-- lights_on    → turn all lights on
-- lights_off   → turn all lights off
-- unknown      → you don't understand the command
-
-Return format:
-{"action":"add_grocery","content":"item name"}
-{"action":"add_task","content":"task name","due":"tomorrow","assignee":"rabia"}
-{"action":"lights_on"}
-{"action":"unknown"}
-
-Voice command: "${transcript}"`;
+  if (!GROQ_API_KEY)  return res.status(500).json({ error: 'GROQ_API_KEY not set in .env' });
 
   try {
-    const r = await fetch(`${OLLAMA_URL}/api/generate`, {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false, format: 'json' }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: GROQ_LLM_MODEL,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: `You are a home assistant. Parse voice commands and return ONLY a JSON object.
+
+Supported actions:
+- add_grocery  → {"action":"add_grocery","content":"item name"}
+- add_task     → {"action":"add_task","content":"task name","due":"tomorrow","assignee":"rabia or clare"}
+- lights_on    → {"action":"lights_on"}
+- lights_off   → {"action":"lights_off"}
+- unknown      → {"action":"unknown"}
+
+Return only the JSON object, nothing else.` },
+          { role: 'user', content: transcript },
+        ],
+      }),
     });
     if (!r.ok) {
       const txt = await r.text();
-      if (r.status === 404 || txt.includes('not found')) {
-        return res.status(503).json({ error: `Ollama model "${OLLAMA_MODEL}" not found. Run: ollama pull ${OLLAMA_MODEL}` });
-      }
-      return res.status(503).json({ error: `Ollama error: ${txt}` });
+      return res.status(503).json({ error: `Groq error ${r.status}: ${txt}` });
     }
-    const { response } = await r.json();
+    const data = await r.json();
+    const raw  = data.choices?.[0]?.message?.content || '{}';
     let intent;
-    try { intent = JSON.parse(response); }
+    try { intent = JSON.parse(raw); }
     catch { intent = { action: 'unknown' }; }
     res.json(intent);
   } catch (e) {
-    if (e.code === 'ECONNREFUSED') return res.status(503).json({ error: 'Ollama is not running. Start it with: ollama serve' });
     res.status(500).json({ error: e.message });
   }
 });
@@ -944,20 +943,11 @@ app.get('/api/debug/system', async (req, res) => {
     if (!r.ok) weatherError = await r.text();
   } catch (e) { weatherStatus = 'error'; weatherError = e.message; }
 
-  // Voice — check Ollama + Groq
-  let ollamaStatus = 'unknown', ollamaModels = [], ollamaError = null;
-  try {
-    const r = await fetch(`${OLLAMA_URL}/api/tags`);
-    if (r.ok) { const d = await r.json(); ollamaStatus = 'ok'; ollamaModels = (d.models||[]).map(m=>m.name); }
-    else { ollamaStatus = `http_${r.status}`; ollamaError = await r.text(); }
-  } catch(e) { ollamaStatus = e.code==='ECONNREFUSED'?'not_running':'error'; ollamaError = e.message; }
-
   res.json({
     timestamp: new Date().toISOString(),
     voice: {
-      ollama: { status: ollamaStatus, url: OLLAMA_URL, model: OLLAMA_MODEL, models_installed: ollamaModels, error: ollamaError,
-        model_ready: ollamaModels.some(m => m.startsWith(OLLAMA_MODEL.split(':')[0])) },
       groq_stt: { ok: !!GROQ_API_KEY, model: GROQ_STT_MODEL, key_set: !!GROQ_API_KEY },
+      groq_llm: { ok: !!GROQ_API_KEY, model: GROQ_LLM_MODEL, key_set: !!GROQ_API_KEY },
     },
     lights: {
       status: tapoReady ? 'ok' : (!(process.env.KASA_EMAIL && process.env.KASA_PASSWORD) ? 'not_configured' : 'initializing'),
