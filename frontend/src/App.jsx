@@ -2396,12 +2396,9 @@ function DebugTab() {
           {voice.ollama.status==='not_running' && (
             <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Ollama not running — run: <code>ollama serve &amp;</code></div>
           )}
-          <Row label="ffmpeg" value={voice.ffmpeg.ok?"Installed ✓":"Missing"} status={voice.ffmpeg.ok?"ok":"error"}/>
-          {!voice.ffmpeg.ok && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Run: <code>sudo apt install ffmpeg</code></div>}
-          <Row label="faster-whisper" value={voice.whisper.ok?"Installed ✓":voice.whisper.error||"Missing"} status={voice.whisper.ok?"ok":"error"}/>
-          <Row label="Whisper model" value={voice.whisper.model}/>
-          <Row label="Python" value={voice.whisper.python} mono/>
-          {!voice.whisper.ok && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Run: <code>pip3 install faster-whisper</code> or use venv</div>}
+          <Row label="Groq STT" value={voice.groq_stt?.key_set?"API key set ✓":"API key missing"} status={voice.groq_stt?.key_set?"ok":"error"}/>
+          <Row label="STT model" value={voice.groq_stt?.model||"whisper-large-v3-turbo"}/>
+          {!voice.groq_stt?.key_set && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Add <code>GROQ_API_KEY=...</code> to .env — free key at console.groq.com</div>}
         </Section>
         )}
 

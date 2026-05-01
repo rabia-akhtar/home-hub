@@ -760,29 +760,35 @@ app.post('/api/kiosk/exit', (req, res) => {
 // ─── Voice assistant ──────────────────────────────────────────────────────────
 const OLLAMA_URL      = process.env.OLLAMA_URL      || 'http://localhost:11434';
 const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:3b';
-const WHISPER_MODEL   = process.env.WHISPER_MODEL   || 'small.en';
-const WHISPER_SCRIPT  = path.join(__dirname, 'whisper_transcribe.py');
+const GROQ_API_KEY    = process.env.GROQ_API_KEY    || '';
+const GROQ_STT_MODEL  = process.env.GROQ_STT_MODEL  || 'whisper-large-v3-turbo';
 
-// POST /api/voice/transcribe — receive raw audio, run faster-whisper, return transcript
+// POST /api/voice/transcribe — send audio to Groq Whisper API, return transcript
+// Groq accepts webm directly — no ffmpeg needed. Free tier at console.groq.com
 app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), async (req, res) => {
-  const id      = Date.now();
-  const webm    = `/tmp/hub_voice_${id}.webm`;
-  const wav     = `/tmp/hub_voice_${id}.wav`;
+  if (!GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY not set in .env — get a free key at console.groq.com' });
   try {
-    fs.writeFileSync(webm, req.body);
-    // convert to 16kHz mono WAV (required by Whisper)
-    await execAsync(`ffmpeg -y -i ${webm} -ar 16000 -ac 1 ${wav} 2>/dev/null`);
-    const python = process.env.WHISPER_PYTHON || 'python3';
-    const { stdout } = await execAsync(`${python} ${WHISPER_SCRIPT} ${wav} ${WHISPER_MODEL}`);
-    res.json({ transcript: stdout.trim() });
+    const blob = new Blob([req.body], { type: 'audio/webm' });
+    const form = new FormData();
+    form.append('file', blob, 'audio.webm');
+    form.append('model', GROQ_STT_MODEL);
+    form.append('language', 'en');
+
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` },
+      body: form,
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      console.error('[Groq STT]', r.status, err);
+      return res.status(500).json({ error: `Groq error ${r.status}: ${err}` });
+    }
+    const data = await r.json();
+    res.json({ transcript: data.text?.trim() || '' });
   } catch (e) {
-    console.error('[Whisper]', e.message);
-    if (e.message.includes('ffmpeg')) return res.status(500).json({ error: 'ffmpeg not found — run: sudo apt install ffmpeg' });
-    if (e.message.includes('faster_whisper') || e.message.includes('No module')) return res.status(500).json({ error: 'faster-whisper not installed — run: pip3 install faster-whisper' });
+    console.error('[Groq STT]', e.message);
     res.status(500).json({ error: e.message });
-  } finally {
-    try { fs.unlinkSync(webm); } catch {}
-    try { fs.unlinkSync(wav);  } catch {}
   }
 });
 
@@ -901,7 +907,7 @@ app.get('/api/debug/system', async (req, res) => {
     if (!r.ok) weatherError = await r.text();
   } catch (e) { weatherStatus = 'error'; weatherError = e.message; }
 
-  // Voice — check Ollama + ffmpeg + faster-whisper
+  // Voice — check Ollama + Groq
   let ollamaStatus = 'unknown', ollamaModels = [], ollamaError = null;
   try {
     const r = await fetch(`${OLLAMA_URL}/api/tags`);
@@ -909,21 +915,12 @@ app.get('/api/debug/system', async (req, res) => {
     else { ollamaStatus = `http_${r.status}`; ollamaError = await r.text(); }
   } catch(e) { ollamaStatus = e.code==='ECONNREFUSED'?'not_running':'error'; ollamaError = e.message; }
 
-  let ffmpegOk = false;
-  try { await execAsync('ffmpeg -version'); ffmpegOk = true; } catch {}
-
-  const whisperPython = process.env.WHISPER_PYTHON || 'python3';
-  let whisperOk = false, whisperError = null;
-  try { await execAsync(`${whisperPython} -c "import faster_whisper"`); whisperOk = true; }
-  catch(e) { whisperError = e.message.split('\n')[0]; }
-
   res.json({
     timestamp: new Date().toISOString(),
     voice: {
       ollama: { status: ollamaStatus, url: OLLAMA_URL, model: OLLAMA_MODEL, models_installed: ollamaModels, error: ollamaError,
         model_ready: ollamaModels.some(m => m.startsWith(OLLAMA_MODEL.split(':')[0])) },
-      whisper: { ok: whisperOk, model: WHISPER_MODEL, python: whisperPython, error: whisperError },
-      ffmpeg: { ok: ffmpegOk },
+      groq_stt: { ok: !!GROQ_API_KEY, model: GROQ_STT_MODEL, key_set: !!GROQ_API_KEY },
     },
     lights: {
       status: tapoReady ? 'ok' : (!(process.env.KASA_EMAIL && process.env.KASA_PASSWORD) ? 'not_configured' : 'initializing'),
