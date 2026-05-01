@@ -1280,7 +1280,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
   };
 
   const people = [RABIA, CLARE];
-  const REWARD_ICONS = ["🎬","☕","🍕","🎮","💆","✈️","🍽️","🎁","🛍️","🏖️","🎭","🎵","🍦","📚","🏃","🧖"];
+  const REWARD_ICONS = ["🎬","☕","🍕","🎮","🎯","✈","🍜","🎁","🛒","🌴","🎭","🎵","🍦","📚","🏃","💎"];
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
