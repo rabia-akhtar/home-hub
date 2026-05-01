@@ -131,11 +131,10 @@ setInterval(() => {
   }
 }, 60_000);
 
-let tapo        = null;   // tp-link-tapo-connect client (EP25, KLAP)
-let kasaClient  = null;   // tplink-smarthome-api client (EP10, legacy port 9999)
-let tapoCache   = {};     // alias → { host, alias, label, group, protocol, device, on }
-let tapoLog     = [];
-let tapoReady   = false;
+let tapo      = null;   // tp-link-tapo-connect client (EP25, KLAP)
+let tapoCache = {};     // alias → { host, alias, label, group, device, on }
+let tapoLog   = [];
+let tapoReady = false;
 
 function tapoInfo(msg) {
   const t = new Date().toISOString();
@@ -149,29 +148,18 @@ async function initTapo() {
     tapoInfo('⚠ KASA_EMAIL / KASA_PASSWORD not set in .env — Lights tab disabled');
     return;
   }
-  // Load KLAP client (EP25)
   try {
     const mod = require('tp-link-tapo-connect');
     tapo = mod;
     tapoReady = true;
-    tapoInfo('Tapo KLAP client ready (EP25)');
+    tapoInfo('Tapo client ready');
   } catch(e) {
     tapoInfo(`Failed to load tp-link-tapo-connect: ${e.message}`);
     tapoInfo('Run: cd ~/home-hub/server && npm install tp-link-tapo-connect');
   }
-  // Load legacy client (EP10)
-  try {
-    const { Client } = require('tplink-smarthome-api');
-    kasaClient = new Client();
-    tapoInfo('Legacy Kasa client ready (EP10)');
-  } catch(e) {
-    tapoInfo('tplink-smarthome-api not installed — EP10 devices disabled');
-    tapoInfo('Run: cd ~/home-hub/server && npm install tplink-smarthome-api');
-  }
   await refreshTapoDevices();
 }
 
-// ── KLAP helpers (EP25) ───────────────────────────────────────────────────────
 async function loginDevice(host) {
   if (tapo.loginDeviceByIp) return tapo.loginDeviceByIp(KASA_EMAIL, KASA_PASSWORD, host);
   if (tapo.loginDevice)     return tapo.loginDevice(KASA_EMAIL, KASA_PASSWORD, host);
@@ -184,26 +172,13 @@ async function getDeviceOn(device) {
   return !!(info.device_on ?? (info.relay_state === 1));
 }
 
-// ── Legacy helpers (EP10) ─────────────────────────────────────────────────────
-async function loginLegacyDevice(host) {
-  if (!kasaClient) throw new Error('tplink-smarthome-api not installed — run: npm install tplink-smarthome-api');
-  return await kasaClient.getDevice({ host });
-}
-
 async function refreshTapoDevices() {
-  if (!tapoReady && !kasaClient) return;
+  if (!tapoReady) return;
   for (const dev of TAPO_DEVICES) {
     try {
-      tapoInfo(`Connecting to ${dev.alias} @ ${dev.host} (${dev.protocol || 'klap'})…`);
-      let device, on;
-      if (dev.protocol === 'legacy') {
-        device = await loginLegacyDevice(dev.host);
-        on     = await device.getPowerState();
-      } else {
-        if (!tapo) throw new Error('KLAP client not ready');
-        device = await loginDevice(dev.host);
-        on     = await getDeviceOn(device);
-      }
+      tapoInfo(`Connecting to ${dev.alias} @ ${dev.host}…`);
+      const device = await loginDevice(dev.host);
+      const on     = await getDeviceOn(device);
       tapoCache[dev.alias] = { ...dev, device, on, unreachable: false };
       tapoInfo(`✓ ${dev.alias}: ${on ? 'ON' : 'OFF'}`);
     } catch(e) {
@@ -224,12 +199,8 @@ app.get('/api/lights', async (req, res) => {
     for (const alias of Object.keys(tapoCache)) {
       const d = tapoCache[alias];
       if (!d.device) continue;
-      try {
-        d.on = d.protocol === 'legacy'
-          ? await d.device.getPowerState()
-          : await getDeviceOn(d.device);
-        d.unreachable = false;
-      } catch { d.unreachable = true; }
+      try { d.on = await getDeviceOn(d.device); d.unreachable = false; }
+      catch { d.unreachable = true; }
     }
     const devices = Object.values(tapoCache).map(d => ({
       id:          d.alias.toLowerCase().replace(/\s+/g, '_'),
@@ -253,24 +224,16 @@ async function tapoSetPower(alias, state) {
   // Re-connect if needed
   if (!d.device) {
     tapoInfo(`Re-connecting to ${alias} @ ${d.host}…`);
-    d.device = d.protocol === 'legacy'
-      ? await loginLegacyDevice(d.host)
-      : await loginDevice(d.host);
+    d.device = await loginDevice(d.host);
     d.unreachable = false;
   }
 
-  if (d.protocol === 'legacy') {
-    // EP10: tplink-smarthome-api uses setPowerState(bool)
-    await d.device.setPowerState(state);
+  if (state) {
+    if (typeof d.device.turnOn  === 'function') await d.device.turnOn();
+    else throw new Error('Device has no turnOn method');
   } else {
-    // EP25: tp-link-tapo-connect uses turnOn()/turnOff()
-    if (state) {
-      if (typeof d.device.turnOn  === 'function') await d.device.turnOn();
-      else throw new Error('Device has no turnOn method');
-    } else {
-      if (typeof d.device.turnOff === 'function') await d.device.turnOff();
-      else throw new Error('Device has no turnOff method');
-    }
+    if (typeof d.device.turnOff === 'function') await d.device.turnOff();
+    else throw new Error('Device has no turnOff method');
   }
   d.on = state;
 }
