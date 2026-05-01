@@ -113,7 +113,24 @@ const TAPO_DEVICES = [
   { alias: 'Kitchen Light',        group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_1  || '',              label: process.env.KASA_LABEL_KITCHEN_1  || 'Kitchen Light'  },
   // EP10 uses legacy protocol (port 9999) — mark with protocol:'legacy'
   { alias: 'Kitchen Light 2',      group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_2  || '',              label: process.env.KASA_LABEL_KITCHEN_2  || 'Kitchen Light 2', protocol: 'legacy' },
+  // Display — scheduled on/off via DISPLAY_OFF_TIME / DISPLAY_ON_TIME
+  { alias: 'Display',              group: 'display',     host: process.env.KASA_IP_DISPLAY    || '',              label: 'Espresso Display' },
 ].filter(d => d.host.trim());
+
+// ── Display schedule ──────────────────────────────────────────────────────────
+const DISPLAY_OFF_TIME = process.env.DISPLAY_OFF_TIME || '00:00';
+const DISPLAY_ON_TIME  = process.env.DISPLAY_ON_TIME  || '07:00';
+
+setInterval(() => {
+  if (!tapoCache['Display']) return;
+  const now  = new Date();
+  const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  if (hhmm === DISPLAY_OFF_TIME) {
+    tapoSetPower('Display', false).then(() => console.log('[Display] Turned off (schedule)')).catch(() => {});
+  } else if (hhmm === DISPLAY_ON_TIME) {
+    tapoSetPower('Display', true).then(() => console.log('[Display] Turned on (schedule)')).catch(() => {});
+  }
+}, 60_000);
 
 let tapo        = null;   // tp-link-tapo-connect client (EP25, KLAP)
 let kasaClient  = null;   // tplink-smarthome-api client (EP10, legacy port 9999)

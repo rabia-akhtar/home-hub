@@ -1153,6 +1153,7 @@ const GROUP_META = [
   { id: 'living_room', label: 'Living Room' },
   { id: 'bedroom',     label: 'Bedroom'     },
   { id: 'kitchen',     label: 'Kitchen'     },
+  { id: 'display',     label: 'Display'     },
 ];
 
 function DeviceRow({ d, busy, onToggle }) {
