@@ -165,7 +165,7 @@ function Pill({ label, color, bg }) {
 }
 
 function StarBadge({ pts }) {
-  const icon = pts>=500?"🏆":pts>=250?"🥇":pts>=100?"⭐":"✨";
+  const icon = pts>=500?"🏆":pts>=250?"🥇":pts>=100?"🌟":"✨";
   return <span style={{fontSize:14}}>{icon}</span>;
 }
 
@@ -195,23 +195,33 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
   // ── Weather advisories (shown as slim strip in header) ────────────────────
   const _today2 = new Date(); _today2.setHours(0,0,0,0);
   const todayStr2 = _today2.toISOString().slice(0,10);
+  const nowHourIso = new Date().toISOString().slice(0,13); // e.g. "2025-05-01T14"
+  const fmtHour = t => { const d=new Date(t+':00'); return d.toLocaleTimeString('en-US',{hour:'numeric',hour12:true}); };
+
   const advisories2 = [];
   const uv2 = wx?.current?.uv_index ?? 0;
-  if(uv2>=11) advisories2.push({icon:"🚨",msg:`Extreme UV (${uv2}) — avoid going outside midday, max SPF, full cover.`});
-  else if(uv2>=8) advisories2.push({icon:"⚠️",msg:`Very high UV (${uv2}) — minimize time outdoors, SPF 50+.`});
-  else if(uv2>=6) advisories2.push({icon:"☀️",msg:`High UV (${uv2}) — sunscreen, sunglasses, and a hat are a must!`});
-  else if(uv2>=3) advisories2.push({icon:"☀️",msg:`Moderate UV (${uv2}) — pop on some SPF before heading out.`});
+  if(uv2>=11) advisories2.push({icon:"🔥",msg:`Extreme UV (${uv2}) — avoid going outside midday, max SPF, full cover.`});
+  else if(uv2>=8) advisories2.push({icon:"🕶️",msg:`Very high UV (${uv2}) — minimize time outdoors, SPF 50+.`});
+  else if(uv2>=6) advisories2.push({icon:"🌞",msg:`High UV (${uv2}) — sunscreen and a hat before heading out.`});
+  else if(uv2>=3) advisories2.push({icon:"🌤️",msg:`Moderate UV (${uv2}) — pop on some SPF before heading out.`});
+
+  // Only look at remaining hours today (current hour onwards)
   const todayHrs2 = wx?.hourly?.time?.reduce((acc,t,i)=>{
-    if(t.startsWith(todayStr2)) acc.push({prob:wx.hourly.precipitation_probability?.[i]??0,code:wx.hourly.weather_code?.[i]??0});
+    if(t.startsWith(todayStr2) && t.slice(0,13)>=nowHourIso)
+      acc.push({time:t, prob:wx.hourly.precipitation_probability?.[i]??0, code:wx.hourly.weather_code?.[i]??0});
     return acc;
   },[]) ?? [];
-  const maxRain2 = Math.max(0,...todayHrs2.map(h=>h.prob));
-  const hasStorm2 = todayHrs2.some(h=>h.code>=95);
-  if(hasStorm2) advisories2.push({icon:"⛈️",msg:"Thunderstorms expected today."});
-  else if(maxRain2>=70) advisories2.push({icon:"☔",msg:`High chance of rain (${maxRain2}%) — don't forget your umbrella!`});
-  else if(maxRain2>=40) advisories2.push({icon:"☔",msg:`Possible rain (${maxRain2}%) — worth packing an umbrella.`});
+  const maxRain2   = Math.max(0,...todayHrs2.map(h=>h.prob));
+  const hasStorm2  = todayHrs2.some(h=>h.code>=95);
+  const firstStorm = todayHrs2.find(h=>h.code>=95);
+  const firstRain  = todayHrs2.find(h=>h.prob>=40);
+
+  if(hasStorm2)        advisories2.push({icon:"⛈️", msg:`Thunderstorms from ${fmtHour(firstStorm.time)} — stay safe!`});
+  else if(maxRain2>=70) advisories2.push({icon:"🌧️", msg:`Heavy rain from ${fmtHour(firstRain.time)} (${maxRain2}%) — grab your umbrella!`});
+  else if(maxRain2>=40) advisories2.push({icon:"🌦️", msg:`Rain possible from ${fmtHour(firstRain.time)} (${maxRain2}%) — worth packing an umbrella.`});
+
   const windMph2 = wx?.current?.wind_speed_10m ?? 0;
-  if(windMph2>=35) advisories2.push({icon:"💨",msg:`Very windy (${Math.round(windMph2)} mph) — hold onto your hat!`});
+  if(windMph2>=35) advisories2.push({icon:"🌬️",msg:`Very windy (${Math.round(windMph2)} mph) — hold onto your hat!`});
 
   return (
     <div style={{ background:GRAD, padding:"28px 28px 24px", flexShrink:0, position:"relative", overflow:"hidden" }}>
@@ -1280,7 +1290,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
   };
 
   const people = [RABIA, CLARE];
-  const REWARD_ICONS = ["🎬","☕","🍕","🎮","🎯","✈","🍜","🎁","🛒","🌴","🎭","🎵","🍦","📚","🏃","💎"];
+  const REWARD_ICONS = ["🎬","☕","🍕","🎮","💆‍♀️","✈️","🍽️","🎁","🛍️","🏖️","🎭","🎵","🍦","📚","🏃‍♀️","🧖‍♀️","🍷","🎨","💅","🧘‍♀️","🏋️","🎲","🎤","🛁","🌅","🎊","🍰","🧁"];
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
