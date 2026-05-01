@@ -114,7 +114,7 @@ const TAPO_DEVICES = [
   // EP10 uses legacy protocol (port 9999) — mark with protocol:'legacy'
   { alias: 'Kitchen Light 2',      group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_2  || '',              label: process.env.KASA_LABEL_KITCHEN_2  || 'Kitchen Light 2', protocol: 'legacy' },
   // Display — scheduled on/off via DISPLAY_OFF_TIME / DISPLAY_ON_TIME
-  { alias: 'Display',              group: 'display',     host: process.env.KASA_IP_DISPLAY    || '',              label: 'Espresso Display' },
+  { alias: 'Display',              group: 'display',     host: process.env.KASA_IP_DISPLAY    || '',              label: process.env.KASA_LABEL_DISPLAY || 'Display' },
 ].filter(d => d.host.trim());
 
 // ── Display schedule ──────────────────────────────────────────────────────────
