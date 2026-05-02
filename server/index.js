@@ -4,9 +4,10 @@ const cors       = require('cors');
 const fetch      = (...a) => import('node-fetch').then(({ default: f }) => f(...a));
 const fs         = require('fs');
 const path       = require('path');
-const { exec }   = require('child_process');
+const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 const execAsync  = promisify(exec);
+const os         = require('os');
 const { google } = require('googleapis');
 
 // ─── PIR motion sensor ────────────────────────────────────────────────────────
@@ -28,7 +29,6 @@ function onMotion() {
 
 const PIR_SCRIPT = path.join(__dirname, 'pir_watch.py');
 if (fs.existsSync(PIR_SCRIPT)) {
-  const { spawn } = require('child_process');
   const py = spawn('python3', [PIR_SCRIPT], {
     env: { ...process.env, PIR_GPIO: String(pirPin) },
   });
@@ -902,12 +902,77 @@ app.post('/api/findmy/refresh', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Serve the Find My wrapper page (iframe + X button)
+app.get('/findmy/:account', (req, res) => {
+  const { account } = req.params;
+  if (!['rabia', 'clare'].includes(account))
+    return res.status(404).send('Not found');
+  const label = account === 'rabia' ? 'Rabia' : 'Clare';
+  const color = account === 'rabia' ? '#38bdf8' : '#f472b6';
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Find My – ${label}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; background:#000; }
+  iframe { display:block; width:100%; height:100vh; border:none; }
+  #close-btn {
+    position:fixed; top:14px; right:14px; z-index:9999;
+    width:48px; height:48px; border-radius:50%;
+    background:rgba(0,0,0,0.72); border:2px solid rgba(255,255,255,0.25);
+    color:#fff; font-size:22px; line-height:1;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 12px rgba(0,0,0,0.5);
+    transition:background 0.15s;
+  }
+  #close-btn:hover { background:rgba(220,38,38,0.85); }
+  #label {
+    position:fixed; top:18px; left:18px; z-index:9999;
+    background:${color}; color:#fff; border-radius:20px;
+    padding:6px 16px; font-size:15px; font-weight:700;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3); pointer-events:none;
+  }
+</style>
+</head>
+<body>
+  <div id="label">📍 ${label}'s Find My</div>
+  <button id="close-btn" onclick="window.close()" title="Close">✕</button>
+  <iframe src="https://www.icloud.com/find" allow="*" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"></iframe>
+</body>
+</html>`);
+});
+
+// Spawn a dedicated Chromium window for Find My (separate profile per account)
+const findmyPids = {};
 app.post('/api/findmy/open/:account', (req, res) => {
   const { account } = req.params;
   if (!['rabia', 'clare'].includes(account))
     return res.status(400).json({ error: 'Invalid account' });
-  const profile = account === 'rabia' ? 'Profile Rabia' : 'Profile Clare';
-  exec(`DISPLAY=:0 chromium --profile-directory="${profile}" --password-store=basic --window-size=1100,800 --window-position=50,50 https://www.icloud.com/find &`);
+
+  // Kill existing window for this account if still open
+  if (findmyPids[account]) {
+    try { process.kill(findmyPids[account]); } catch(_) {}
+    delete findmyPids[account];
+  }
+
+  const userDataDir = path.join(os.homedir(), `.findmy-chrome-${account}`);
+  const url = `http://localhost:${PORT}/findmy/${account}`;
+
+  const child = spawn('chromium-browser', [
+    '--disable-web-security',
+    `--user-data-dir=${userDataDir}`,
+    `--app=${url}`,
+    '--start-maximized',
+    '--noerrdialogs',
+    '--disable-infobars',
+    '--disable-session-crashed-bubble',
+  ], { detached: true, stdio: 'ignore' });
+  child.unref();
+  findmyPids[account] = child.pid;
   res.json({ ok: true });
 });
 
