@@ -1728,20 +1728,21 @@ function Screensaver({ onDismiss }) {
   useEffect(() => {
     // Use search endpoint with fine-art filter + random page
     const page = Math.ceil(Math.random() * 8);
-    fetch(`${AIC_BASE}/artworks/search?query=${AIC_FINE_ART_QUERY}&fields=id,title,artist_display,date_display,image_id,artwork_type_title&limit=100&page=${page}`)
+    const isPortrait = a => a.image_id && a.thumbnail?.height > a.thumbnail?.width;
+    fetch(`${AIC_BASE}/artworks/search?query=${AIC_FINE_ART_QUERY}&fields=id,title,artist_display,date_display,image_id,artwork_type_title,thumbnail&limit=100&page=${page}`)
       .then(r => r.json())
       .then(d => {
-        const valid = (d.data || []).filter(a => a.image_id);
+        const valid = (d.data || []).filter(isPortrait);
         setArtworks(valid);
       })
       .catch(() => {
         // Fallback: plain fetch filtered client-side
-        fetch(`${AIC_BASE}/artworks?fields=id,title,artist_display,date_display,image_id,artwork_type_title&limit=100&is_public_domain=true&page=${page}`)
+        fetch(`${AIC_BASE}/artworks?fields=id,title,artist_display,date_display,image_id,artwork_type_title,thumbnail&limit=100&is_public_domain=true&page=${page}`)
           .then(r => r.json())
           .then(d => {
             const FINE_ART = ['painting', 'drawing and watercolor', 'print'];
             const valid = (d.data || []).filter(a =>
-              a.image_id && FINE_ART.includes((a.artwork_type_title || '').toLowerCase())
+              FINE_ART.includes((a.artwork_type_title || '').toLowerCase()) && isPortrait(a)
             );
             setArtworks(valid);
           })
@@ -1778,7 +1779,7 @@ function Screensaver({ onDismiss }) {
           src={imgUrl}
           alt={art?.title}
           onLoad={() => setLoaded(true)}
-          style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",opacity:loaded?1:0,transition:"opacity 1s"}}
+          style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:loaded?1:0,transition:"opacity 1s"}}
         />
       )}
       {/* Gradient overlay at bottom */}
