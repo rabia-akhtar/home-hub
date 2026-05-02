@@ -971,7 +971,26 @@ app.post('/api/findmy/open/:account', (req, res) => {
   }
 
   const userDataDir = path.join(os.homedir(), `.findmy-chrome-${account}`);
-  const url = `http://localhost:${PORT}/findmy/${account}`;
+
+  // Write Chromium preferences once so "Continue where you left off" is on.
+  // This makes Chromium persist session cookies across restarts.
+  const profileDir = path.join(userDataDir, 'Default');
+  const prefsFile  = path.join(profileDir, 'Preferences');
+  try {
+    fs.mkdirSync(profileDir, { recursive: true });
+    if (!fs.existsSync(prefsFile)) {
+      fs.writeFileSync(prefsFile, JSON.stringify({ session: { restore_on_startup: 1 } }));
+    } else {
+      // Merge into existing prefs without overwriting everything
+      const prefs = JSON.parse(fs.readFileSync(prefsFile, 'utf8'));
+      if (!prefs.session || prefs.session.restore_on_startup !== 1) {
+        prefs.session = { ...(prefs.session || {}), restore_on_startup: 1 };
+        fs.writeFileSync(prefsFile, JSON.stringify(prefs));
+      }
+    }
+  } catch(e) {
+    console.warn('[FindMy] Could not write preferences:', e.message);
+  }
 
   // Pass display env so the spawned GUI process can connect to the compositor
   const env = {
@@ -984,6 +1003,7 @@ app.post('/api/findmy/open/:account', (req, res) => {
   const child = spawn(CHROMIUM_BIN, [
     `--user-data-dir=${userDataDir}`,
     '--new-window',
+    '--restore-last-session',
     '--noerrdialogs',
     '--disable-infobars',
     '--disable-session-crashed-bubble',
