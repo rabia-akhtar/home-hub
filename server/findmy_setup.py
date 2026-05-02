@@ -27,18 +27,32 @@ def setup(account):
 
     if api.requires_2fa:
         print('Two-factor authentication required.')
-        print('Check your Apple device for a 6-digit code.')
-        code = input('Enter 2FA code: ').strip()
+        print('Check your iPhone/iPad/Mac for a pop-up with a 6-digit code.')
+        print('(If nothing appears, the code may arrive via SMS)')
+        code = input('Enter 6-digit code: ').strip()
         if not api.validate_2fa_code(code):
             print('Invalid code.')
             sys.exit(1)
         print('Code accepted.')
-
-        if api.is_trusted_session:
-            print('Session trusted.')
-        else:
+        if not api.is_trusted_session:
             api.trust_session()
-            print('Session trust requested.')
+
+    elif api.requires_2sa:
+        print('Two-step verification required.')
+        devices = api.trusted_devices
+        for i, d in enumerate(devices):
+            label = d.get('phoneNumber') or d.get('deviceName', f'Device {i}')
+            print(f'  [{i}] {label}')
+        choice = int(input('Send code to which device? ').strip())
+        device = devices[choice]
+        if not api.send_verification_code(device):
+            print('Failed to send code.')
+            sys.exit(1)
+        code = input('Enter code: ').strip()
+        if not api.validate_verification_code(device, code):
+            print('Invalid code.')
+            sys.exit(1)
+        print('Code accepted.')
 
     print(f'\n✓ Setup complete for {account}!')
     print(f'\nAdd these to ~/home-hub/server/.env if not already there:')
