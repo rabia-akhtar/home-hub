@@ -1779,7 +1779,7 @@ function Screensaver({ onDismiss }) {
           src={imgUrl}
           alt={art?.title}
           onLoad={() => setLoaded(true)}
-          style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:loaded?1:0,transition:"opacity 1s"}}
+          style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",opacity:loaded?1:0,transition:"opacity 1s"}}
         />
       )}
       {/* Gradient overlay at bottom */}
