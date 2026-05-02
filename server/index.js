@@ -982,13 +982,12 @@ app.post('/api/findmy/open/:account', (req, res) => {
   };
 
   const child = spawn(CHROMIUM_BIN, [
-    '--disable-web-security',
     `--user-data-dir=${userDataDir}`,
-    `--app=${url}`,
-    '--start-maximized',
+    '--new-window',
     '--noerrdialogs',
     '--disable-infobars',
     '--disable-session-crashed-bubble',
+    'https://www.icloud.com/find',
   ], { detached: true, stdio: 'ignore', env });
   child.on('error', e => console.error(`[FindMy] spawn error for ${account}:`, e.message));
   child.unref();
