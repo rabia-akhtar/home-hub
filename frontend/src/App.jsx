@@ -2444,16 +2444,24 @@ function BatteryBar({ level, charging }) {
 }
 
 function FindMyTab() {
+  const accounts = [
+    { label:'Rabia', color:RABIA.color, shadow:'rgba(56,189,248,0.3)' },
+    { label:'Clare', color:CLARE.color, shadow:'rgba(244,114,182,0.3)' },
+  ];
   return (
     <div style={{ maxWidth:500, margin:'0 auto', textAlign:'center', paddingTop:40 }}>
       <div style={{ fontSize:48, marginBottom:16 }}>📍</div>
       <h2 style={{ margin:'0 0 8px', fontSize:22, fontWeight:700, color:'#1e293b' }}>Find My</h2>
       <p style={{ color:'#64748b', marginBottom:32, fontSize:15 }}>Opens iCloud Find My in a new window.<br/>Close that window to return to the dashboard.</p>
-      <button
-        onClick={() => window.open('https://www.icloud.com/find', '_blank', 'width=1024,height=768')}
-        style={{ padding:'16px 32px', background:'#34d399', color:'#fff', border:'none', borderRadius:16, fontSize:17, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 4px 12px rgba(52,211,153,0.3)' }}>
-        Open Find My
-      </button>
+      <div style={{ display:'flex', gap:16, justifyContent:'center' }}>
+        {accounts.map(({ label, color, shadow }) => (
+          <button key={label}
+            onClick={() => window.open('https://www.icloud.com/find', '_blank', 'width=1024,height=768')}
+            style={{ padding:'16px 32px', background:color, color:'#fff', border:'none', borderRadius:16, fontSize:17, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:`0 4px 12px ${shadow}` }}>
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
