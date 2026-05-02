@@ -10,9 +10,9 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 
 def setup(account):
     try:
-        from icloudpy import ICloudPyService
+        from pyicloud import PyiCloudService
     except ImportError:
-        print('icloudpy not installed. Run: pip3 install icloudpy')
+        print('pyicloud not installed. Run: pip3 install pyicloud --break-system-packages')
         sys.exit(1)
 
     print(f'\n── iCloud setup for {account} ──')
@@ -23,7 +23,7 @@ def setup(account):
     os.makedirs(cookie_dir, exist_ok=True)
 
     print('\nConnecting to iCloud...')
-    api = ICloudPyService(email, password, cookie_directory=cookie_dir)
+    api = PyiCloudService(email, password, cookie_directory=cookie_dir)
 
     if api.requires_2fa:
         print('Two-factor authentication required.')

@@ -16,9 +16,9 @@ def cookie_dir(account):
 
 def get_api(account):
     try:
-        from icloudpy import ICloudPyService
+        from pyicloud import PyiCloudService
     except ImportError:
-        print(json.dumps({'error': 'icloudpy not installed — run: pip3 install icloudpy'}))
+        print(json.dumps({'error': 'pyicloud not installed — run: pip3 install pyicloud --break-system-packages'}))
         sys.exit(3)
 
     key = account.upper()
@@ -28,7 +28,7 @@ def get_api(account):
         print(json.dumps({'error': f'ICLOUD_EMAIL_{key} / ICLOUD_PASSWORD_{key} not set in .env'}))
         sys.exit(1)
 
-    api = ICloudPyService(email, password, cookie_directory=cookie_dir(account))
+    api = PyiCloudService(email, password, cookie_directory=cookie_dir(account))
 
     if api.requires_2fa:
         print(json.dumps({'error': '2FA_REQUIRED', 'account': account}))
