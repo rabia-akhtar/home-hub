@@ -1002,6 +1002,7 @@ app.post('/api/findmy/open/:account', (req, res) => {
 
   const child = spawn(CHROMIUM_BIN, [
     `--user-data-dir=${userDataDir}`,
+    '--password-store=basic',
     '--new-window',
     '--restore-last-session',
     '--noerrdialogs',
