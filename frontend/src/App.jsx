@@ -2444,108 +2444,20 @@ function BatteryBar({ level, charging }) {
 }
 
 function FindMyTab() {
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [ringing, setRinging] = useState({});
-  const [ringMsg, setRingMsg] = useState({});
-
-  const load = useCallback(async (bust = false) => {
-    setLoading(true);
-    if (bust) await fetch(`${API}/findmy/refresh`, { method:'POST' });
-    try {
-      const r = await fetch(`${API}/findmy`);
-      setData(await r.json());
-    } catch { setData({ rabia:[], clare:[], errors:{ rabia:'Network error', clare:'Network error' } }); }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const ring = async (account, id, name) => {
-    const key = `${account}-${id}`;
-    setRinging(r => ({ ...r, [key]: true }));
-    setRingMsg(m => ({ ...m, [key]: '' }));
-    try {
-      const r = await fetch(`${API}/findmy/ring/${account}/${encodeURIComponent(id)}`, { method:'POST' });
-      const d = await r.json();
-      setRingMsg(m => ({ ...m, [key]: d.ok ? '🔔 Ringing!' : `Error: ${d.error}` }));
-    } catch {
-      setRingMsg(m => ({ ...m, [key]: 'Network error' }));
-    }
-    setRinging(r => ({ ...r, [key]: false }));
-    setTimeout(() => setRingMsg(m => ({ ...m, [key]: '' })), 4000);
-  };
-
-  const OWNERS = [
-    { key:'rabia', label:'Rabia', color:RABIA.color, light:RABIA.light },
-    { key:'clare', label:'Clare', color:CLARE.color, light:CLARE.light },
-  ];
-
   return (
-    <div style={{ maxWidth:600, margin:'0 auto' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-        <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'#1e293b' }}>Find My</h2>
-        <button onClick={() => load(true)} disabled={loading}
-          style={{ padding:'8px 16px', background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:10, cursor:'pointer', fontSize:13, color:'#475569' }}>
-          {loading ? 'Loading…' : '↻ Refresh'}
-        </button>
-      </div>
-
-      {loading && !data && (
-        <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>Loading devices…</div>
-      )}
-
-      {data && OWNERS.map(({ key, label, color, light }) => {
-        const devices = data[key] || [];
-        const err     = data.errors?.[key];
-        return (
-          <div key={key} style={{ ...CARD, marginBottom:16, overflow:'hidden' }}>
-            <div style={{ padding:'14px 20px', background:light, borderBottom:'1px solid #f1f5f9', display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ width:10, height:10, borderRadius:'50%', background:color }}/>
-              <span style={{ fontWeight:700, color, fontSize:15 }}>{label}</span>
-              <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>{devices.length} device{devices.length!==1?'s':''}</span>
-            </div>
-
-            {err && (
-              <div style={{ padding:'12px 20px', color:'#ef4444', fontSize:13 }}>
-                {err.includes('2FA_REQUIRED')
-                  ? '2FA required — run: python3 server/findmy_setup.py ' + key
-                  : err}
-              </div>
-            )}
-
-            {!err && devices.length === 0 && (
-              <div style={{ padding:'12px 20px', color:'#94a3b8', fontSize:13 }}>No devices found</div>
-            )}
-
-            {devices.map(d => {
-              const k = `${key}-${d.id}`;
-              return (
-                <div key={d.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 20px', borderBottom:'1px solid #f8fafc' }}>
-                  <div style={{ color, flexShrink:0 }}>{DEVICE_ICONS[d.type] || DEVICE_ICONS.device}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:600, fontSize:14, color:'#1e293b', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{d.name}</div>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:3 }}>
-                      <span style={{ fontSize:11, color: d.online ? '#10b981' : '#94a3b8' }}>
-                        {d.online ? '● Online' : '○ Offline'}
-                      </span>
-                      <BatteryBar level={d.battery} charging={d.charging}/>
-                    </div>
-                    {ringMsg[k] && <div style={{ fontSize:12, color: ringMsg[k].startsWith('🔔') ? '#10b981' : '#ef4444', marginTop:2 }}>{ringMsg[k]}</div>}
-                  </div>
-                  <button onClick={() => ring(key, d.id, d.name)} disabled={ringing[k]}
-                    style={{ flexShrink:0, padding:'8px 14px', background: ringing[k] ? '#f1f5f9' : color, color: ringing[k] ? '#94a3b8' : '#fff', border:'none', borderRadius:10, cursor: ringing[k] ? 'default' : 'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit', transition:'all 0.15s' }}>
-                    {ringing[k] ? '…' : '🔔 Ring'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+    <div style={{ maxWidth:500, margin:'0 auto', textAlign:'center', paddingTop:40 }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>📍</div>
+      <h2 style={{ margin:'0 0 8px', fontSize:22, fontWeight:700, color:'#1e293b' }}>Find My</h2>
+      <p style={{ color:'#64748b', marginBottom:32, fontSize:15 }}>Opens iCloud Find My in a new window.<br/>Close that window to return to the dashboard.</p>
+      <button
+        onClick={() => window.open('https://www.icloud.com/find', '_blank', 'width=1024,height=768')}
+        style={{ padding:'16px 32px', background:'#34d399', color:'#fff', border:'none', borderRadius:16, fontSize:17, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 4px 12px rgba(52,211,153,0.3)' }}>
+        Open Find My
+      </button>
     </div>
   );
 }
+
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
