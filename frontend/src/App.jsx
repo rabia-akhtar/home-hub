@@ -1772,7 +1772,7 @@ function Screensaver({ onDismiss }) {
   return (
     <div
       onClick={onDismiss}
-      style={{position:"fixed",inset:0,zIndex:9999,background:"#000",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"opacity 0.6s",opacity:fade?1:0}}
+      style={{position:"fixed",inset:0,zIndex:9999,background:"#fff",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"opacity 0.6s",opacity:fade?1:0}}
     >
       {imgUrl && (
         <img
@@ -1783,13 +1783,13 @@ function Screensaver({ onDismiss }) {
         />
       )}
       {/* Gradient overlay at bottom */}
-      <div style={{position:"absolute",bottom:0,left:0,right:0,height:160,background:"linear-gradient(to top,rgba(0,0,0,0.85),transparent)",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",bottom:0,left:0,right:0,height:160,background:"linear-gradient(to top,rgba(255,255,255,0.9),transparent)",pointerEvents:"none"}}/>
       {/* Art info */}
       {art && (
-        <div style={{position:"absolute",bottom:28,left:28,right:28,color:"#fff",pointerEvents:"none"}}>
-          <div style={{fontSize:18,fontWeight:700,textShadow:"0 2px 8px rgba(0,0,0,0.8)",marginBottom:4}}>{art.title}</div>
-          <div style={{fontSize:13,opacity:0.75,textShadow:"0 1px 4px rgba(0,0,0,0.8)"}}>{art.artist_display}{art.date_display?` · ${art.date_display}`:""}</div>
-          <div style={{fontSize:11,opacity:0.4,marginTop:8}}>Art Institute of Chicago · Tap to wake</div>
+        <div style={{position:"absolute",bottom:28,left:28,right:28,color:"#1e293b",pointerEvents:"none"}}>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>{art.title}</div>
+          <div style={{fontSize:13,opacity:0.65}}>{art.artist_display}{art.date_display?` · ${art.date_display}`:""}</div>
+          <div style={{fontSize:11,opacity:0.35,marginTop:8}}>Art Institute of Chicago · Tap to wake</div>
         </div>
       )}
       {/* Clock */}
