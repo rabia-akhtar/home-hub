@@ -902,6 +902,15 @@ app.post('/api/findmy/refresh', async (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/findmy/open/:account', (req, res) => {
+  const { account } = req.params;
+  if (!['rabia', 'clare'].includes(account))
+    return res.status(400).json({ error: 'Invalid account' });
+  const profile = account === 'rabia' ? 'Profile Rabia' : 'Profile Clare';
+  exec(`DISPLAY=:0 chromium --profile-directory="${profile}" --password-store=basic https://www.icloud.com/find &`);
+  res.json({ ok: true });
+});
+
 app.post('/api/findmy/ring/:account/:deviceId', async (req, res) => {
   const { account, deviceId } = req.params;
   if (!['rabia', 'clare'].includes(account))

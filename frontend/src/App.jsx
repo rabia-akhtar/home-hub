@@ -2456,7 +2456,7 @@ function FindMyTab() {
       <div style={{ display:'flex', gap:16, justifyContent:'center' }}>
         {accounts.map(({ label, color, shadow }) => (
           <button key={label}
-            onClick={() => window.open('https://www.icloud.com/find', '_blank', 'width=1024,height=768')}
+            onClick={() => fetch(`${API}/findmy/open/${label.toLowerCase()}`, { method:'POST' })}
             style={{ padding:'16px 32px', background:color, color:'#fff', border:'none', borderRadius:16, fontSize:17, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:`0 4px 12px ${shadow}` }}>
             {label}
           </button>
