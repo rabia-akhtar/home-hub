@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express    = require('express');
 const cors       = require('cors');
 const fetch      = (...a) => import('node-fetch').then(({ default: f }) => f(...a));
@@ -112,24 +112,9 @@ const TAPO_DEVICES = [
   // Kitchen
   { alias: 'Kitchen Light',        group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_1  || '',              label: process.env.KASA_LABEL_KITCHEN_1  || 'Kitchen Light'  },
   { alias: 'Kitchen Light 2',      group: 'kitchen',     host: process.env.KASA_IP_KITCHEN_2  || '',              label: process.env.KASA_LABEL_KITCHEN_2  || 'Kitchen Light 2' },
-  // Display — scheduled on/off via DISPLAY_OFF_TIME / DISPLAY_ON_TIME
-  { alias: 'Display',              group: 'display',     host: process.env.KASA_IP_DISPLAY    || '',              label: process.env.KASA_LABEL_DISPLAY || 'Display' },
+  // Display — power cycled by start.sh on boot only, not shown in lights tab
+  { alias: 'Display',              group: 'display',     host: process.env.KASA_IP_DISPLAY    || '',              label: process.env.KASA_LABEL_DISPLAY    || 'Display' },
 ].filter(d => d.host.trim());
-
-// ── Display schedule ──────────────────────────────────────────────────────────
-const DISPLAY_OFF_TIME = process.env.DISPLAY_OFF_TIME || '00:00';
-const DISPLAY_ON_TIME  = process.env.DISPLAY_ON_TIME  || '07:00';
-
-setInterval(() => {
-  if (!tapoCache['Display']) return;
-  const now  = new Date();
-  const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  if (hhmm === DISPLAY_OFF_TIME) {
-    tapoSetPower('Display', false).then(() => console.log('[Display] Turned off (schedule)')).catch(() => {});
-  } else if (hhmm === DISPLAY_ON_TIME) {
-    tapoSetPower('Display', true).then(() => console.log('[Display] Turned on (schedule)')).catch(() => {});
-  }
-}, 60_000);
 
 let tapo      = null;   // tp-link-tapo-connect client (EP25, KLAP)
 let tapoCache = {};     // alias → { host, alias, label, group, device, on }
@@ -968,4 +953,16 @@ app.listen(PORT,()=>{
   console.log(`\n🏠  Hub → http://localhost:${PORT}`);
   console.log(`📅  Connect Google → http://localhost:${PORT}/api/auth/google\n`);
 
+  // Power cycle display on boot — wait 15s for Tapo devices to finish connecting
+  setTimeout(async () => {
+    try {
+      await tapoSetPower('Display', false);
+      console.log('[Display] Boot power cycle: off');
+      await new Promise(r => setTimeout(r, 3000));
+      await tapoSetPower('Display', true);
+      console.log('[Display] Boot power cycle: on');
+    } catch(e) {
+      console.log('[Display] Boot power cycle failed:', e.message);
+    }
+  }, 15000);
 });
