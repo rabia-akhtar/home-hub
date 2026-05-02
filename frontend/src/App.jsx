@@ -2417,6 +2417,136 @@ function DebugTab() {
   );
 }
 
+// ─── Find My Tab ─────────────────────────────────────────────────────────────
+const DEVICE_ICONS = {
+  iphone:  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="6" y="1" width="12" height="22" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="10" y1="5" x2="14" y2="5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>,
+  ipad:    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="1" width="16" height="22" rx="3" stroke="currentColor" strokeWidth="1.8"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg>,
+  mac:     <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="13" rx="2" stroke="currentColor" strokeWidth="1.8"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>,
+  watch:   <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="7" y="6" width="10" height="12" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="9" y1="4" x2="15" y2="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><line x1="9" y1="20" x2="15" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
+  airpods: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M8 6a4 4 0 014 4v4H8V10A4 4 0 018 6z" stroke="currentColor" strokeWidth="1.8"/><path d="M16 6a4 4 0 014 4v4h-4V10a4 4 0 014-4z" stroke="currentColor" strokeWidth="1.8"/></svg>,
+  item:    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.4"/><line x1="12" y1="4" x2="12" y2="2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>,
+  device:  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="5" y="2" width="14" height="20" rx="3" stroke="currentColor" strokeWidth="1.8"/></svg>,
+};
+
+function BatteryBar({ level, charging }) {
+  if (level == null) return null;
+  const pct = Math.round(level * 100);
+  const col = charging ? '#10b981' : pct > 30 ? '#10b981' : pct > 15 ? '#f59e0b' : '#ef4444';
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+      <div style={{ width:28, height:12, border:`1.5px solid ${col}`, borderRadius:3, position:'relative', display:'flex', alignItems:'center', padding:1 }}>
+        <div style={{ width:`${pct}%`, height:'100%', background:col, borderRadius:2, transition:'width 0.3s' }}/>
+        <div style={{ position:'absolute', right:-4, top:'50%', transform:'translateY(-50%)', width:3, height:6, background:col, borderRadius:'0 2px 2px 0' }}/>
+      </div>
+      <span style={{ fontSize:11, color:'#64748b' }}>{charging ? '⚡' : ''}{pct}%</span>
+    </div>
+  );
+}
+
+function FindMyTab() {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [ringing, setRinging] = useState({});
+  const [ringMsg, setRingMsg] = useState({});
+
+  const load = useCallback(async (bust = false) => {
+    setLoading(true);
+    if (bust) await fetch(`${API}/findmy/refresh`, { method:'POST' });
+    try {
+      const r = await fetch(`${API}/findmy`);
+      setData(await r.json());
+    } catch { setData({ rabia:[], clare:[], errors:{ rabia:'Network error', clare:'Network error' } }); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const ring = async (account, id, name) => {
+    const key = `${account}-${id}`;
+    setRinging(r => ({ ...r, [key]: true }));
+    setRingMsg(m => ({ ...m, [key]: '' }));
+    try {
+      const r = await fetch(`${API}/findmy/ring/${account}/${encodeURIComponent(id)}`, { method:'POST' });
+      const d = await r.json();
+      setRingMsg(m => ({ ...m, [key]: d.ok ? '🔔 Ringing!' : `Error: ${d.error}` }));
+    } catch {
+      setRingMsg(m => ({ ...m, [key]: 'Network error' }));
+    }
+    setRinging(r => ({ ...r, [key]: false }));
+    setTimeout(() => setRingMsg(m => ({ ...m, [key]: '' })), 4000);
+  };
+
+  const OWNERS = [
+    { key:'rabia', label:'Rabia', color:RABIA.color, light:RABIA.light },
+    { key:'clare', label:'Clare', color:CLARE.color, light:CLARE.light },
+  ];
+
+  return (
+    <div style={{ maxWidth:600, margin:'0 auto' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+        <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'#1e293b' }}>Find My</h2>
+        <button onClick={() => load(true)} disabled={loading}
+          style={{ padding:'8px 16px', background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:10, cursor:'pointer', fontSize:13, color:'#475569' }}>
+          {loading ? 'Loading…' : '↻ Refresh'}
+        </button>
+      </div>
+
+      {loading && !data && (
+        <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>Loading devices…</div>
+      )}
+
+      {data && OWNERS.map(({ key, label, color, light }) => {
+        const devices = data[key] || [];
+        const err     = data.errors?.[key];
+        return (
+          <div key={key} style={{ ...CARD, marginBottom:16, overflow:'hidden' }}>
+            <div style={{ padding:'14px 20px', background:light, borderBottom:'1px solid #f1f5f9', display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:10, height:10, borderRadius:'50%', background:color }}/>
+              <span style={{ fontWeight:700, color, fontSize:15 }}>{label}</span>
+              <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>{devices.length} device{devices.length!==1?'s':''}</span>
+            </div>
+
+            {err && (
+              <div style={{ padding:'12px 20px', color:'#ef4444', fontSize:13 }}>
+                {err.includes('2FA_REQUIRED')
+                  ? '2FA required — run: python3 server/findmy_setup.py ' + key
+                  : err}
+              </div>
+            )}
+
+            {!err && devices.length === 0 && (
+              <div style={{ padding:'12px 20px', color:'#94a3b8', fontSize:13 }}>No devices found</div>
+            )}
+
+            {devices.map(d => {
+              const k = `${key}-${d.id}`;
+              return (
+                <div key={d.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 20px', borderBottom:'1px solid #f8fafc' }}>
+                  <div style={{ color, flexShrink:0 }}>{DEVICE_ICONS[d.type] || DEVICE_ICONS.device}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:600, fontSize:14, color:'#1e293b', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{d.name}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:3 }}>
+                      <span style={{ fontSize:11, color: d.online ? '#10b981' : '#94a3b8' }}>
+                        {d.online ? '● Online' : '○ Offline'}
+                      </span>
+                      <BatteryBar level={d.battery} charging={d.charging}/>
+                    </div>
+                    {ringMsg[k] && <div style={{ fontSize:12, color: ringMsg[k].startsWith('🔔') ? '#10b981' : '#ef4444', marginTop:2 }}>{ringMsg[k]}</div>}
+                  </div>
+                  <button onClick={() => ring(key, d.id, d.name)} disabled={ringing[k]}
+                    style={{ flexShrink:0, padding:'8px 14px', background: ringing[k] ? '#f1f5f9' : color, color: ringing[k] ? '#94a3b8' : '#fff', border:'none', borderRadius:10, cursor: ringing[k] ? 'default' : 'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit', transition:'all 0.15s' }}>
+                    {ringing[k] ? '…' : '🔔 Ring'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
   { id:"home",      label:"Home",      color:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
@@ -2429,6 +2559,7 @@ const NAV = [
   { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"voice",     label:"Voice",     color:"#f43f5e", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.8"/><path d="M5 10a7 7 0 0014 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="22" x2="16" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
 ];
 
@@ -2651,6 +2782,7 @@ export default function App() {
           {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
           {tab==="budget"    && <BudgetTab/>}
           {tab==="voice"     && <VoiceTab triggerRecord={voiceTrigger}/>}
+          {tab==="findmy"    && <FindMyTab/>}
           {tab==="debug"     && <DebugTab/>}
         </div>
       </div>

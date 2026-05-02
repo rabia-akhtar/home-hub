@@ -864,6 +864,58 @@ app.post('/api/voice/execute', async (req, res) => {
   }
 });
 
+// ─── Find My ─────────────────────────────────────────────────────────────────
+const FINDMY_SCRIPT = path.join(__dirname, 'findmy.py');
+const findmyCache   = { rabia: [], clare: [], ts: 0 };
+
+async function runFindMy(args, timeout = 30000) {
+  const { stdout } = await execAsync(
+    `python3 ${FINDMY_SCRIPT} ${args}`,
+    { env: process.env, timeout }
+  );
+  return JSON.parse(stdout.trim());
+}
+
+app.get('/api/findmy', async (req, res) => {
+  // Serve cache if fresh (< 2 min)
+  if (Date.now() - findmyCache.ts < 120_000) {
+    return res.json({ rabia: findmyCache.rabia, clare: findmyCache.clare, cached: true });
+  }
+  const result = { rabia: [], clare: [], errors: {} };
+  for (const account of ['rabia', 'clare']) {
+    try {
+      result[account] = await runFindMy(`list --account ${account}`);
+    } catch(e) {
+      const txt = e.stderr || e.message || '';
+      try { result.errors[account] = JSON.parse(txt.trim()).error || txt; }
+      catch { result.errors[account] = txt.split('\n').pop() || 'Unknown error'; }
+    }
+  }
+  findmyCache.rabia = result.rabia;
+  findmyCache.clare = result.clare;
+  findmyCache.ts    = Date.now();
+  res.json(result);
+});
+
+app.post('/api/findmy/refresh', async (req, res) => {
+  findmyCache.ts = 0; // bust cache
+  res.json({ ok: true });
+});
+
+app.post('/api/findmy/ring/:account/:deviceId', async (req, res) => {
+  const { account, deviceId } = req.params;
+  if (!['rabia', 'clare'].includes(account))
+    return res.status(400).json({ error: 'Invalid account' });
+  try {
+    const result = await runFindMy(`ring --account ${account} --device "${deviceId}"`, 20000);
+    res.json(result);
+  } catch(e) {
+    const txt = e.stderr || e.message || '';
+    try { res.status(500).json(JSON.parse(txt.trim())); }
+    catch { res.status(500).json({ error: txt }); }
+  }
+});
+
 // ─── System debug — aggregated status for all integrations ───────────────────
 app.get('/api/debug/system', async (req, res) => {
   const data   = loadData();
