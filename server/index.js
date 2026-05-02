@@ -907,7 +907,7 @@ app.post('/api/findmy/open/:account', (req, res) => {
   if (!['rabia', 'clare'].includes(account))
     return res.status(400).json({ error: 'Invalid account' });
   const profile = account === 'rabia' ? 'Profile Rabia' : 'Profile Clare';
-  exec(`DISPLAY=:0 chromium --profile-directory="${profile}" --password-store=basic https://www.icloud.com/find &`);
+  exec(`DISPLAY=:0 chromium --profile-directory="${profile}" --password-store=basic --window-size=1100,800 --window-position=50,50 https://www.icloud.com/find &`);
   res.json({ ok: true });
 });
 
