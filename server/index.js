@@ -946,12 +946,23 @@ app.get('/findmy/:account', (req, res) => {
 </html>`);
 });
 
+// Detect chromium binary once at startup
+let CHROMIUM_BIN = null;
+(async () => {
+  for (const bin of ['chromium-browser', 'chromium', 'google-chrome']) {
+    try { await execAsync(`which ${bin}`); CHROMIUM_BIN = bin; break; } catch(_) {}
+  }
+  console.log(`[FindMy] Chromium binary: ${CHROMIUM_BIN || 'NOT FOUND'}`);
+})();
+
 // Spawn a dedicated Chromium window for Find My (separate profile per account)
 const findmyPids = {};
 app.post('/api/findmy/open/:account', (req, res) => {
   const { account } = req.params;
   if (!['rabia', 'clare'].includes(account))
     return res.status(400).json({ error: 'Invalid account' });
+  if (!CHROMIUM_BIN)
+    return res.status(500).json({ error: 'chromium-browser not found on this system' });
 
   // Kill existing window for this account if still open
   if (findmyPids[account]) {
@@ -962,7 +973,15 @@ app.post('/api/findmy/open/:account', (req, res) => {
   const userDataDir = path.join(os.homedir(), `.findmy-chrome-${account}`);
   const url = `http://localhost:${PORT}/findmy/${account}`;
 
-  const child = spawn('chromium-browser', [
+  // Pass display env so the spawned GUI process can connect to the compositor
+  const env = {
+    ...process.env,
+    DISPLAY: process.env.DISPLAY || ':0',
+    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY || 'wayland-1',
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid()}`,
+  };
+
+  const child = spawn(CHROMIUM_BIN, [
     '--disable-web-security',
     `--user-data-dir=${userDataDir}`,
     `--app=${url}`,
@@ -970,9 +989,11 @@ app.post('/api/findmy/open/:account', (req, res) => {
     '--noerrdialogs',
     '--disable-infobars',
     '--disable-session-crashed-bubble',
-  ], { detached: true, stdio: 'ignore' });
+  ], { detached: true, stdio: 'ignore', env });
+  child.on('error', e => console.error(`[FindMy] spawn error for ${account}:`, e.message));
   child.unref();
   findmyPids[account] = child.pid;
+  console.log(`[FindMy] Opened for ${account} (pid ${child.pid})`);
   res.json({ ok: true });
 });
 
