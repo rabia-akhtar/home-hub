@@ -28,17 +28,22 @@ function onMotion() {
 }
 
 const PIR_SCRIPT = path.join(__dirname, 'pir_watch.py');
-if (fs.existsSync(PIR_SCRIPT)) {
+function startPirWatcher() {
   const py = spawn('python3', [PIR_SCRIPT], {
     env: { ...process.env, PIR_GPIO: String(pirPin) },
   });
   py.stdout.on('data', data => {
     const msg = data.toString().trim();
-    if (msg.includes('ready')) { pirReady = true; console.log(`[PIR] Python watcher ready on GPIO ${pirPin}`); }
+    if (msg.includes('ready')) { pirReady = true; pirError = null; console.log(`[PIR] Python watcher ready on GPIO ${pirPin}`); }
     if (msg.includes('motion')) onMotion();
   });
   py.stderr.on('data', data => { pirError = data.toString().trim(); console.log('[PIR] stderr:', pirError); });
   py.on('exit', code => { pirReady = false; pirError = `pir_watch.py exited (code ${code})`; console.log('[PIR]', pirError); });
+}
+if (fs.existsSync(PIR_SCRIPT)) {
+  // Kill any orphaned pir_watch.py left over from a previous server run,
+  // then wait briefly for the GPIO to be released before spawning fresh.
+  exec('pkill -f "python3.*pir_watch"', () => setTimeout(startPirWatcher, 600));
 } else {
   pirError = 'pir_watch.py missing — create it in ~/home-hub/server/ (see hint in /api/motion/debug)';
   console.log('[PIR]', pirError);
