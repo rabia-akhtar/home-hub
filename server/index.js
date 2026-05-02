@@ -239,7 +239,7 @@ const LIGHT_SCENES = { bright:{on:true}, relax:{on:true}, night:{on:true}, away:
 app.post('/api/lights/scene', async (req, res) => {
   const cfg = LIGHT_SCENES[req.body.scene];
   if (!cfg) return res.status(400).json({ error: 'Unknown scene' });
-  await Promise.all(Object.keys(tapoCache).map(alias => tapoSetPower(alias, cfg.on).catch(()=>{})));
+  await Promise.all(Object.keys(tapoCache).filter(a => tapoCache[a].group !== 'display').map(alias => tapoSetPower(alias, cfg.on).catch(()=>{})));
   res.json({ ok: true });
 });
 
@@ -248,7 +248,7 @@ app.post('/api/lights/group', async (req, res) => {
   const { on } = req.body;
   if (typeof on !== 'boolean') return res.status(400).json({ error: 'body must include { on: true|false }' });
   const results = await Promise.allSettled(
-    Object.keys(tapoCache).map(alias => tapoSetPower(alias, on))
+    Object.keys(tapoCache).filter(a => tapoCache[a].group !== 'display').map(alias => tapoSetPower(alias, on))
   );
   const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
   res.json({ ok: true, on, failed });
