@@ -1253,44 +1253,24 @@ function LightsTab() {
 
 // ─── REWARDS TAB ──────────────────────────────────────────────────────────────
 function RewardsTab({ pts, setPts, rwds, setRwds }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm]       = useState({ name:"", cost:100, icon:"🎁", who:"both" });
-  const [editing, setEditing] = useState(null); // reward id being edited
-  const [editForm, setEditForm] = useState({});
-  const [redeeming, setRedeeming] = useState(null);
-  const [confetti, setConfetti]   = useState(null);
-
-  const addReward = async () => {
-    if(!form.name.trim()) return;
-    const r=await fetch(`${API}/rewards`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)}).then(r=>r.json());
-    setRwds(rw=>({...rw,rewards:[...rw.rewards,r]}));
-    setForm({name:"",cost:100,icon:"🎁",who:"both"}); setShowAdd(false);
-  };
+  const [confetti,    setConfetti]    = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const redeem = async (reward, who) => {
-    const pts_val = who==="rabia"?pts.rabia_points:pts.clare_points;
+    const pts_val = who==="rabia" ? pts.rabia_points : pts.clare_points;
     if(pts_val < reward.cost){ alert(`Not enough points! You have ${pts_val} but need ${reward.cost}.`); return; }
-    const r=await fetch(`${API}/rewards/${reward.id}/redeem`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({who})}).then(r=>r.json());
+    const r = await fetch(`${API}/rewards/redeem`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ who, name:reward.name, cost:reward.cost, icon:reward.icon }),
+    }).then(r=>r.json());
     if(r.error){ alert(r.error); return; }
     setPts(r.points);
     setConfetti(reward.name);
-    setTimeout(()=>setConfetti(null),3000);
+    setTimeout(()=>setConfetti(null), 3000);
   };
 
-  const deleteReward = async (id) => {
-    await fetch(`${API}/rewards/${id}`,{method:"DELETE"});
-    setRwds(rw=>({...rw,rewards:rw.rewards.filter(r=>r.id!==id)}));
-  };
-
-  const startEdit = (r) => { setEditing(r.id); setEditForm({name:r.name,cost:r.cost,icon:r.icon,who:r.who}); };
-  const saveEdit  = async () => {
-    const r=await fetch(`${API}/rewards/${editing}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(editForm)}).then(r=>r.json());
-    setRwds(rw=>({...rw,rewards:rw.rewards.map(x=>x.id===editing?r:x)}));
-    setEditing(null);
-  };
-
-  const people = [RABIA, CLARE];
-  const REWARD_ICONS = ["🎬","☕","🍕","🎮","💆‍♀️","✈️","🍽️","🎁","🛍️","🏖️","🎭","🎵","🍦","📚","🏃‍♀️","🧖‍♀️","🍷","🎨","💅","🧘‍♀️","🏋️","🎲","🎤","🛁","🌅","🎊","🍰","🧁"];
+  const people   = [RABIA, CLARE];
+  const history  = rwds.task_history || [];
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -1300,7 +1280,6 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
         <div style={{...CARD,padding:"20px 24px",background:"linear-gradient(135deg,#fef3c7,#fed7aa)",border:"2px solid #fbbf24",textAlign:"center"}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:6}}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-              {/* party popper */}
               <path d="M2 22L8.5 8.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
               <path d="M2 22L15.5 15.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
               <path d="M2 22l5-2-2-5z" fill="#fbbf24"/>
@@ -1324,8 +1303,8 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
       {/* Points summary */}
       <div style={{display:"flex",gap:12}}>
         {people.map(person=>{
-          const pKey=person.name.toLowerCase();
-          const points=pts[`${pKey}_points`]||0;
+          const pKey   = person.name.toLowerCase();
+          const points = pts[`${pKey}_points`]||0;
           return (
             <div key={person.name} style={{...CARD,flex:1,padding:"18px",textAlign:"center",background:`linear-gradient(145deg,${person.color}12,${person.color}06)`,border:`2px solid ${person.color}30`}}>
               <Av person={person} size={48}/>
@@ -1338,45 +1317,17 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
         })}
       </div>
 
-      {/* Add reward button */}
-      <button onClick={()=>setShowAdd(v=>!v)} style={{padding:"16px",borderRadius:20,border:"2px dashed #e2e8f0",background:"transparent",color:"#64748b",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-        {showAdd?"✕ Cancel":"+ Create reward"}
-      </button>
-
-      {/* Add reward form */}
-      {showAdd && (
-        <div style={{...CARD,padding:"20px"}}>
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Reward name (e.g. Movie night)" style={{padding:"14px 18px",borderRadius:16,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-            <div style={{display:"flex",gap:10,alignItems:"center"}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#64748b"}}>Cost:</div>
-              <input type="number" value={form.cost} onChange={e=>setForm(f=>({...f,cost:parseInt(e.target.value)||0}))} style={{width:90,padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-              <div style={{fontSize:14,color:"#64748b"}}>⭐ points</div>
-            </div>
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:"#64748b",marginBottom:8}}>Icon:</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                {REWARD_ICONS.map(ic=>(
-                  <button key={ic} onClick={()=>setForm(f=>({...f,icon:ic}))} style={{width:44,height:44,fontSize:22,borderRadius:12,border:`2px solid ${form.icon===ic?"#6366f1":"#e2e8f0"}`,background:form.icon===ic?"#eef2ff":"#fff",cursor:"pointer"}}>{ic}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              {[["both","Everyone"],["rabia","Rabia"],["clare","Clare"]].map(([val,label])=>(
-                <button key={val} onClick={()=>setForm(f=>({...f,who:val}))} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${form.who===val?"#6366f1":"#e2e8f0"}`,background:form.who===val?"#eef2ff":"#fff",color:form.who===val?"#6366f1":"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
-              ))}
-            </div>
-            <button onClick={addReward} style={{padding:"14px",borderRadius:16,border:"none",background:"linear-gradient(135deg,#f2709c,#38bdf8)",color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Save reward</button>
-          </div>
+      {/* Reward cards per person — sourced from Google Sheet */}
+      {rwds.rewards.length === 0 && (
+        <div style={{...CARD,padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:14}}>
+          No rewards yet — add rows to the <strong>Rewards</strong> tab in the budget spreadsheet.
         </div>
       )}
-
-      {/* Reward cards per person */}
       {people.map(person=>{
-        const pKey  = person.name.toLowerCase();
-        const myPts = pts[`${pKey}_points`]||0;
-        const myRwds= rwds.rewards.filter(r=>r.who==="both"||r.who===pKey);
-        if(myRwds.length===0) return null;
+        const pKey   = person.name.toLowerCase();
+        const myPts  = pts[`${pKey}_points`]||0;
+        const myRwds = rwds.rewards.filter(r=>r.who==="both"||r.who===pKey);
+        if(!myRwds.length) return null;
         return (
           <div key={person.name}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
@@ -1386,42 +1337,16 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               {myRwds.map(r=>{
-                const canAfford=myPts>=r.cost;
-                if(editing===r.id) return (
-                  <div key={r.id} style={{...CARD,padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:2}}>
-                      {REWARD_ICONS.map(ic=>(
-                        <button key={ic} onClick={()=>setEditForm(f=>({...f,icon:ic}))} style={{width:36,height:36,fontSize:18,borderRadius:10,border:`2px solid ${editForm.icon===ic?"#6366f1":"#e2e8f0"}`,background:editForm.icon===ic?"#eef2ff":"#fff",cursor:"pointer"}}>{ic}</button>
-                      ))}
-                    </div>
-                    <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} style={{padding:"10px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                      <input type="number" value={editForm.cost} onChange={e=>setEditForm(f=>({...f,cost:parseInt(e.target.value)||0}))} style={{width:80,padding:"9px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-                      <span style={{fontSize:13,color:"#64748b"}}>⭐</span>
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      {[["both","All"],["rabia","R"],["clare","C"]].map(([val,label])=>(
-                        <button key={val} onClick={()=>setEditForm(f=>({...f,who:val}))} style={{flex:1,padding:"8px",borderRadius:10,border:`2px solid ${editForm.who===val?"#6366f1":"#e2e8f0"}`,background:editForm.who===val?"#eef2ff":"#fff",color:editForm.who===val?"#6366f1":"#64748b",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
-                      ))}
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      <button onClick={saveEdit} style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:"#6366f1",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                      <button onClick={()=>setEditing(null)} style={{padding:"10px 14px",borderRadius:12,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                    </div>
-                  </div>
-                );
+                const canAfford = myPts >= r.cost;
                 return (
                   <div key={r.id} style={{...CARD,padding:"18px",textAlign:"center",opacity:canAfford?1:0.6,border:`2px solid ${canAfford?person.color+"40":"#f1f5f9"}`}}>
                     <div style={{fontSize:40,marginBottom:8}}>{r.icon}</div>
                     <div style={{fontSize:14,fontWeight:800,color:"#1e293b",marginBottom:4}}>{r.name}</div>
                     <div style={{fontSize:12,color:person.color,fontWeight:700,marginBottom:12}}>{r.cost} ⭐</div>
-                    <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>redeem(r,pKey)} disabled={!canAfford} style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:canAfford?person.color:"#e2e8f0",color:canAfford?"#fff":"#94a3b8",fontWeight:700,fontSize:13,cursor:canAfford?"pointer":"not-allowed",fontFamily:"inherit"}}>
-                        {canAfford?"Redeem":"Need "+(r.cost-myPts)+" more"}
-                      </button>
-                      <button onClick={()=>startEdit(r)} style={{width:36,height:36,borderRadius:12,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✏️</button>
-                      <button onClick={()=>deleteReward(r.id)} style={{width:36,height:36,borderRadius:12,border:"1px solid #fee2e2",background:"#fff5f5",color:"#ef4444",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>×</button>
-                    </div>
+                    <button onClick={()=>redeem(r,pKey)} disabled={!canAfford}
+                      style={{width:"100%",padding:"10px",borderRadius:12,border:"none",background:canAfford?person.color:"#e2e8f0",color:canAfford?"#fff":"#94a3b8",fontWeight:700,fontSize:13,cursor:canAfford?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                      {canAfford ? "Redeem" : "Need "+(r.cost-myPts)+" more"}
+                    </button>
                   </div>
                 );
               })}
@@ -1429,6 +1354,37 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
           </div>
         );
       })}
+
+      {/* Points earned — task history */}
+      {history.length > 0 && (
+        <div style={{...CARD,padding:"18px 20px"}}>
+          <button onClick={()=>setShowHistory(v=>!v)}
+            style={{width:"100%",background:"none",border:"none",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",padding:0,fontFamily:"inherit"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase"}}>
+              Points earned ({history.length} tasks)
+            </div>
+            <span style={{fontSize:12,color:"#94a3b8"}}>{showHistory?"▲":"▼"}</span>
+          </button>
+          {showHistory && (
+            <div style={{marginTop:12}}>
+              {history.slice(0,50).map((t,i)=>{
+                const person = t.who==="rabia"||t.who==="family" ? RABIA : CLARE;
+                const both   = t.who==="family";
+                return (
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid #f8fafc"}}>
+                    <Av person={person} size={26}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
+                      <div style={{fontSize:11,color:"#94a3b8"}}>{t.project} · {new Date(t.completedAt).toLocaleDateString()}</div>
+                    </div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#10b981",flexShrink:0}}>+{both?t.points*2:t.points}⭐{both?" (both)":""}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Redeemed history */}
       {rwds.redeemed.length>0 && (
@@ -1772,7 +1728,7 @@ function Screensaver({ onDismiss }) {
   return (
     <div
       onClick={onDismiss}
-      style={{position:"fixed",inset:0,zIndex:9999,background:"#fff",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"opacity 0.6s",opacity:fade?1:0}}
+      style={{position:"fixed",inset:0,zIndex:9999,background:"#000",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"opacity 0.6s",opacity:fade?1:0}}
     >
       {imgUrl && (
         <img
@@ -1783,13 +1739,13 @@ function Screensaver({ onDismiss }) {
         />
       )}
       {/* Gradient overlay at bottom */}
-      <div style={{position:"absolute",bottom:0,left:0,right:0,height:160,background:"linear-gradient(to top,rgba(255,255,255,0.9),transparent)",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",bottom:0,left:0,right:0,height:160,background:"linear-gradient(to top,rgba(0,0,0,0.85),transparent)",pointerEvents:"none"}}/>
       {/* Art info */}
       {art && (
-        <div style={{position:"absolute",bottom:28,left:28,right:28,color:"#1e293b",pointerEvents:"none"}}>
-          <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>{art.title}</div>
-          <div style={{fontSize:13,opacity:0.65}}>{art.artist_display}{art.date_display?` · ${art.date_display}`:""}</div>
-          <div style={{fontSize:11,opacity:0.35,marginTop:8}}>Art Institute of Chicago · Tap to wake</div>
+        <div style={{position:"absolute",bottom:28,left:28,right:28,color:"#fff",pointerEvents:"none"}}>
+          <div style={{fontSize:18,fontWeight:700,textShadow:"0 2px 8px rgba(0,0,0,0.8)",marginBottom:4}}>{art.title}</div>
+          <div style={{fontSize:13,opacity:0.75,textShadow:"0 1px 4px rgba(0,0,0,0.8)"}}>{art.artist_display}{art.date_display?` · ${art.date_display}`:""}</div>
+          <div style={{fontSize:11,opacity:0.4,marginTop:8}}>Art Institute of Chicago · Tap to wake</div>
         </div>
       )}
       {/* Clock */}
@@ -2620,7 +2576,7 @@ export default function App() {
     hub.setTasks(ts=>ts.filter(t=>t.id!==task.id));
     const res = await fetch(`${API}/tasks/${task.id}/close`,{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({assignee:who, counts_for_reward:countsForReward||task.counts_for_reward}),
+      body:JSON.stringify({assignee:who, counts_for_reward:countsForReward||task.counts_for_reward, title:task.content, project:task.project_name||''}),
     }).then(r=>r.json());
     if(res.points) hub.setPts(res.points);
   };

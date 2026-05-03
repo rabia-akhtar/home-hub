@@ -57,13 +57,14 @@ app.use(express.json());
 // ─── Data store ───────────────────────────────────────────────────────────────
 const DATA_FILE = path.join(__dirname, 'data.json');
 function loadData() {
-  if (!fs.existsSync(DATA_FILE)) return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[] };
+  if (!fs.existsSync(DATA_FILE)) return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[], task_history:[] };
   try {
     const d = JSON.parse(fs.readFileSync(DATA_FILE,'utf8'));
-    if (!d.rewards)  d.rewards  = [];
-    if (!d.redeemed) d.redeemed = [];
+    if (!d.rewards)      d.rewards      = [];
+    if (!d.redeemed)     d.redeemed     = [];
+    if (!d.task_history) d.task_history = [];
     return d;
-  } catch { return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[] }; }
+  } catch { return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[], task_history:[] }; }
 }
 function saveData(d) { fs.writeFileSync(DATA_FILE, JSON.stringify(d,null,2)); }
 
@@ -436,6 +437,15 @@ app.post('/api/tasks/:id/close', async (req,res) => {
       const who = req.body.assignee;
       if (who==='rabia'  || who==='family') data.rabia_points=Math.min((data.rabia_points||0)+5,9999);
       if (who==='clare'  || who==='family') data.clare_points=Math.min((data.clare_points||0)+5,9999);
+      // Log to task history (keep last 200)
+      const entry = {
+        title:   req.body.title   || 'Task',
+        project: req.body.project || '',
+        who:     who,
+        points:  5,
+        completedAt: new Date().toISOString(),
+      };
+      data.task_history = [entry, ...(data.task_history||[])].slice(0,200);
     }
     saveData(data);
     res.json({ok:true, points:data});
@@ -493,40 +503,59 @@ app.post('/api/points/add', (req,res)=>{
   saveData(data); res.json(data);
 });
 
-// ─── Rewards ─────────────────────────────────────────────────────────────────
-app.get('/api/rewards', (req,res)=>{ const d=loadData(); res.json({rewards:d.rewards, redeemed:d.redeemed}); });
+// ─── Rewards — list from Google Sheets "Rewards" tab ─────────────────────────
+let rewardsSheetCache = { data: null, ts: 0 };
 
-app.post('/api/rewards', (req,res)=>{
-  const data=loadData();
-  const reward={id:'r'+Date.now(), name:req.body.name, cost:req.body.cost, icon:req.body.icon||'🎁', who:req.body.who||'both'};
-  data.rewards.push(reward); saveData(data); res.json(reward);
+async function fetchRewardsFromSheet() {
+  if (Date.now() - rewardsSheetCache.ts < 5 * 60 * 1000 && rewardsSheetCache.data)
+    return rewardsSheetCache.data;
+  try {
+    const sheets = sheetsClient();
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Rewards!A2:D200',
+    });
+    const rows = r.data.values || [];
+    const rewards = rows
+      .filter(row => row[0] && row[1])
+      .map((row, i) => ({
+        id:   `sheet-${i}`,
+        name: row[0].trim(),
+        cost: parseInt(row[1]) || 0,
+        icon: (row[2] || '🎁').trim(),
+        who:  (row[3] || 'both').trim().toLowerCase(),
+      }));
+    rewardsSheetCache = { data: rewards, ts: Date.now() };
+    return rewards;
+  } catch(e) {
+    console.warn('[Rewards] Sheet read failed:', e.message);
+    return rewardsSheetCache.data || [];
+  }
+}
+
+app.get('/api/rewards', async (req, res) => {
+  const [rewards, data] = await Promise.all([fetchRewardsFromSheet(), Promise.resolve(loadData())]);
+  res.json({ rewards, redeemed: data.redeemed, task_history: data.task_history || [] });
 });
 
-app.patch('/api/rewards/:id', (req,res)=>{
-  const data=loadData();
-  const idx=data.rewards.findIndex(r=>r.id===req.params.id);
-  if(idx===-1) return res.status(404).json({error:'Not found'});
-  data.rewards[idx]={...data.rewards[idx],...req.body};
-  saveData(data); res.json(data.rewards[idx]);
+// Force refresh the rewards sheet cache
+app.post('/api/rewards/refresh', (req, res) => {
+  rewardsSheetCache.ts = 0;
+  res.json({ ok: true });
 });
 
-app.delete('/api/rewards/:id', (req,res)=>{
-  const data=loadData();
-  data.rewards=data.rewards.filter(r=>r.id!==req.params.id);
-  saveData(data); res.json({ok:true});
-});
-
-app.post('/api/rewards/:id/redeem', (req,res)=>{
-  const data=loadData();
-  const reward=data.rewards.find(r=>r.id===req.params.id);
-  if(!reward) return res.status(404).json({error:'Not found'});
-  const who=req.body.who;
-  const pts=who==='rabia'?data.rabia_points:data.clare_points;
-  if(pts<reward.cost) return res.status(400).json({error:'Not enough points'});
-  if(who==='rabia') data.rabia_points=pts-reward.cost;
-  else              data.clare_points=pts-reward.cost;
-  data.redeemed.push({...reward, who, redeemedAt:new Date().toISOString()});
-  saveData(data); res.json({ok:true, points:data});
+// Redeem a reward — reward data comes from the client (sourced from sheet)
+app.post('/api/rewards/redeem', (req, res) => {
+  const { who, name, cost, icon } = req.body;
+  if (!who || !name || cost == null) return res.status(400).json({ error: 'Missing fields' });
+  const data = loadData();
+  const pts = who === 'rabia' ? data.rabia_points : data.clare_points;
+  if (pts < cost) return res.status(400).json({ error: 'Not enough points' });
+  if (who === 'rabia') data.rabia_points = pts - cost;
+  else                 data.clare_points = pts - cost;
+  data.redeemed.push({ name, cost, icon: icon||'🎁', who, redeemedAt: new Date().toISOString() });
+  saveData(data);
+  res.json({ ok: true, points: data });
 });
 
 // ─── Google Calendar OAuth + two-way sync ────────────────────────────────────
