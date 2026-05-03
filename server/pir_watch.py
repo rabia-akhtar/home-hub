@@ -10,8 +10,14 @@ Wiring:
 
 Spawned by the Node.js server. Prints 'ready' on start, 'motion' on each trigger.
 """
-import os, sys
+import os, sys, signal as _sig
 from signal import pause
+
+def _on_sig(signum, frame):
+    print(f'killed by signal {signum} ({_sig.Signals(signum).name})', file=sys.stderr, flush=True)
+    sys.exit(1)
+_sig.signal(_sig.SIGTERM, _on_sig)
+_sig.signal(_sig.SIGHUP,  _on_sig)
 
 pin  = int(os.environ.get('PIR_GPIO', '17'))
 

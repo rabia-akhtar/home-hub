@@ -38,11 +38,18 @@ function startPirWatcher() {
     if (msg.includes('motion')) onMotion();
   });
   py.stderr.on('data', data => { pirError = data.toString().trim(); console.log('[PIR] stderr:', pirError); });
-  py.on('exit', code => { pirReady = false; pirError = `pir_watch.py exited (code ${code})`; console.log('[PIR]', pirError); });
+  py.on('exit', (code, signal) => {
+    pirReady = false;
+    pirError = `pir_watch.py exited (code=${code} signal=${signal})`;
+    console.log('[PIR]', pirError);
+    // Auto-restart after 3 s (GPIO needs a moment to release)
+    setTimeout(() => {
+      console.log('[PIR] Restarting pir_watch.py...');
+      startPirWatcher();
+    }, 3000);
+  });
 }
 if (fs.existsSync(PIR_SCRIPT)) {
-  // Kill any orphaned pir_watch.py left over from a previous server run,
-  // then wait briefly for the GPIO to be released before spawning fresh.
   exec(`pkill -f "${PIR_SCRIPT}"`, () => setTimeout(startPirWatcher, 1000));
 } else {
   pirError = 'pir_watch.py missing — create it in ~/home-hub/server/ (see hint in /api/motion/debug)';
