@@ -43,7 +43,7 @@ function startPirWatcher() {
 if (fs.existsSync(PIR_SCRIPT)) {
   // Kill any orphaned pir_watch.py left over from a previous server run,
   // then wait briefly for the GPIO to be released before spawning fresh.
-  exec('pkill -f "python3.*pir_watch"', () => setTimeout(startPirWatcher, 600));
+  exec(`pkill -f "${PIR_SCRIPT}"`, () => setTimeout(startPirWatcher, 1000));
 } else {
   pirError = 'pir_watch.py missing — create it in ~/home-hub/server/ (see hint in /api/motion/debug)';
   console.log('[PIR]', pirError);
