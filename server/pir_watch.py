@@ -15,7 +15,12 @@ import os, sys, time, signal as _sig
 pin = int(os.environ.get('PIR_GPIO', '17'))
 
 def _on_sig(signum, frame):
-    print(f'killed by signal {signum} ({_sig.Signals(signum).name})', file=sys.stderr, flush=True)
+    ppid = os.getppid()
+    try:
+        cmd = open(f'/proc/{ppid}/cmdline').read().replace('\0', ' ').strip()
+    except Exception:
+        cmd = 'unknown'
+    print(f'killed by signal {signum} ({_sig.Signals(signum).name}) — my PID={os.getpid()} parent PID={ppid} ({cmd})', file=sys.stderr, flush=True)
     sys.exit(1)
 
 _sig.signal(_sig.SIGTERM, _on_sig)
