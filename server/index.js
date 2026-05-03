@@ -519,7 +519,7 @@ async function fetchRewardsFromSheet() {
     const rewards = rows
       .filter(row => row[0] && row[1])
       .map((row, i) => ({
-        id:   `sheet-${i}`,
+        id:   `sheet-${i + 2}`,        // row number in sheet (row 2 = first data row)
         name: row[0].trim(),
         cost: parseInt(row[1]) || 0,
         icon: (row[2] || '🎁').trim(),
@@ -533,18 +533,79 @@ async function fetchRewardsFromSheet() {
   }
 }
 
+// Cache the numeric sheetId for the Rewards tab (needed for row deletion)
+let rewardsSheetId = null;
+async function getRewardsSheetId() {
+  if (rewardsSheetId !== null) return rewardsSheetId;
+  const sheets = sheetsClient();
+  const meta   = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+  const sheet  = (meta.data.sheets || []).find(s => s.properties.title === 'Rewards');
+  rewardsSheetId = sheet ? sheet.properties.sheetId : 0;
+  return rewardsSheetId;
+}
+
 app.get('/api/rewards', async (req, res) => {
   const [rewards, data] = await Promise.all([fetchRewardsFromSheet(), Promise.resolve(loadData())]);
   res.json({ rewards, redeemed: data.redeemed, task_history: data.task_history || [] });
 });
 
-// Force refresh the rewards sheet cache
-app.post('/api/rewards/refresh', (req, res) => {
-  rewardsSheetCache.ts = 0;
-  res.json({ ok: true });
+// Add reward — append row to sheet
+app.post('/api/rewards', async (req, res) => {
+  const { name, cost, icon, who } = req.body;
+  if (!name || cost == null) return res.status(400).json({ error: 'Missing fields' });
+  try {
+    const sheets = sheetsClient();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Rewards!A:D',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[name, String(cost), icon || '🎁', who || 'both']] },
+    });
+    rewardsSheetCache.ts = 0;
+    const rewards = await fetchRewardsFromSheet();
+    res.json({ ok: true, rewards });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Redeem a reward — reward data comes from the client (sourced from sheet)
+// Edit reward — update row in sheet (id = 'sheet-{rowNum}')
+app.patch('/api/rewards/:id', async (req, res) => {
+  const rowNum = parseInt((req.params.id || '').split('-')[1]);
+  if (!rowNum) return res.status(400).json({ error: 'Invalid id' });
+  const { name, cost, icon, who } = req.body;
+  try {
+    const sheets = sheetsClient();
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Rewards!A${rowNum}:D${rowNum}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[name, String(cost), icon || '🎁', who || 'both']] },
+    });
+    rewardsSheetCache.ts = 0;
+    const rewards = await fetchRewardsFromSheet();
+    res.json({ ok: true, rewards });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete reward — remove row from sheet
+app.delete('/api/rewards/:id', async (req, res) => {
+  const rowNum = parseInt((req.params.id || '').split('-')[1]);
+  if (!rowNum) return res.status(400).json({ error: 'Invalid id' });
+  try {
+    const [sheetId, sheets] = await Promise.all([getRewardsSheetId(), Promise.resolve(sheetsClient())]);
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: { requests: [{ deleteDimension: {
+        range: { sheetId, dimension: 'ROWS', startIndex: rowNum - 1, endIndex: rowNum }
+      }}]},
+    });
+    rewardsSheetId = null; // row numbers shifted, reset sheet id cache too
+    rewardsSheetCache.ts = 0;
+    const rewards = await fetchRewardsFromSheet();
+    res.json({ ok: true, rewards });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Redeem — reward data comes from client (sourced from sheet)
 app.post('/api/rewards/redeem', (req, res) => {
   const { who, name, cost, icon } = req.body;
   if (!who || !name || cost == null) return res.status(400).json({ error: 'Missing fields' });
