@@ -392,15 +392,6 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   const familyTasks = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
   const rabiaPersonalTasks = rabiaPersonalProj ? tasks.filter(t=>!t.checked && t.project_id===rabiaPersonalProj.id && t.due?.date===todayStr) : [];
 
-  const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
-  const weekTasks = tasks.filter(t=>{
-    if(!t.due?.date||t.checked) return false;
-    if(t.project_id===groceriesProj?.id) return false;
-    if(t.due?.is_recurring) return false;
-    const d=new Date(t.due.date+'T12:00:00');
-    return d>today && d<=weekEnd;
-  }).sort((a,b)=>a.due.date.localeCompare(b.due.date));
-
   // Overdue tasks (due before today, not completed)
   const overdueTasks = tasks.filter(t=>{
     if(!t.due?.date||t.checked) return false;
@@ -565,144 +556,45 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </div>
   );
 
-  // ── Family column (wide — includes groceries as growing card) ──────────────
-  const familyWideCol = (
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div style={{...CARD,overflow:"hidden",border:"1px solid #a78bfa30"}}>
-        <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:"3px solid rgba(255,255,255,0.85)",flexShrink:0}}>F</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>Family</div>
-        </div>
-      </div>
-      {overdueFamily.length>0 && (
-        <div style={{...CARD,overflow:"hidden",border:"2px solid #fca5a550"}}>
-          <div style={{padding:"8px 14px",borderBottom:"1px solid #fef2f2",background:"#fef2f2",display:"flex",alignItems:"center",gap:8}}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#ef4444" strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="13" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill="#ef4444"/></svg>
-            <div style={{fontSize:12,fontWeight:700,color:"#ef4444"}}>Overdue</div>
-            <span style={{fontSize:11,color:"#fca5a8",marginLeft:2}}>{overdueFamily.length}</span>
-          </div>
-          {overdueFamily.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
-        </div>
-      )}
-      {familyTasks.length>0 && (
-        <div style={{...CARD,overflow:"hidden"}}>
-          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
-            <TaskIcon color="#6366f1"/>
-            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
-            <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
-          </div>
-          {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
-        </div>
-      )}
-      {/* Groceries — grows to fill remaining column height */}
-      <div style={{...CARD,overflow:"hidden",flex:1,display:"flex",flexDirection:"column",minHeight:0,border:"1px solid #bbf7d040"}}>
-        <div style={{padding:"10px 16px",borderBottom:"1px solid #f0fdf4",background:"#f0fdf4",display:"flex",alignItems:"center",gap:8,flexShrink:0,justifyContent:"space-between"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="1.8" strokeLinecap="round"/></svg>
-            <span style={{fontSize:12,fontWeight:700,color:"#059669"}}>Groceries</span>
-            <span style={{fontSize:11,color:"#94a3b8"}}>{groceryTasks.length}</span>
-          </div>
-          <button onClick={()=>onSetTab("groceries")} style={{fontSize:11,padding:"4px 10px",borderRadius:99,border:"1px solid #059669",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
-        </div>
-        <div style={{flex:1,overflowY:"auto",minHeight:60}}>
-          {groceryTasks.length===0
-            ? <div style={{padding:"14px 16px",fontSize:12,color:"#94a3b8"}}>All clear! 🛒</div>
-            : groceryTasks.map((t,i)=>(
-              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 16px",minHeight:42,borderBottom:i<groceryTasks.length-1?"1px solid #f8fafc":"none",gap:10}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
-                <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
-              </div>
-            ))
-          }
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Bottom row ────────────────────────────────────────────────────────────
-  const [weekOpen, setWeekOpen] = useState(true);
-
-  const weekRabia  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"||t.project_id===rabiaPersonalProj?.id; });
-  const weekClare  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
-  const weekFamily = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
-
-  const WeekCol = ({person, tasks:wt, color}) => (
-    <div style={{display:"flex",flexDirection:"column",gap:0,minWidth:0}}>
-      <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderBottom:"1px solid #f1f5f9",background:`${color}08`}}>
-        {person
-          ? <Av person={person} size={20}/>
-          : <div style={{width:20,height:20,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>F</div>
-        }
-        <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{person?.name||"Family"}</span>
-        <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{wt.length}</span>
-      </div>
-      {wt.length===0
-        ? <div style={{padding:"10px 14px",fontSize:12,color:"#94a3b8"}}>Nothing this week</div>
-        : wt.map(t=>{
-            const due=fmtDue(t.due?.date);
-            return (
-              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 14px",minHeight:46,borderBottom:"1px solid #f8fafc",gap:10}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
-                  {t.project_name && <div style={{fontSize:10,color:"#94a3b8"}}>{t.project_name}</div>}
-                </div>
-                {due && <span style={{fontSize:11,fontWeight:700,color:due.color,flexShrink:0,whiteSpace:"nowrap"}}>{due.label}</span>}
-              </div>
-            );
-          })
-      }
-    </div>
-  );
-
-  const weekCard = (
-    <div style={{...CARD,overflow:"hidden"}}>
-      <div onClick={()=>setWeekOpen(v=>!v)} style={{padding:"14px 18px",background:"#fafafa",display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#6366f1" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="#6366f1" strokeWidth="1.5"/></svg>
-        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Upcoming This Week</div>
-        <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length}</span>
-        <svg style={{marginLeft:"auto",transform:weekOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}} width="16" height="16" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      </div>
-      {weekOpen && (
-        weekTasks.length===0
-          ? <div style={{padding:"16px 18px",fontSize:13,color:"#94a3b8",borderTop:"1px solid #f1f5f9"}}>Nothing coming up this week</div>
-          : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderTop:"1px solid #f1f5f9"}}>
-              <WeekCol person={RABIA}  tasks={weekRabia}  color={RABIA.color}/>
-              <div style={{borderLeft:"1px solid #f1f5f9"}}><WeekCol person={CLARE} tasks={weekClare} color={CLARE.color}/></div>
-              <div style={{borderLeft:"1px solid #f1f5f9"}}><WeekCol person={null}  tasks={weekFamily} color="#6366f1"/></div>
-            </div>
-      )}
-    </div>
-  );
-
   const grocCard = groceriesProj ? (
-    <div style={{...CARD,overflow:"hidden"}}>
-      <div style={{padding:"14px 18px",borderBottom:"1px solid #f1f5f9",background:"#f0fdf4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="1.8" strokeLinecap="round"/></svg>
-          <div style={{fontSize:14,fontWeight:800,color:"#059669"}}>Groceries</div>
-          <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{groceryTasks.length}</span>
+    <div style={{...CARD,overflow:"hidden",border:"1px solid #bbf7d040"}}>
+      {/* Header matches the person-column header style */}
+      <div style={{background:"linear-gradient(135deg,#05966912,#06966908)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#059669,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#fff" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>
         </div>
-        <button onClick={()=>onSetTab("groceries")} style={{fontSize:12,padding:"6px 14px",borderRadius:99,border:"1px solid #059669",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>Groceries</div>
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{groceryTasks.length} item{groceryTasks.length!==1?"s":""}</div>
+        </div>
+        <button onClick={()=>onSetTab("groceries")} style={{fontSize:11,padding:"4px 10px",borderRadius:99,border:"1px solid #05966940",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
       </div>
-      {groceryTasks.length===0 && <div style={{padding:"14px 18px",fontSize:13,color:"#94a3b8"}}>All clear!</div>}
-      {groceryTasks.slice(0,6).map((t,i)=>(
-        <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:44,borderBottom:i<Math.min(groceryTasks.length,6)-1?"1px solid #f8fafc":"none",gap:10}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
-          <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
-        </div>
-      ))}
-      {groceryTasks.length>6 && <div style={{padding:"10px 18px",fontSize:12,color:"#94a3b8"}}>+{groceryTasks.length-6} more</div>}
+      {/* Items */}
+      {groceryTasks.length===0
+        ? <div style={{padding:"14px 18px",fontSize:13,color:"#94a3b8"}}>All clear! 🛒</div>
+        : groceryTasks.slice(0,8).map((t,i)=>(
+          <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:44,borderBottom:i<Math.min(groceryTasks.length,8)-1?"1px solid #f8fafc":"none",gap:10}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
+            <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
+          </div>
+        ))
+      }
+      {groceryTasks.length>8 && <div style={{padding:"10px 18px",fontSize:12,color:"#94a3b8"}}>+{groceryTasks.length-8} more items</div>}
     </div>
   ) : null;
 
   if(wide) return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"start"}}>
+      {/* Row 1: Rabia | Clare — each gets half the screen width */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
         {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
         {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
-        {familyWideCol}
       </div>
-      {weekCard}
+      {/* Row 2: Family | Groceries */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
+        {familyCol}
+        {grocCard || <div/>}
+      </div>
     </div>
   );
 
@@ -712,7 +604,6 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
       {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
       {familyCol}
       {grocCard}
-      {weekCard}
     </div>
   );
 }
@@ -2736,12 +2627,12 @@ export default function App() {
 
   return (
     <div
-      style={{ height:"100vh", display:"flex", flexDirection:"column", background:"#f0f4f8", fontFamily:"'DM Sans','Segoe UI',sans-serif", overflow:"hidden" }}
+      style={{ height:"100vh", display:"flex", flexDirection:"column", background:"#f0f4f8", fontFamily:"'DM Sans','Inter','Ubuntu','Noto Sans',system-ui,sans-serif", overflow:"hidden" }}
       onMouseMove={resetIdle} onMouseDown={resetIdle} onTouchStart={resetIdle} onKeyDown={resetIdle}
     >
       {screensaver && <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
         html, body { touch-action:none; -webkit-user-select:none; user-select:none; }
         input, textarea { user-select:text !important; -webkit-user-select:text !important; touch-action:auto !important; }
