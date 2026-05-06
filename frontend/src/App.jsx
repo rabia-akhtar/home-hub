@@ -2495,7 +2495,7 @@ export default function App() {
       try {
         const devices = await fetch(`${API}/lights`).then(r => r.json());
         if (Array.isArray(devices) && devices.length) {
-          setHeaderLightsOn(devices.some(d => d.on && !d.unreachable));
+          setHeaderLightsOn(devices.some(d => d.on && !d.unreachable && d.id !== 'display'));
         }
       } catch {}
     };
