@@ -479,18 +479,17 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
           </div>
         )}
 
-        {/* Calendar events — grows to fill remaining column height */}
-        <div style={{...CARD,overflow:"hidden",...(growable?{flex:1,display:"flex",flexDirection:"column",minHeight:0}:{})}}>
-          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-            <CalIcon color={person.color}/>
-            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Today</div>
-            {authOk===false && <a href="/api/auth/google" target="_blank" rel="noreferrer" style={{fontSize:10,color:person.color,fontWeight:600,marginLeft:"auto"}}>Connect →</a>}
-          </div>
-          {growable
-            ? <div style={{flex:1,overflowY:"auto",minHeight:60}}>
-                {myEvts.length===0
-                  ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
-                  : myEvts.map((e,i)=>(
+        {/* Calendar events — only shown when there are events today */}
+        {myEvts.length>0 && (
+          <div style={{...CARD,overflow:"hidden",...(growable?{flex:1,display:"flex",flexDirection:"column",minHeight:0}:{})}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              <CalIcon color={person.color}/>
+              <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Today</div>
+              {authOk===false && <a href="/api/auth/google" target="_blank" rel="noreferrer" style={{fontSize:10,color:person.color,fontWeight:600,marginLeft:"auto"}}>Connect →</a>}
+            </div>
+            {growable
+              ? <div style={{flex:1,overflowY:"auto",minHeight:60}}>
+                  {myEvts.map((e,i)=>(
                     <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
                       <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
                       <div style={{flex:1,minWidth:0}}>
@@ -498,25 +497,20 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
                         <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
                       </div>
                     </div>
-                  ))
-                }
-              </div>
-            : <>
-                {myEvts.length===0
-                  ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
-                  : myEvts.map((e,i)=>(
-                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
-                      <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
-                        <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
-                      </div>
+                  ))}
+                </div>
+              : myEvts.map((e,i)=>(
+                  <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
+                    <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
+                      <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
                     </div>
-                  ))
-                }
-              </>
-          }
-        </div>
+                  </div>
+                ))
+            }
+          </div>
+        )}
       </div>
     );
   };
