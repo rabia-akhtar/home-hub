@@ -522,7 +522,8 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   };
 
   // ── Family column (narrow) ────────────────────────────────────────────────
-  const familyCol = (
+  const hasFamilyContent = familyTasks.length > 0 || overdueFamily.length > 0;
+  const familyCol = hasFamilyContent ? (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{...CARD,overflow:"hidden",border:"1px solid #a78bfa30"}}>
         <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
@@ -550,11 +551,8 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
           {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
         </div>
       )}
-      {familyTasks.length===0 && overdueFamily.length===0 && (
-        <div style={{...CARD,padding:"16px",fontSize:12,color:"#94a3b8",textAlign:"center"}}>No family tasks today</div>
-      )}
     </div>
-  );
+  ) : null;
 
   const grocCard = groceriesProj ? (
     <div style={{...CARD,overflow:"hidden",border:"1px solid #bbf7d040"}}>
@@ -585,16 +583,18 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   if(wide) return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {/* Row 1: Rabia | Clare — each gets half the screen width */}
+      {/* Row 1: Rabia | Clare */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
         {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
         {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
       </div>
-      {/* Row 2: Family | Groceries */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
-        {familyCol}
-        {grocCard || <div/>}
-      </div>
+      {/* Row 2: Family (only if content) | Groceries */}
+      {(hasFamilyContent || grocCard) && (
+        <div style={{display:"grid",gridTemplateColumns: hasFamilyContent && grocCard ? "1fr 1fr" : "1fr",gap:16,alignItems:"start"}}>
+          {hasFamilyContent && familyCol}
+          {grocCard}
+        </div>
+      )}
     </div>
   );
 
@@ -602,7 +602,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
       {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
-      {familyCol}
+      {hasFamilyContent && familyCol}
       {grocCard}
     </div>
   );
@@ -2468,7 +2468,8 @@ export default function App() {
   const wide = useWide();
 
   // ── Zoom — persisted in localStorage ──
-  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem('appZoom') || '1'));
+  const ZOOM_DEFAULT = 1.35;
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem('appZoom') || String(ZOOM_DEFAULT)));
   useEffect(() => {
     document.body.style.zoom = zoom;
     localStorage.setItem('appZoom', String(zoom));
@@ -2724,7 +2725,7 @@ export default function App() {
           color:"#475569", display:"flex", alignItems:"center", justifyContent:"center",
           fontFamily:"inherit",
         }}>−</button>
-        <span style={{fontSize:12,fontWeight:700,color:"#64748b",minWidth:38,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
+        <span style={{fontSize:12,fontWeight:700,color:"#64748b",minWidth:38,textAlign:"center"}}>{Math.round((zoom/ZOOM_DEFAULT)*100)}%</span>
         <button onClick={zoomIn} style={{
           width:32, height:32, borderRadius:"50%", border:"none",
           background:"transparent", cursor:"pointer",
