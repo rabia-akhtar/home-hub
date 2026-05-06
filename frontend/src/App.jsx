@@ -583,18 +583,10 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   if(wide) return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {/* Row 1: Rabia | Clare */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
-        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
-        {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
-      </div>
-      {/* Row 2: Family (only if content) | Groceries */}
-      {(hasFamilyContent || grocCard) && (
-        <div style={{display:"grid",gridTemplateColumns: hasFamilyContent && grocCard ? "1fr 1fr" : "1fr",gap:16,alignItems:"start"}}>
-          {hasFamilyContent && familyCol}
-          {grocCard}
-        </div>
-      )}
+      {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
+      {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
+      {hasFamilyContent && familyCol}
+      {grocCard}
     </div>
   );
 
@@ -2654,13 +2646,13 @@ export default function App() {
 
         {/* Sidebar nav — wide screens (Pi / desktop) */}
         {wide && (
-          <div style={{ width:190, background:"rgba(255,255,255,0.97)", borderRight:"1px solid rgba(0,0,0,0.07)", display:"flex", flexDirection:"column", flexShrink:0, overflowY:"auto", paddingTop:8 }}>
+          <div style={{ width:68, background:"rgba(255,255,255,0.97)", borderRight:"1px solid rgba(0,0,0,0.07)", display:"flex", flexDirection:"column", flexShrink:0, overflowY:"auto", paddingTop:8 }}>
             {NAV.map(n=>{
               const active = tab===n.id;
               return (
-                <button key={n.id} onClick={()=>setTab(n.id)} style={{ display:"flex", alignItems:"center", gap:14, padding:"16px 20px", background:active?`${n.color}14`:"transparent", border:"none", borderLeft:`3px solid ${active?n.color:"transparent"}`, cursor:"pointer", color:active?n.color:"#64748b", fontFamily:"inherit", transition:"all 0.15s", textAlign:"left" }}>
+                <button key={n.id} onClick={()=>setTab(n.id)} title={n.label} style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, padding:"10px 0", background:active?`${n.color}14`:"transparent", border:"none", borderLeft:`3px solid ${active?n.color:"transparent"}`, cursor:"pointer", color:active?n.color:"#94a3b8", fontFamily:"inherit", transition:"all 0.15s", width:"100%" }}>
                   {n.icon}
-                  <span style={{ fontSize:15, fontWeight:active?700:500 }}>{n.label}</span>
+                  <span style={{ fontSize:9, fontWeight:active?700:500, letterSpacing:0.1 }}>{n.label}</span>
                 </button>
               );
             })}
