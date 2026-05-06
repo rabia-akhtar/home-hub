@@ -28,10 +28,13 @@ function onMotion() {
 }
 
 const PIR_SCRIPT = path.join(__dirname, 'pir_watch.py');
+let pirChild = null;  // tracked so we can SIGKILL it explicitly
+
 function startPirWatcher() {
   const py = spawn('python3', [PIR_SCRIPT], {
     env: { ...process.env, PIR_GPIO: String(pirPin) },
   });
+  pirChild = py;
   py.stdout.on('data', data => {
     const msg = data.toString().trim();
     if (msg.includes('ready')) { pirReady = true; pirError = null; console.log(`[PIR] Python watcher ready on GPIO ${pirPin}`); }
@@ -49,8 +52,10 @@ function startPirWatcher() {
     }, 3000);
   });
 }
+// Use SIGKILL (-9) so stale lgpio-based processes can't ignore the cleanup.
+// pir_watch.py now ignores SIGTERM intentionally; SIGKILL is the only way to stop it.
 if (fs.existsSync(PIR_SCRIPT)) {
-  exec(`pkill -f "${PIR_SCRIPT}"`, () => setTimeout(startPirWatcher, 1000));
+  exec(`pkill -9 -f "${PIR_SCRIPT}"`, () => setTimeout(startPirWatcher, 1000));
 } else {
   pirError = 'pir_watch.py missing — create it in ~/home-hub/server/ (see hint in /api/motion/debug)';
   console.log('[PIR]', pirError);

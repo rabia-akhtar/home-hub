@@ -11,22 +11,30 @@ Wiring:
 Install: sudo apt install python3-gpiod
 Spawned by the Node.js server. Prints 'ready' on start, 'motion' on each trigger.
 """
-import os, sys, time, signal as _sig
+import os, sys, time, signal as _sig, ctypes, ctypes.util
 
 pin = int(os.environ.get('PIR_GPIO', '17'))
 
+# ── Die automatically if the parent Node process exits (Linux only) ──────────
+# prctl(PR_SET_PDEATHSIG, SIGKILL): kernel sends SIGKILL to us if our parent dies.
+# This ensures no orphan processes even though we ignore SIGTERM below.
+try:
+    _libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
+    _libc.prctl(1, 9)  # PR_SET_PDEATHSIG=1, SIGKILL=9
+except Exception:
+    pass  # non-Linux — skip
 
-def _on_sig(signum, frame):
-    ppid = os.getppid()
-    try:
-        cmd = open(f'/proc/{ppid}/cmdline').read().replace('\0', ' ').strip()
-    except Exception:
-        cmd = 'unknown'
-    print(f'killed by signal {signum} ({_sig.Signals(signum).name}) — PID={os.getpid()} parent={ppid} ({cmd})', file=sys.stderr, flush=True)
-    sys.exit(1)
+# ── Ignore SIGTERM — Node uses SIGKILL (pkill -9) for cleanup ────────────────
+# SIGTERM is being sent spuriously (possibly by the lgpio internal thread of a
+# stale previous process in the same session, or a pkill timing race).
+# Ignoring it lets this process survive and keep the sensor running.
+# SIGHUP is still respected so shell session close works.
+_sig.signal(_sig.SIGTERM, _sig.SIG_IGN)
 
-_sig.signal(_sig.SIGTERM, _on_sig)
-_sig.signal(_sig.SIGHUP,  _on_sig)
+def _on_hup(signum, frame):
+    print(f'exiting on SIGHUP — PID={os.getpid()}', file=sys.stderr, flush=True)
+    sys.exit(0)
+_sig.signal(_sig.SIGHUP, _on_hup)
 
 
 def backend_gpiod_v2():
