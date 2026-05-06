@@ -32,7 +32,7 @@ _sig.signal(_sig.SIGHUP,  _on_sig)
 def backend_gpiod_v2():
     """python3-gpiod >= 2.x (Pi OS Bookworm default)"""
     import gpiod
-    from gpiod.line import Direction  # raises ImportError on v1
+    from gpiod.line import Direction, Value  # raises ImportError on v1
     for chippath in ['/dev/gpiochip4', '/dev/gpiochip0']:
         if not os.path.exists(chippath):
             continue
@@ -45,7 +45,9 @@ def backend_gpiod_v2():
                 print(f'ready backend=gpiod-v2 chip={chippath} pin={pin}', flush=True)
                 last = 0
                 while True:
-                    val = 1 if str(req.get_value(pin)).endswith('ACTIVE') else 0
+                    # Compare against the enum directly — str() trick is unreliable
+                    # because "INACTIVE".endswith("ACTIVE") is True in Python.
+                    val = 1 if req.get_value(pin) == Value.ACTIVE else 0
                     if val == 1 and last == 0:
                         print('motion', flush=True)
                     last = val

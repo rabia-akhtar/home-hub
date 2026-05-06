@@ -2454,11 +2454,10 @@ export default function App() {
   const wide = useWide();
 
   // ── Zoom — persisted in localStorage ──
-  const ZOOM_DEFAULT = 1.35;
-  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem('appZoom') || String(ZOOM_DEFAULT)));
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem('appZoom2') || '1.35'));
   useEffect(() => {
     document.body.style.zoom = zoom;
-    localStorage.setItem('appZoom', String(zoom));
+    localStorage.setItem('appZoom2', String(zoom));
   }, [zoom]);
   const zoomIn  = useCallback(() => setZoom(z => Math.min(+(z + 0.05).toFixed(2), 2.0)),  []);
   const zoomOut = useCallback(() => setZoom(z => Math.max(+(z - 0.05).toFixed(2), 0.5)), []);
@@ -2711,7 +2710,7 @@ export default function App() {
           color:"#475569", display:"flex", alignItems:"center", justifyContent:"center",
           fontFamily:"inherit",
         }}>−</button>
-        <span style={{fontSize:12,fontWeight:700,color:"#64748b",minWidth:38,textAlign:"center"}}>{Math.round((zoom/ZOOM_DEFAULT)*100)}%</span>
+        <span style={{fontSize:12,fontWeight:700,color:"#64748b",minWidth:38,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
         <button onClick={zoomIn} style={{
           width:32, height:32, borderRadius:"50%", border:"none",
           background:"transparent", cursor:"pointer",
