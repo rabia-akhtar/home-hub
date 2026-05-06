@@ -2629,7 +2629,7 @@ export default function App() {
 
   // ── Idle screensaver: activate after 2 min of no interaction ──
   const idleTimer = useRef(null);
-  const IDLE_MS = 1 * 60 * 1000;
+  const IDLE_MS = 5 * 60 * 1000;
   const motionPausedUntil = useRef(0); // timestamp — suppress motion dismissal until this time
 
   const resetIdle = useCallback(() => {
