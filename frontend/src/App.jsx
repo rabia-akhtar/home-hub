@@ -102,9 +102,9 @@ const fmtDue = dateStr => {
 };
 
 function useWide() {
-  const [wide, setWide] = useState(()=>window.innerWidth >= 900);
+  const [wide, setWide] = useState(()=>window.innerWidth >= 700);
   useEffect(()=>{
-    const fn = ()=>setWide(window.innerWidth >= 900);
+    const fn = ()=>setWide(window.innerWidth >= 700);
     window.addEventListener('resize', fn);
     return ()=>window.removeEventListener('resize', fn);
   }, []);
@@ -113,8 +113,8 @@ function useWide() {
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const GRAD = "linear-gradient(160deg,#ff9472 0%,#f2709c 30%,#a78bfa 65%,#38bdf8 100%)";
-const CARD = { background:"rgba(255,255,255,0.95)", borderRadius:24, boxShadow:"0 2px 16px rgba(0,0,0,0.06)", border:"1px solid rgba(255,255,255,0.8)" };
-const TOUCH_ROW = { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #f1f5f9", cursor:"pointer" };
+const CARD = { background:"rgba(255,255,255,0.97)", borderRadius:24, boxShadow:"0 4px 20px rgba(0,0,0,0.08)", border:"1px solid rgba(255,255,255,0.9)" };
+const TOUCH_ROW = { minHeight:72, display:"flex", alignItems:"center", padding:"0 22px", borderBottom:"1px solid #f1f5f9", cursor:"pointer" };
 
 // ─── Global state hook ────────────────────────────────────────────────────────
 function useHub() {
@@ -281,10 +281,10 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
           {cur && (
             <div style={{ display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(12px)",borderRadius:16,padding:"10px 16px",flex:1 }}>
-              <WxIcon code={code} size={32}/>
+              <WxIcon code={code} size={36}/>
               <div>
-                <div style={{fontSize:22,fontWeight:700,color:"#fff",lineHeight:1}}>{Math.round(cur.temperature_2m)}°F</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.8)"}}>{wxL(code)} · {Math.round(cur.wind_speed_10m)}mph</div>
+                <div style={{fontSize:26,fontWeight:700,color:"#fff",lineHeight:1}}>{Math.round(cur.temperature_2m)}°F</div>
+                <div style={{fontSize:14,color:"rgba(255,255,255,0.85)"}}>{wxL(code)} · {Math.round(cur.wind_speed_10m)}mph</div>
               </div>
             </div>
           )}
@@ -312,11 +312,11 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
         </div>
         {/* Advisory strip — only shown when there are active advisories */}
         {advisories2.length>0 && (
-          <div style={{marginTop:12,display:"flex",flexWrap:"wrap",gap:8}}>
+          <div style={{marginTop:14,display:"flex",flexWrap:"wrap",gap:10}}>
             {advisories2.map((a,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(8px)",borderRadius:99,padding:"6px 14px"}}>
-                <span style={{fontSize:16}}>{a.icon}</span>
-                <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{a.msg}</span>
+              <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.28)",backdropFilter:"blur(12px)",borderRadius:18,padding:"14px 22px",border:"1px solid rgba(255,255,255,0.4)",flex:1,minWidth:0}}>
+                <span style={{fontSize:30,flexShrink:0}}>{a.icon}</span>
+                <span style={{fontSize:17,fontWeight:700,color:"#fff",lineHeight:1.3}}>{a.msg}</span>
               </div>
             ))}
           </div>
@@ -341,24 +341,24 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
   const due = fmtDue(task.due?.date);
 
   return (
-    <div style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:"1px solid #f8fafc",gap:14,opacity:done?0.35:1,transition:"opacity 0.3s"}}>
+    <div style={{display:"flex",alignItems:"center",padding:"0 22px",minHeight:76,borderBottom:"1px solid #f1f5f9",gap:16,opacity:done?0.35:1,transition:"opacity 0.3s"}}>
       <button onClick={complete}
-        style={{width:24,height:24,borderRadius:"50%",border:"2px solid #10b981",background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        {done && <div style={{width:9,height:9,borderRadius:"50%",background:"#10b981"}}/>}
+        style={{width:32,height:32,borderRadius:"50%",border:"2.5px solid #10b981",background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        {done && <div style={{width:13,height:13,borderRadius:"50%",background:"#10b981"}}/>}
       </button>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:14,color:"#1e293b",fontWeight:500,textDecoration:done?"line-through":"none"}}>{task.content}</div>
-        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:2}}>
-          {task.project_name && <span style={{fontSize:11,color:"#94a3b8"}}>{task.project_name}</span>}
-          {due && <span style={{fontSize:11,fontWeight:700,color:due.color}}>{due.label}</span>}
+        <div style={{fontSize:18,color:"#1e293b",fontWeight:500,textDecoration:done?"line-through":"none"}}>{task.content}</div>
+        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:4}}>
+          {task.project_name && <span style={{fontSize:14,color:"#94a3b8"}}>{task.project_name}</span>}
+          {due && <span style={{fontSize:14,fontWeight:700,color:due.color}}>{due.label}</span>}
         </div>
       </div>
-      {task.counts_for_reward && <span style={{fontSize:10,color:"#10b981",fontWeight:700}}>+5⭐</span>}
-      <div style={{display:"flex",gap:5,flexShrink:0,alignItems:"center"}}>
-        {family && <span style={{width:28,height:28,borderRadius:"50%",background:"#6366f1",color:"#fff",fontWeight:800,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>F</span>}
+      {task.counts_for_reward && <span style={{fontSize:13,color:"#10b981",fontWeight:700}}>+5⭐</span>}
+      <div style={{display:"flex",gap:7,flexShrink:0,alignItems:"center"}}>
+        {family && <span style={{width:36,height:36,borderRadius:"50%",background:"#6366f1",color:"#fff",fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>F</span>}
         {[RABIA,CLARE].map(p=>(
           <button key={p.name} onClick={()=>!family&&setAssignee(a=>a===p.name.toLowerCase()?"":p.name.toLowerCase())}
-            style={{width:28,height:28,borderRadius:"50%",border:`2px solid ${(family||assignee===p.name.toLowerCase())?p.color:"#e2e8f0"}`,background:(family||assignee===p.name.toLowerCase())?p.color:"#fff",color:(family||assignee===p.name.toLowerCase())?"#fff":"#94a3b8",fontWeight:800,fontSize:12,cursor:family?"default":"pointer",fontFamily:"inherit"}}>
+            style={{width:36,height:36,borderRadius:"50%",border:`2.5px solid ${(family||assignee===p.name.toLowerCase())?p.color:"#e2e8f0"}`,background:(family||assignee===p.name.toLowerCase())?p.color:"#fff",color:(family||assignee===p.name.toLowerCase())?"#fff":"#94a3b8",fontWeight:800,fontSize:14,cursor:family?"default":"pointer",fontFamily:"inherit"}}>
             {p.initial}
           </button>
         ))}
@@ -392,6 +392,17 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   const familyTasks = nonGrocToday.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
   const rabiaPersonalTasks = rabiaPersonalProj ? tasks.filter(t=>!t.checked && t.project_id===rabiaPersonalProj.id && t.due?.date===todayStr) : [];
 
+  // Overdue tasks (due before today, not completed)
+  const overdueTasks = tasks.filter(t=>{
+    if(!t.due?.date||t.checked) return false;
+    if(t.project_id===groceriesProj?.id) return false;
+    return new Date(t.due.date+'T12:00:00') < today;
+  });
+  const overdueRabia   = overdueTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"&&t.project_id!==rabiaPersonalProj?.id; });
+  const overdueClare   = overdueTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
+  const overdueFamily  = overdueTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
+  const overduePersonal= rabiaPersonalProj ? tasks.filter(t=>!t.checked&&t.project_id===rabiaPersonalProj.id&&t.due?.date&&new Date(t.due.date+'T12:00:00')<today) : [];
+
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
   const weekTasks = tasks.filter(t=>{
     if(!t.due?.date||t.checked) return false;
@@ -419,7 +430,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </svg>
   );
 
-  const makeCol = (person, myEvts, myTasks, personalTasks=[], growable=false) => {
+  const makeCol = (person, myEvts, myTasks, personalTasks=[], growable=false, myOverdue=[]) => {
     const pKey  = person.name.toLowerCase();
     const points= pts[`${pKey}_points`]||0;
     const next  = [100,250,500,750,1000].find(m=>m>points)||1000;
@@ -428,28 +439,40 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
       <div style={{display:"flex",flexDirection:"column",gap:12,...(growable?{height:"100%"}:{})}}>
         {/* Avatar + points */}
         <div style={{...CARD,overflow:"hidden"}}>
-          <div style={{background:`linear-gradient(135deg,${person.color}22,${person.color}08)`,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
-            <Av person={person} size={48}/>
+          <div style={{background:`linear-gradient(135deg,${person.color}22,${person.color}08)`,padding:"18px 20px",display:"flex",alignItems:"center",gap:16}}>
+            <Av person={person} size={60}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
-                <div style={{flex:1,height:6,background:`${person.color}20`,borderRadius:99,overflow:"hidden"}}>
+              <div style={{fontSize:24,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6}}>
+                <div style={{flex:1,height:8,background:`${person.color}20`,borderRadius:99,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${prog}%`,background:person.color,borderRadius:99,transition:"width 0.5s"}}/>
                 </div>
-                <div style={{fontSize:11,fontWeight:700,color:person.color,whiteSpace:"nowrap"}}>{points} / {next} ⭐</div>
+                <div style={{fontSize:15,fontWeight:700,color:person.color,whiteSpace:"nowrap"}}>{points} / {next} ⭐</div>
               </div>
             </div>
-            <button onClick={()=>onResetPts(pKey)} style={{fontSize:10,padding:"3px 9px",borderRadius:99,border:`1px solid ${person.color}40`,background:"transparent",color:person.color,cursor:"pointer",fontFamily:"inherit"}}>reset</button>
+            <button onClick={()=>onResetPts(pKey)} style={{fontSize:12,padding:"5px 12px",borderRadius:99,border:`1px solid ${person.color}40`,background:"transparent",color:person.color,cursor:"pointer",fontFamily:"inherit"}}>reset</button>
           </div>
         </div>
+
+        {/* Overdue — red alert section */}
+        {myOverdue.length>0 && (
+          <div style={{...CARD,overflow:"hidden",border:"2px solid #fca5a550"}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #fef2f2",background:"#fef2f2",display:"flex",alignItems:"center",gap:8}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#ef4444" strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="13" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill="#ef4444"/></svg>
+              <div style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>Overdue</div>
+              <span style={{fontSize:14,color:"#fca5a8",marginLeft:2}}>{myOverdue.length}</span>
+            </div>
+            {myOverdue.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+          </div>
+        )}
 
         {/* Due today — shown near top so it's always visible */}
         {myTasks.length>0 && (
           <div style={{...CARD,overflow:"hidden"}}>
             <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
               <TaskIcon color={person.color}/>
-              <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
-              <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{myTasks.length}</span>
+              <div style={{fontSize:16,fontWeight:700,color:"#1e293b"}}>Due Today</div>
+              <span style={{fontSize:14,color:"#94a3b8",marginLeft:2}}>{myTasks.length}</span>
             </div>
             {myTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
           </div>
@@ -459,9 +482,9 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
         {personalTasks.length>0 && (
           <div style={{...CARD,overflow:"hidden"}}>
             <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:`linear-gradient(135deg,${person.color}10,${person.color}05)`,display:"flex",alignItems:"center",gap:8}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke={person.color} strokeWidth="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke={person.color} strokeWidth="2" strokeLinecap="round"/></svg>
-              <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Personal</div>
-              <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{personalTasks.length}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke={person.color} strokeWidth="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke={person.color} strokeWidth="2" strokeLinecap="round"/></svg>
+              <div style={{fontSize:16,fontWeight:700,color:"#1e293b"}}>Personal</div>
+              <span style={{fontSize:14,color:"#94a3b8",marginLeft:2}}>{personalTasks.length}</span>
             </div>
             {personalTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
           </div>
@@ -471,19 +494,19 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
         <div style={{...CARD,overflow:"hidden",...(growable?{flex:1,display:"flex",flexDirection:"column",minHeight:0}:{})}}>
           <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
             <CalIcon color={person.color}/>
-            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Today</div>
+            <div style={{fontSize:16,fontWeight:700,color:"#1e293b"}}>Today</div>
             {authOk===false && <a href="/api/auth/google" target="_blank" rel="noreferrer" style={{fontSize:10,color:person.color,fontWeight:600,marginLeft:"auto"}}>Connect →</a>}
           </div>
           {growable
             ? <div style={{flex:1,overflowY:"auto",minHeight:60}}>
                 {myEvts.length===0
-                  ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
+                  ? <div style={{padding:"16px 18px",fontSize:16,color:"#94a3b8"}}>Nothing today</div>
                   : myEvts.map((e,i)=>(
-                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
-                      <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
+                      <div style={{width:5,alignSelf:"stretch",minHeight:32,borderRadius:99,background:e.color,flexShrink:0}}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
-                        <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
+                        <div style={{fontSize:17,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
+                        <div style={{fontSize:14,color:"#94a3b8",marginTop:2}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
                       </div>
                     </div>
                   ))
@@ -491,13 +514,13 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
               </div>
             : <>
                 {myEvts.length===0
-                  ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8"}}>Nothing today</div>
+                  ? <div style={{padding:"16px 18px",fontSize:16,color:"#94a3b8"}}>Nothing today</div>
                   : myEvts.map((e,i)=>(
-                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
-                      <div style={{width:3,alignSelf:"stretch",minHeight:28,borderRadius:99,background:e.color,flexShrink:0}}/>
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px",borderBottom:i<myEvts.length-1?"1px solid #f8fafc":"none"}}>
+                      <div style={{width:5,alignSelf:"stretch",minHeight:32,borderRadius:99,background:e.color,flexShrink:0}}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
-                        <div style={{fontSize:11,color:"#94a3b8"}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
+                        <div style={{fontSize:17,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
+                        <div style={{fontSize:14,color:"#94a3b8",marginTop:2}}>{e.allDay?"All day":fmtFull12(e.start)}</div>
                       </div>
                     </div>
                   ))
@@ -513,67 +536,85 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   const familyCol = (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{...CARD,overflow:"hidden",border:"1px solid #a78bfa30"}}>
-        <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:"3px solid rgba(255,255,255,0.85)",flexShrink:0}}>F</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>Family</div>
+        <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"18px 20px",display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:60,height:60,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:22,color:"#fff",border:"3px solid rgba(255,255,255,0.85)",flexShrink:0}}>F</div>
+          <div style={{fontSize:24,fontWeight:800,color:"#1e293b"}}>Family</div>
         </div>
       </div>
+      {overdueFamily.length>0 && (
+        <div style={{...CARD,overflow:"hidden",border:"2px solid #fca5a550"}}>
+          <div style={{padding:"12px 18px",borderBottom:"1px solid #fef2f2",background:"#fef2f2",display:"flex",alignItems:"center",gap:8}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#ef4444" strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="13" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill="#ef4444"/></svg>
+            <div style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>Overdue</div>
+            <span style={{fontSize:14,color:"#fca5a8",marginLeft:2}}>{overdueFamily.length}</span>
+          </div>
+          {overdueFamily.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+        </div>
+      )}
       {familyTasks.length>0 && (
         <div style={{...CARD,overflow:"hidden"}}>
-          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
+          <div style={{padding:"12px 18px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
             <TaskIcon color="#6366f1"/>
-            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
-            <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
+            <div style={{fontSize:16,fontWeight:700,color:"#1e293b"}}>Due Today</div>
+            <span style={{fontSize:14,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
           </div>
           {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
         </div>
       )}
-      {familyTasks.length===0 && (
-        <div style={{...CARD,padding:"16px",fontSize:12,color:"#94a3b8",textAlign:"center"}}>No family tasks today</div>
+      {familyTasks.length===0 && overdueFamily.length===0 && (
+        <div style={{...CARD,padding:"18px",fontSize:16,color:"#94a3b8",textAlign:"center"}}>No family tasks today</div>
       )}
     </div>
   );
 
   // ── Family column (wide — includes groceries as growing card) ──────────────
   const familyWideCol = (
-    <div style={{display:"flex",flexDirection:"column",gap:12,height:"100%"}}>
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{...CARD,overflow:"hidden",border:"1px solid #a78bfa30"}}>
-        <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:"3px solid rgba(255,255,255,0.85)",flexShrink:0}}>F</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>Family</div>
+        <div style={{background:"linear-gradient(135deg,#6366f112,#a78bfa08)",padding:"18px 20px",display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:60,height:60,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:22,color:"#fff",border:"3px solid rgba(255,255,255,0.85)",flexShrink:0}}>F</div>
+          <div style={{fontSize:24,fontWeight:800,color:"#1e293b"}}>Family</div>
         </div>
       </div>
+      {overdueFamily.length>0 && (
+        <div style={{...CARD,overflow:"hidden",border:"2px solid #fca5a550"}}>
+          <div style={{padding:"12px 18px",borderBottom:"1px solid #fef2f2",background:"#fef2f2",display:"flex",alignItems:"center",gap:8}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#ef4444" strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="13" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill="#ef4444"/></svg>
+            <div style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>Overdue</div>
+            <span style={{fontSize:14,color:"#fca5a8",marginLeft:2}}>{overdueFamily.length}</span>
+          </div>
+          {overdueFamily.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+        </div>
+      )}
       {familyTasks.length>0 && (
         <div style={{...CARD,overflow:"hidden"}}>
-          <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
+          <div style={{padding:"12px 18px",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"center",gap:8}}>
             <TaskIcon color="#6366f1"/>
-            <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
-            <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
+            <div style={{fontSize:16,fontWeight:700,color:"#1e293b"}}>Due Today</div>
+            <span style={{fontSize:14,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
           </div>
           {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
         </div>
       )}
-      {/* Groceries — grows to fill remaining column height */}
-      <div style={{...CARD,overflow:"hidden",flex:1,display:"flex",flexDirection:"column",minHeight:0,border:"1px solid #bbf7d040"}}>
-        <div style={{padding:"10px 16px",borderBottom:"1px solid #f0fdf4",background:"#f0fdf4",display:"flex",alignItems:"center",gap:8,flexShrink:0,justifyContent:"space-between"}}>
+      {/* Groceries */}
+      <div style={{...CARD,overflow:"hidden",border:"1px solid #bbf7d040"}}>
+        <div style={{padding:"12px 18px",borderBottom:"1px solid #f0fdf4",background:"#f0fdf4",display:"flex",alignItems:"center",gap:8,flexShrink:0,justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="1.8" strokeLinecap="round"/></svg>
-            <span style={{fontSize:12,fontWeight:700,color:"#059669"}}>Groceries</span>
-            <span style={{fontSize:11,color:"#94a3b8"}}>{groceryTasks.length}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="1.8" strokeLinecap="round"/></svg>
+            <span style={{fontSize:16,fontWeight:700,color:"#059669"}}>Groceries</span>
+            <span style={{fontSize:14,color:"#94a3b8"}}>{groceryTasks.length}</span>
           </div>
-          <button onClick={()=>onSetTab("groceries")} style={{fontSize:11,padding:"4px 10px",borderRadius:99,border:"1px solid #059669",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
+          <button onClick={()=>onSetTab("groceries")} style={{fontSize:13,padding:"5px 12px",borderRadius:99,border:"1px solid #059669",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
         </div>
-        <div style={{flex:1,overflowY:"auto",minHeight:60}}>
-          {groceryTasks.length===0
-            ? <div style={{padding:"14px 16px",fontSize:12,color:"#94a3b8"}}>All clear! 🛒</div>
-            : groceryTasks.map((t,i)=>(
-              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 16px",minHeight:42,borderBottom:i<groceryTasks.length-1?"1px solid #f8fafc":"none",gap:10}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
-                <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
-              </div>
-            ))
-          }
-        </div>
+        {groceryTasks.length===0
+          ? <div style={{padding:"16px 18px",fontSize:16,color:"#94a3b8"}}>All clear! 🛒</div>
+          : groceryTasks.map((t,i)=>(
+            <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:56,borderBottom:i<groceryTasks.length-1?"1px solid #f8fafc":"none",gap:12}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
+              <div style={{fontSize:16,color:"#1e293b"}}>{t.content}</div>
+            </div>
+          ))
+        }
       </div>
     </div>
   );
@@ -587,25 +628,25 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   const WeekCol = ({person, tasks:wt, color}) => (
     <div style={{display:"flex",flexDirection:"column",gap:0,minWidth:0}}>
-      <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderBottom:"1px solid #f1f5f9",background:`${color}08`}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",borderBottom:"1px solid #f1f5f9",background:`${color}08`}}>
         {person
-          ? <Av person={person} size={20}/>
-          : <div style={{width:20,height:20,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>F</div>
+          ? <Av person={person} size={26}/>
+          : <div style={{width:26,height:26,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0}}>F</div>
         }
-        <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{person?.name||"Family"}</span>
-        <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{wt.length}</span>
+        <span style={{fontSize:16,fontWeight:700,color:"#1e293b"}}>{person?.name||"Family"}</span>
+        <span style={{fontSize:14,color:"#94a3b8",marginLeft:2}}>{wt.length}</span>
       </div>
       {wt.length===0
-        ? <div style={{padding:"10px 14px",fontSize:12,color:"#94a3b8"}}>Nothing this week</div>
+        ? <div style={{padding:"14px 18px",fontSize:15,color:"#94a3b8"}}>Nothing this week</div>
         : wt.map(t=>{
             const due=fmtDue(t.due?.date);
             return (
-              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 14px",minHeight:46,borderBottom:"1px solid #f8fafc",gap:10}}>
+              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:60,borderBottom:"1px solid #f8fafc",gap:12}}>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
-                  {t.project_name && <div style={{fontSize:10,color:"#94a3b8"}}>{t.project_name}</div>}
+                  <div style={{fontSize:16,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
+                  {t.project_name && <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>{t.project_name}</div>}
                 </div>
-                {due && <span style={{fontSize:11,fontWeight:700,color:due.color,flexShrink:0,whiteSpace:"nowrap"}}>{due.label}</span>}
+                {due && <span style={{fontSize:14,fontWeight:700,color:due.color,flexShrink:0,whiteSpace:"nowrap"}}>{due.label}</span>}
               </div>
             );
           })
@@ -615,15 +656,15 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   const weekCard = (
     <div style={{...CARD,overflow:"hidden"}}>
-      <div onClick={()=>setWeekOpen(v=>!v)} style={{padding:"14px 18px",background:"#fafafa",display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#6366f1" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="#6366f1" strokeWidth="1.5"/></svg>
-        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>Upcoming This Week</div>
-        <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length}</span>
+      <div onClick={()=>setWeekOpen(v=>!v)} style={{padding:"16px 20px",background:"#fafafa",display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#6366f1" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="#6366f1" strokeWidth="1.5"/></svg>
+        <div style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>Upcoming This Week</div>
+        <span style={{fontSize:15,fontWeight:600,color:"#94a3b8"}}>{weekTasks.length}</span>
         <svg style={{marginLeft:"auto",transform:weekOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}} width="16" height="16" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </div>
       {weekOpen && (
         weekTasks.length===0
-          ? <div style={{padding:"16px 18px",fontSize:13,color:"#94a3b8",borderTop:"1px solid #f1f5f9"}}>Nothing coming up this week</div>
+          ? <div style={{padding:"18px 20px",fontSize:16,color:"#94a3b8",borderTop:"1px solid #f1f5f9"}}>Nothing coming up this week</div>
           : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderTop:"1px solid #f1f5f9"}}>
               <WeekCol person={RABIA}  tasks={weekRabia}  color={RABIA.color}/>
               <div style={{borderLeft:"1px solid #f1f5f9"}}><WeekCol person={CLARE} tasks={weekClare} color={CLARE.color}/></div>
@@ -654,12 +695,24 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </div>
   ) : null;
 
+  if(wide) return (
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,alignItems:"start"}}>
+        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
+        {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
+        {familyWideCol}
+      </div>
+      {weekCard}
+    </div>
+  );
+
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks)}
-      {makeCol(CLARE, clareEvts, clareTasks)}
+      {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
+      {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
       {familyCol}
       {grocCard}
+      {weekCard}
     </div>
   );
 }
@@ -1326,12 +1379,15 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
         {people.map(person=>{
           const pKey   = person.name.toLowerCase();
           const points = pts[`${pKey}_points`]||0;
+          const next   = [100,250,500,750,1000].find(m=>m>points)||1000;
+          const toGo   = next - points;
           return (
             <div key={person.name} style={{...CARD,flex:1,padding:"18px",textAlign:"center",background:`linear-gradient(145deg,${person.color}12,${person.color}06)`,border:`2px solid ${person.color}30`}}>
               <Av person={person} size={48}/>
               <div style={{marginTop:10}}>
-                <ProgressRing pts={points} max={500} color={person.color}/>
-                <div style={{fontSize:13,color:"#64748b",marginTop:4,fontWeight:600}}>to next reward</div>
+                <ProgressRing pts={points} max={next} color={person.color}/>
+                <div style={{fontSize:14,color:person.color,marginTop:4,fontWeight:700}}>{points} pts</div>
+                <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{toGo} more to next reward</div>
               </div>
             </div>
           );
@@ -1366,10 +1422,19 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
         </div>
       )}
 
+      {/* Sheet error */}
+      {rwds.sheetError && (
+        <div style={{...CARD,padding:"16px 20px",background:"#fef2f2",border:"1.5px solid #fca5a5",color:"#b91c1c",fontSize:14}}>
+          <strong>Spreadsheet error:</strong> {rwds.sheetError}
+          <div style={{fontSize:12,marginTop:4,color:"#dc2626"}}>Check that the "Rewards" tab exists in the budget spreadsheet and the service account has access.</div>
+        </div>
+      )}
+
       {/* Reward cards per person — sourced from Google Sheet */}
-      {rwds.rewards.length === 0 && !showAdd && (
+      {rwds.rewards.length === 0 && !showAdd && !rwds.sheetError && (
         <div style={{...CARD,padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:14}}>
           No rewards yet — tap "+ Add reward" or add rows to the <strong>Rewards</strong> tab in the budget spreadsheet.
+          <div style={{fontSize:12,marginTop:6,color:"#cbd5e1"}}>Sheet columns: A=Name, B=Points cost, C=Icon (emoji), D=Who (both/rabia/clare)</div>
         </div>
       )}
       {people.map(person=>{
@@ -2534,6 +2599,7 @@ export default function App() {
   const startScreensaver = useCallback(() => {
     motionPausedUntil.current = Date.now() + 10_000;
     setScreensaver(true);
+    setTab("home"); // always return to home when screensaver starts
     clearTimeout(idleTimer.current); // don't auto-dismiss while manually locked
   }, []);
 
@@ -2572,7 +2638,7 @@ export default function App() {
 
   const resetIdle = useCallback(() => {
     clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setScreensaver(true), IDLE_MS);
+    idleTimer.current = setTimeout(() => { setScreensaver(true); setTab("home"); }, IDLE_MS);
   }, []); // no dependency on screensaver — always restarts the timer
   useEffect(() => { resetIdle(); return () => clearTimeout(idleTimer.current); }, []);
 
@@ -2704,9 +2770,9 @@ export default function App() {
             {NAV.map(n=>{
               const active = tab===n.id;
               return (
-                <button key={n.id} onClick={()=>setTab(n.id)} style={{ display:"flex", alignItems:"center", gap:14, padding:"16px 20px", background:active?`${n.color}14`:"transparent", border:"none", borderLeft:`3px solid ${active?n.color:"transparent"}`, cursor:"pointer", color:active?n.color:"#64748b", fontFamily:"inherit", transition:"all 0.15s", textAlign:"left" }}>
+                <button key={n.id} onClick={()=>setTab(n.id)} style={{ display:"flex", alignItems:"center", gap:14, padding:"17px 20px", background:active?`${n.color}14`:"transparent", border:"none", borderLeft:`3px solid ${active?n.color:"transparent"}`, cursor:"pointer", color:active?n.color:"#64748b", fontFamily:"inherit", transition:"all 0.15s", textAlign:"left" }}>
                   {n.icon}
-                  <span style={{ fontSize:15, fontWeight:active?700:500 }}>{n.label}</span>
+                  <span style={{ fontSize:16, fontWeight:active?700:500 }}>{n.label}</span>
                 </button>
               );
             })}
@@ -2723,7 +2789,7 @@ export default function App() {
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
-          style={{ flex:1, minHeight:0, overflowY:"scroll", touchAction:"none", cursor: dragState.current ? "grabbing" : "default", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
+          style={{ flex:1, minHeight:0, overflowY:"scroll", touchAction:"none", cursor: dragState.current ? "grabbing" : "default", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "20px 20px 24px" : "16px 16px 100px" }}
         >
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}

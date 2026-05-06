@@ -515,7 +515,7 @@ let rewardsSheetCache = { data: null, ts: 0 };
 
 async function fetchRewardsFromSheet() {
   if (Date.now() - rewardsSheetCache.ts < 5 * 60 * 1000 && rewardsSheetCache.data)
-    return rewardsSheetCache.data;
+    return { rewards: rewardsSheetCache.data, error: null };
   try {
     const sheets = sheetsClient();
     const r = await sheets.spreadsheets.values.get({
@@ -523,6 +523,7 @@ async function fetchRewardsFromSheet() {
       range: 'Rewards!A2:D200',
     });
     const rows = r.data.values || [];
+    console.log(`[Rewards] Sheet returned ${rows.length} raw rows`);
     const rewards = rows
       .filter(row => row[0] && row[1])
       .map((row, i) => ({
@@ -532,11 +533,12 @@ async function fetchRewardsFromSheet() {
         icon: (row[2] || '🎁').trim(),
         who:  (row[3] || 'both').trim().toLowerCase(),
       }));
+    console.log(`[Rewards] Parsed ${rewards.length} rewards from sheet`);
     rewardsSheetCache = { data: rewards, ts: Date.now() };
-    return rewards;
+    return { rewards, error: null };
   } catch(e) {
     console.warn('[Rewards] Sheet read failed:', e.message);
-    return rewardsSheetCache.data || [];
+    return { rewards: rewardsSheetCache.data || [], error: e.message };
   }
 }
 
@@ -552,8 +554,8 @@ async function getRewardsSheetId() {
 }
 
 app.get('/api/rewards', async (req, res) => {
-  const [rewards, data] = await Promise.all([fetchRewardsFromSheet(), Promise.resolve(loadData())]);
-  res.json({ rewards, redeemed: data.redeemed, task_history: data.task_history || [] });
+  const [{ rewards, error: sheetError }, data] = await Promise.all([fetchRewardsFromSheet(), Promise.resolve(loadData())]);
+  res.json({ rewards, redeemed: data.redeemed, task_history: data.task_history || [], sheetError });
 });
 
 // Add reward — append row to sheet
@@ -569,7 +571,7 @@ app.post('/api/rewards', async (req, res) => {
       requestBody: { values: [[name, String(cost), icon || '🎁', who || 'both']] },
     });
     rewardsSheetCache.ts = 0;
-    const rewards = await fetchRewardsFromSheet();
+    const { rewards } = await fetchRewardsFromSheet();
     res.json({ ok: true, rewards });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -588,7 +590,7 @@ app.patch('/api/rewards/:id', async (req, res) => {
       requestBody: { values: [[name, String(cost), icon || '🎁', who || 'both']] },
     });
     rewardsSheetCache.ts = 0;
-    const rewards = await fetchRewardsFromSheet();
+    const { rewards } = await fetchRewardsFromSheet();
     res.json({ ok: true, rewards });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -607,7 +609,7 @@ app.delete('/api/rewards/:id', async (req, res) => {
     });
     rewardsSheetId = null; // row numbers shifted, reset sheet id cache too
     rewardsSheetCache.ts = 0;
-    const rewards = await fetchRewardsFromSheet();
+    const { rewards } = await fetchRewardsFromSheet();
     res.json({ ok: true, rewards });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1074,22 +1076,24 @@ app.post('/api/findmy/open/:account', (req, res) => {
 
   const userDataDir = path.join(os.homedir(), `.findmy-chrome-${account}`);
 
-  // Write Chromium preferences once so "Continue where you left off" is on.
-  // This makes Chromium persist session cookies across restarts.
+  // Write Chromium preferences so "Continue where you left off" is on.
+  // This persists session cookies (including iCloud login) across restarts.
+  // Must be written BEFORE Chromium opens so it picks them up on first launch.
   const profileDir = path.join(userDataDir, 'Default');
   const prefsFile  = path.join(profileDir, 'Preferences');
   try {
     fs.mkdirSync(profileDir, { recursive: true });
-    if (!fs.existsSync(prefsFile)) {
-      fs.writeFileSync(prefsFile, JSON.stringify({ session: { restore_on_startup: 1 } }));
-    } else {
-      // Merge into existing prefs without overwriting everything
-      const prefs = JSON.parse(fs.readFileSync(prefsFile, 'utf8'));
-      if (!prefs.session || prefs.session.restore_on_startup !== 1) {
-        prefs.session = { ...(prefs.session || {}), restore_on_startup: 1 };
-        fs.writeFileSync(prefsFile, JSON.stringify(prefs));
-      }
+    let prefs = {};
+    if (fs.existsSync(prefsFile)) {
+      try { prefs = JSON.parse(fs.readFileSync(prefsFile, 'utf8')); } catch(_) {}
     }
+    // restore_on_startup 1 = "Continue where you left off" (preserves session cookies)
+    prefs.session = { ...(prefs.session || {}), restore_on_startup: 1 };
+    // Tell Chromium not to wipe session cookies on exit
+    if (!prefs.profile) prefs.profile = {};
+    prefs.profile.exit_type = 'Normal';
+    prefs.profile.exited_cleanly = true;
+    fs.writeFileSync(prefsFile, JSON.stringify(prefs));
   } catch(e) {
     console.warn('[FindMy] Could not write preferences:', e.message);
   }
@@ -1102,11 +1106,13 @@ app.post('/api/findmy/open/:account', (req, res) => {
     XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid()}`,
   };
 
+  // NOTE: --new-window is intentionally omitted — it forces a fresh window and
+  // prevents --restore-last-session from working, which causes iCloud sign-out.
   const child = spawn(CHROMIUM_BIN, [
     `--user-data-dir=${userDataDir}`,
     '--password-store=basic',
-    '--new-window',
     '--restore-last-session',
+    '--no-first-run',
     '--noerrdialogs',
     '--disable-infobars',
     '--disable-session-crashed-bubble',
