@@ -596,7 +596,6 @@ async function getRewardsSheetId() {
 // ─── Task History — Google Sheets "Task History" tab ─────────────────────────
 // Columns: A=Date  B=Title  C=Project  D=Who  E=Points  F=TodoistID
 const TASK_HISTORY_SHEET = 'Task History';
-const TODOIST_SYNC_BASE  = 'https://api.todoist.com/sync/v9';
 let taskHistoryCache = { data: null, ts: 0 };
 
 async function fetchTaskHistoryFromSheet() {
@@ -696,29 +695,18 @@ async function getServerUidMap() {
 }
 
 // Periodic Todoist sync — picks up tasks completed outside the hub app
+// Periodic sync: GET /api/v1/tasks/completed/by_completion_date (correct REST API v1 endpoint)
+// Tracks last_sync_at in data.json; on each run fetches only new completions since then.
 async function syncCompletedTasks() {
-  const data      = loadData();
-  const syncToken = data.todoist_sync_token || '*';
-  const isInit    = !data.todoist_sync_initialized;
+  const data = loadData();
+  const now  = new Date();
+  // Look back 10 min extra to cover any clock skew
+  const since = data.todoist_last_sync_at
+    ? new Date(new Date(data.todoist_last_sync_at).getTime() - 10 * 60 * 1000).toISOString()
+    : new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(); // first run: last 24 h
+  const until = now.toISOString();
+
   try {
-    const syncRes = await fetch(`${TODOIST_SYNC_BASE}/sync`, {
-      method:  'POST',
-      headers: { Authorization: `Bearer ${process.env.TODOIST_TOKEN}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ sync_token: syncToken, resource_types: ['items'] }),
-    }).then(r => r.json());
-
-    data.todoist_sync_token       = syncRes.sync_token;
-    data.todoist_sync_initialized = true;
-    saveData(data);
-
-    if (isInit) {
-      console.log('[Sync] Todoist sync initialized — will track future completions');
-      return;
-    }
-
-    const completedItems = (syncRes.items || []).filter(item => item.checked && !item.is_deleted);
-    if (completedItems.length === 0) return;
-
     const [projectsRes, uidMap] = await Promise.all([
       fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json()),
       getServerUidMap(),
@@ -727,33 +715,49 @@ async function syncCompletedTasks() {
     todoList(projectsRes).forEach(p => { pm[p.id] = p.name; });
 
     // Load existing tracked IDs to avoid double-counting
-    const existing  = await fetchTaskHistoryFromSheet();
+    const existing   = await fetchTaskHistoryFromSheet();
     const trackedIds = new Set(existing.map(h => h.todoist_id).filter(Boolean));
 
-    let added = 0;
-    for (const item of completedItems) {
-      const itemId = String(item.id);
-      if (trackedIds.has(itemId)) continue;
+    // Page through completed tasks in the window
+    let cursor = null;
+    let added  = 0;
+    while (true) {
+      const params = new URLSearchParams({ since, until, limit: '200' });
+      if (cursor) params.set('cursor', cursor);
+      const r = await fetch(`${TODO_BASE}/tasks/completed/by_completion_date?${params}`, { headers: TODO_HDR }).then(r => r.json());
+      const items = r.items || [];
 
-      const projectName = pm[item.project_id] || 'Inbox';
-      if (!countsForReward(projectName))  continue;
-      if (item.due?.is_recurring)         continue;
+      for (const item of items) {
+        const itemId = String(item.id || '');
+        if (!itemId || trackedIds.has(itemId)) continue;
 
-      // Determine assignee; skip if we can't identify them
-      const who = uidMap[item.responsible_uid] || null;
-      if (!who) continue;
+        const projectName = pm[item.project_id] || 'Inbox';
+        if (!countsForReward(projectName)) continue;
+        if (item.due?.is_recurring)        continue;
 
-      await appendTaskHistoryRow({
-        completedAt: item.date_completed || new Date().toISOString(),
-        title:       item.content || 'Task',
-        project:     projectName,
-        who,
-        points:      5,
-        todoist_id:  itemId,
-      });
-      trackedIds.add(itemId); // prevent same-run duplicates
-      added++;
+        const who = uidMap[item.responsible_uid || item.completed_by_uid] || null;
+        if (!who) continue;
+
+        await appendTaskHistoryRow({
+          completedAt: item.completed_at || now.toISOString(),
+          title:       item.content || 'Task',
+          project:     projectName,
+          who,
+          points:      5,
+          todoist_id:  itemId,
+        });
+        trackedIds.add(itemId);
+        added++;
+      }
+
+      cursor = r.next_cursor || null;
+      if (!cursor) break;
     }
+
+    // Save the sync timestamp
+    data.todoist_last_sync_at = now.toISOString();
+    saveData(data);
+
     if (added > 0) console.log(`[Sync] Added ${added} task(s) to Task History from Todoist`);
   } catch(e) {
     console.error('[Sync] Error:', e.message);

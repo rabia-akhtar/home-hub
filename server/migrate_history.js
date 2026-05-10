@@ -3,9 +3,12 @@
  * One-time migration: read ALL completed tasks from Todoist and write
  * reward-eligible ones to the Google Sheets "Task History" tab.
  *
- * Run once on the Pi AFTER creating the Task History sheet:
- *   node migrate_history.js
+ * Uses the correct REST API v1 endpoint:
+ *   GET /api/v1/tasks/completed/by_completion_date
+ * which requires since/until params and covers up to 3 months per call.
+ * We loop backwards in 3-month windows to cover full history.
  *
+ * Run once on the Pi:  node migrate_history.js
  * Safe to re-run — skips tasks whose TodoistID is already in the sheet.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
@@ -19,10 +22,12 @@ const TODOIST_TOKEN    = process.env.TODOIST_TOKEN;
 const SPREADSHEET_ID   = '1h2hk_ia0lI6kJksTBga-Gni1dV84DraglBRH_-Dyje0';
 const SHEETS_CREDS     = path.join(__dirname, '../sheets-credentials.json');
 const TASK_HISTORY_TAB = 'Task History';
-const SYNC_BASE        = 'https://api.todoist.com/sync/v9';
 const REST_BASE        = 'https://api.todoist.com/api/v1';
 const HDR              = { Authorization: `Bearer ${TODOIST_TOKEN}`, 'Content-Type': 'application/json' };
 const REWARD_PROJECTS  = ['chores', 'house items', 'cats'];
+
+// How far back to search (years). Increase if needed.
+const YEARS_BACK = 3;
 
 function countsForReward(name) {
   return REWARD_PROJECTS.includes((name || '').toLowerCase().trim());
@@ -37,95 +42,76 @@ function sheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
-// Fetch all completed items — tries Sync API v9 (premium) first, falls back to REST v1
+/**
+ * Fetch all completed tasks using GET /api/v1/tasks/completed/by_completion_date
+ * Loops in 3-month windows backwards from now to YEARS_BACK years ago.
+ * Handles cursor pagination within each window.
+ * Response schema: { items: ItemSyncView[], next_cursor: string|null }
+ * ItemSyncView fields: id, content, project_id, responsible_uid, completed_by_uid,
+ *                      completed_at, due.is_recurring
+ */
 async function fetchAllCompleted() {
-  console.log('  Trying Todoist Sync API (premium) completed items endpoint…');
-  const syncItems = await fetchCompletedViaSync();
-  if (syncItems !== null) {
-    console.log(`  Sync API returned ${syncItems.length} items`);
-    if (syncItems.length > 0) console.log('  Sample item keys:', Object.keys(syncItems[0]).join(', '));
-    return syncItems;
-  }
-  console.log('  Sync API unavailable, falling back to REST API v1…');
-  return fetchCompletedViaRest();
-}
-
-async function fetchCompletedViaSync() {
   const all = [];
-  let offset = 0;
+  const now   = new Date();
   const limit = 200;
-  while (true) {
-    const url = `${SYNC_BASE}/items/completed/get_all?limit=${limit}&offset=${offset}`;
-    const raw = await fetch(url, { headers: HDR });
-    const text = await raw.text();
-    let r;
-    try { r = JSON.parse(text); } catch {
-      console.log(`  Sync API response (first 300 chars): ${text.slice(0, 300)}`);
-      return null; // signal fallback
-    }
-    if (r.error || r.error_code) {
-      console.log(`  Sync API error: ${r.error || JSON.stringify(r)}`);
-      return null;
-    }
-    const items = r.items || [];
-    all.push(...items);
-    console.log(`  Fetched ${all.length} completed tasks so far…`);
-    if (items.length < limit) break;
-    offset += limit;
+
+  // Build 3-month windows from oldest to newest
+  const windows = [];
+  let windowEnd = new Date(now);
+  const cutoff  = new Date(now);
+  cutoff.setFullYear(cutoff.getFullYear() - YEARS_BACK);
+
+  while (windowEnd > cutoff) {
+    const windowStart = new Date(windowEnd);
+    windowStart.setMonth(windowStart.getMonth() - 3);
+    if (windowStart < cutoff) windowStart.setTime(cutoff.getTime());
+    windows.push({ since: windowStart.toISOString(), until: windowEnd.toISOString() });
+    windowEnd = new Date(windowStart);
   }
+  windows.reverse(); // oldest first for display
+
+  console.log(`  Scanning ${windows.length} 3-month windows back to ${cutoff.toDateString()}…`);
+
+  for (const { since, until } of windows) {
+    let cursor = null;
+    let windowCount = 0;
+    while (true) {
+      const params = new URLSearchParams({ since, until, limit: String(limit) });
+      if (cursor) params.set('cursor', cursor);
+      const url = `${REST_BASE}/tasks/completed/by_completion_date?${params}`;
+      const raw  = await fetch(url, { headers: HDR });
+      const text = await raw.text();
+      let r;
+      try { r = JSON.parse(text); } catch {
+        console.error(`  Unexpected response for window ${since.slice(0,10)}–${until.slice(0,10)}:`, text.slice(0, 200));
+        break;
+      }
+      if (r.error || r.error_code) {
+        console.error(`  API error:`, r.error || JSON.stringify(r));
+        break;
+      }
+      const items = r.items || [];
+      all.push(...items);
+      windowCount += items.length;
+      cursor = r.next_cursor || null;
+      if (!cursor) break;
+    }
+    if (windowCount > 0)
+      console.log(`  ${since.slice(0,10)} → ${until.slice(0,10)}: ${windowCount} tasks (total so far: ${all.length})`);
+  }
+
   return all;
 }
 
-async function fetchCompletedViaRest() {
-  const all = [];
-  let cursor = null;
-  const limit = 200;
-  while (true) {
-    const params = new URLSearchParams({ is_completed: '1', limit: String(limit) });
-    if (cursor) params.set('cursor', cursor);
-    const url = `${REST_BASE}/tasks?${params}`;
-    const raw  = await fetch(url, { headers: HDR });
-    const text = await raw.text();
-    let r;
-    try { r = JSON.parse(text); } catch {
-      console.error('REST API unexpected response:', text.slice(0, 300));
-      throw new Error('Todoist returned non-JSON');
-    }
-    const items = r.results || (Array.isArray(r) ? r : []);
-    if (all.length === 0 && items.length > 0) {
-      console.log('  REST sample item keys:', Object.keys(items[0]).join(', '));
-      console.log('  REST sample item:', JSON.stringify(items[0], null, 2).slice(0, 400));
-    }
-    all.push(...items);
-    console.log(`  Fetched ${all.length} completed tasks so far…`);
-    cursor = r.next_cursor || null;
-    if (!cursor || items.length < limit) break;
-  }
-  return all;
+// Fetch all projects → id:name map
+async function fetchProjectMap() {
+  const r = await fetch(`${REST_BASE}/projects`, { headers: HDR }).then(r => r.json());
+  const map = {};
+  (r.results || (Array.isArray(r) ? r : [])).forEach(p => { map[p.id] = p.name; });
+  return map;
 }
 
-// Fetch all projects → id:name map, and all active tasks → id:{due,responsible_uid} map
-async function fetchMeta() {
-  const [projRes, taskRes] = await Promise.all([
-    fetch(`${REST_BASE}/projects`, { headers: HDR }).then(r => r.json()),
-    fetch(`${REST_BASE}/tasks`,    { headers: HDR }).then(r => r.json()),
-  ]);
-
-  const projectMap = {};
-  (projRes.results || (Array.isArray(projRes) ? projRes : [])).forEach(p => {
-    projectMap[p.id] = p.name;
-  });
-
-  // Active tasks give us responsible_uid and is_recurring for tasks not yet archived
-  const taskMeta = {};
-  (taskRes.results || (Array.isArray(taskRes) ? taskRes : [])).forEach(t => {
-    taskMeta[t.id] = { responsible_uid: t.responsible_uid, is_recurring: t.due?.is_recurring };
-  });
-
-  return { projectMap, taskMeta };
-}
-
-// Build UID → 'rabia'|'clare' map
+// Build UID → 'rabia'|'clare' map from collaborators
 async function buildUidMap() {
   const [me, projData] = await Promise.all([
     fetch(`${REST_BASE}/user`,     { headers: HDR }).then(r => r.json()),
@@ -166,69 +152,74 @@ async function existingIds(sheets) {
 
 async function main() {
   console.log('=== Todoist → Task History migration ===\n');
-
   if (!TODOIST_TOKEN) { console.error('TODOIST_TOKEN not set in .env'); process.exit(1); }
 
-  console.log('1. Fetching completed tasks from Todoist…');
+  console.log('1. Fetching completed tasks from Todoist (by_completion_date)…');
   const completed = await fetchAllCompleted();
-  console.log(`   Total completed: ${completed.length}\n`);
+  console.log(`   Total completed tasks found: ${completed.length}\n`);
+
+  if (completed.length > 0) {
+    console.log('   Sample item keys:', Object.keys(completed[0]).join(', '));
+  }
 
   console.log('2. Fetching project names and UID map…');
-  const [{ projectMap, taskMeta }, uidMap] = await Promise.all([fetchMeta(), buildUidMap()]);
-  console.log(`   Projects loaded: ${Object.keys(projectMap).length}\n`);
+  const [projectMap, uidMap] = await Promise.all([fetchProjectMap(), buildUidMap()]);
+  console.log(`   Projects: ${Object.keys(projectMap).length}\n`);
 
   console.log('3. Reading existing Task History sheet to skip duplicates…');
-  const sheets   = sheetsClient();
+  const sheets    = sheetsClient();
   const alreadyIn = await existingIds(sheets);
   console.log(`   Already in sheet: ${alreadyIn.size} entries\n`);
 
   // Filter to reward-eligible
   const rows = [];
-  let skippedRecurring = 0, skippedProject = 0, skippedUnknown = 0;
+  let skippedProject = 0, skippedRecurring = 0, skippedUnknown = 0, skippedDupe = 0;
+
   for (const item of completed) {
-    // Sync API uses task_id, REST v1 uses id
-    const id = String(item.task_id || item.id || '');
-    if (!id || alreadyIn.has(id)) continue;
+    const id = String(item.id || '');
+    if (!id)              { continue; }
+    if (alreadyIn.has(id)){ skippedDupe++; continue; }
 
     const projectName = projectMap[item.project_id] || 'Inbox';
     if (!countsForReward(projectName)) { skippedProject++; continue; }
 
-    // Recurring check: REST v1 has due.is_recurring; Sync API completed items rarely carry due
+    // due.is_recurring is present on ItemSyncView
     if (item.due?.is_recurring) { skippedRecurring++; continue; }
 
-    // Sync API uses user_id (completer); REST v1 uses responsible_uid or creator_id
-    const uid = item.responsible_uid || item.user_id || item.creator_id;
+    // responsible_uid = assignee; completed_by_uid = who checked it off
+    const uid = item.responsible_uid || item.completed_by_uid;
     const who = uidMap[uid] || null;
     if (!who) {
       skippedUnknown++;
-      if (skippedUnknown <= 5) console.log(`  Skipping "${item.content}" — unknown assignee (uid=${uid})`);
+      if (skippedUnknown <= 5)
+        console.log(`  Skipping "${item.content}" — unknown assignee (uid=${uid})`);
       continue;
     }
 
-    // Sync API uses 'date_completed', REST v1 uses 'completed_at'
-    const completedAt = item.date_completed || item.completed_at || item.date_added || new Date().toISOString();
+    // completed_at is the correct field per API spec
+    const completedAt = item.completed_at || new Date().toISOString();
     rows.push([completedAt, item.content || 'Task', projectName, who, 5, id]);
   }
-  console.log(`   Skipped: ${skippedProject} wrong project, ${skippedRecurring} recurring, ${skippedUnknown} unknown assignee`);
 
-  console.log(`4. Writing ${rows.length} new rows to sheet…`);
+  console.log(`   Eligible: ${rows.length}`);
+  console.log(`   Skipped: ${skippedProject} wrong project, ${skippedRecurring} recurring, ${skippedUnknown} unknown assignee, ${skippedDupe} already in sheet\n`);
+
   if (rows.length === 0) {
-    console.log('   Nothing to migrate — sheet is already up to date.');
+    console.log('Nothing new to write — sheet is already up to date.');
     return;
   }
 
-  // Sort oldest first so history is chronological in the sheet
+  // Sort oldest first so history is chronological
   rows.sort((a, b) => new Date(a[0]) - new Date(b[0]));
 
-  // Append in batches of 500
+  console.log(`4. Writing ${rows.length} rows to sheet…`);
   const BATCH = 500;
   for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH);
-    await sheets.spreadsheets.values.append({
+    await sheetsClient().spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: `${TASK_HISTORY_TAB}!A:F`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: batch },
+      requestBody: { values: rows.slice(i, i + BATCH) },
     });
     console.log(`   Written ${Math.min(i + BATCH, rows.length)} / ${rows.length}`);
   }
@@ -236,4 +227,4 @@ async function main() {
   console.log('\nDone! Check the Task History tab in your spreadsheet.');
 }
 
-main().catch(e => { console.error('Migration failed:', e); process.exit(1); });
+main().catch(e => { console.error('Migration failed:', e.message || e); process.exit(1); });
