@@ -69,16 +69,19 @@ app.use(express.json());
 // ─── Data store ───────────────────────────────────────────────────────────────
 const DATA_FILE = path.join(__dirname, 'data.json');
 function loadData() {
-  if (!fs.existsSync(DATA_FILE)) return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[], task_history:[] };
+  if (!fs.existsSync(DATA_FILE)) return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[] };
   try {
     const d = JSON.parse(fs.readFileSync(DATA_FILE,'utf8'));
-    if (!d.rewards)      d.rewards      = [];
-    if (!d.redeemed)     d.redeemed     = [];
-    if (!d.task_history) d.task_history = [];
+    if (!d.rewards)  d.rewards  = [];
+    if (!d.redeemed) d.redeemed = [];
     return d;
-  } catch { return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[], task_history:[] }; }
+  } catch { return { rabia_points:0, clare_points:0, google_tokens:null, rewards:[], redeemed:[] }; }
 }
-function saveData(d) { fs.writeFileSync(DATA_FILE, JSON.stringify(d,null,2)); }
+function saveData(d) {
+  // Never persist task_history locally — it lives in Google Sheets
+  const { task_history, ...rest } = d;
+  fs.writeFileSync(DATA_FILE, JSON.stringify(rest, null, 2));
+}
 
 // Seed default rewards if empty
 function ensureRewards() {
@@ -454,20 +457,20 @@ app.post('/api/tasks/:id/close', async (req,res) => {
     const data = loadData();
     if (req.body.counts_for_reward && !isRecurring) {
       const who = req.body.assignee;
-      if (who==='rabia'  || who==='family') data.rabia_points=Math.min((data.rabia_points||0)+5,9999);
-      if (who==='clare'  || who==='family') data.clare_points=Math.min((data.clare_points||0)+5,9999);
-      // Log to task history (keep last 200)
-      const entry = {
-        title:   req.body.title   || 'Task',
-        project: req.body.project || '',
-        who:     who,
-        points:  5,
+      // Append to Google Sheets "Task History" — source of truth for all points
+      appendTaskHistoryRow({
         completedAt: new Date().toISOString(),
-      };
-      data.task_history = [entry, ...(data.task_history||[])].slice(0,5000);
+        title:       req.body.title   || 'Task',
+        project:     req.body.project || '',
+        who,
+        points:     5,
+        todoist_id: req.params.id,
+      });
     }
     saveData(data);
-    res.json({ok:true, points:data});
+    // Points computed from sheet (small delay to let append land)
+    const newPts = await computePointsFromSheet();
+    res.json({ ok: true, points: { ...data, ...newPts } });
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
@@ -505,21 +508,46 @@ app.get('/api/users', async (req,res) => {
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// ─── Points ───────────────────────────────────────────────────────────────────
-app.get('/api/points', (req,res)=>res.json(loadData()));
-app.post('/api/points/reset', (req,res)=>{
-  const data=loadData();
-  if (!req.body.who||req.body.who==='all'){data.rabia_points=0;data.clare_points=0;}
-  else if(req.body.who==='rabia') data.rabia_points=0;
-  else if(req.body.who==='clare') data.clare_points=0;
-  saveData(data); res.json(data);
+// ─── Points — derived from Task History sheet ─────────────────────────────────
+app.get('/api/points', async (req, res) => {
+  try {
+    const [data, computed] = await Promise.all([Promise.resolve(loadData()), computePointsFromSheet()]);
+    res.json({ ...data, ...computed });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
-app.post('/api/points/add', (req,res)=>{
-  const data=loadData();
-  const {who,amount} = req.body;
-  if(who==='rabia') data.rabia_points=Math.min((data.rabia_points||0)+amount,9999);
-  if(who==='clare') data.clare_points=Math.min((data.clare_points||0)+amount,9999);
-  saveData(data); res.json(data);
+
+// Reset: append a negative correction row to the history sheet
+app.post('/api/points/reset', async (req, res) => {
+  try {
+    const who = req.body.who || 'all';
+    const computed = await computePointsFromSheet();
+    const toReset = (who === 'all') ? ['rabia', 'clare'] : [who];
+    for (const person of toReset) {
+      const bal = computed[`${person}_points`] || 0;
+      if (bal !== 0) {
+        await appendTaskHistoryRow({
+          completedAt: new Date().toISOString(),
+          title: '[Points Reset]', project: '', who: person, points: -bal, todoist_id: '',
+        });
+      }
+    }
+    const newPts = await computePointsFromSheet();
+    res.json({ ...loadData(), ...newPts });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Manual add: append a bonus row to the history sheet
+app.post('/api/points/add', async (req, res) => {
+  try {
+    const { who, amount } = req.body;
+    if (!who || !amount) return res.status(400).json({ error: 'Missing fields' });
+    await appendTaskHistoryRow({
+      completedAt: new Date().toISOString(),
+      title: '[Manual addition]', project: '', who, points: amount, todoist_id: '',
+    });
+    const newPts = await computePointsFromSheet();
+    res.json({ ...loadData(), ...newPts });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── Rewards — list from Google Sheets "Rewards" tab ─────────────────────────
@@ -565,9 +593,202 @@ async function getRewardsSheetId() {
   return rewardsSheetId;
 }
 
+// ─── Task History — Google Sheets "Task History" tab ─────────────────────────
+// Columns: A=Date  B=Title  C=Project  D=Who  E=Points  F=TodoistID
+const TASK_HISTORY_SHEET = 'Task History';
+const TODOIST_SYNC_BASE  = 'https://api.todoist.com/sync/v9';
+let taskHistoryCache = { data: null, ts: 0 };
+
+async function fetchTaskHistoryFromSheet() {
+  if (Date.now() - taskHistoryCache.ts < 30 * 1000 && taskHistoryCache.data)
+    return taskHistoryCache.data;
+  try {
+    const sheets = sheetsClient();
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${TASK_HISTORY_SHEET}!A2:F10000`,
+    });
+    const rows = (r.data.values || []).filter(row => row[0] && row[1]);
+    const history = rows.map(row => ({
+      completedAt: row[0] || '',
+      title:       row[1] || '',
+      project:     row[2] || '',
+      who:         row[3] || '',
+      points:      parseFloat(row[4]) || 5,
+      todoist_id:  row[5] || '',
+    }));
+    taskHistoryCache = { data: history, ts: Date.now() };
+    return history;
+  } catch(e) {
+    console.warn('[TaskHistory] Sheet read failed:', e.message);
+    return taskHistoryCache.data || [];
+  }
+}
+
+async function appendTaskHistoryRow(entry) {
+  taskHistoryCache = { data: null, ts: 0 }; // invalidate cache
+  try {
+    const sheets = sheetsClient();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${TASK_HISTORY_SHEET}!A:F`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[
+        entry.completedAt, entry.title, entry.project,
+        entry.who, entry.points, entry.todoist_id || '',
+      ]] },
+    });
+  } catch(e) {
+    console.error('[TaskHistory] Sheet append failed:', e.message);
+  }
+}
+
+// Compute points entirely from sheet history (sum) minus redeemed (JSON)
+async function computePointsFromSheet() {
+  const history = await fetchTaskHistoryFromSheet();
+  const data    = loadData();
+  let rabia = 0, clare = 0;
+  for (const t of history) {
+    const p = parseFloat(t.points) || 0;
+    if (t.who === 'rabia'  || t.who === 'family') rabia += p;
+    if (t.who === 'clare'  || t.who === 'family') clare += p;
+  }
+  for (const r of (data.redeemed || [])) {
+    if (r.who === 'rabia') rabia -= (r.cost || 0);
+    if (r.who === 'clare') clare -= (r.cost || 0);
+  }
+  return { rabia_points: Math.max(0, rabia), clare_points: Math.max(0, clare) };
+}
+
+// Server-side UID → 'rabia'|'clare' map (mirrors frontend uidMap logic)
+let serverUidMapCache = null;
+async function getServerUidMap() {
+  if (serverUidMapCache) return serverUidMapCache;
+  try {
+    const [me, projData] = await Promise.all([
+      fetch(`${TODO_BASE}/user`,     { headers: TODO_HDR }).then(r => r.json()),
+      fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json()),
+    ]);
+    const seen = {};
+    if (me.id) seen[me.id] = { id: me.id, email: me.email, name: me.full_name };
+    const shared = todoList(projData).filter(p => p.is_shared);
+    const collabArrays = await Promise.all(
+      shared.map(p =>
+        fetch(`${TODO_BASE}/projects/${p.id}/collaborators`, { headers: TODO_HDR })
+          .then(r => r.json()).catch(() => ({}))
+      )
+    );
+    collabArrays.forEach(c => todoList(c).forEach(u => {
+      if (u.id) seen[u.id] = { id: u.id, email: u.email, name: u.full_name || u.name };
+    }));
+    const map = {};
+    Object.values(seen).forEach(u => {
+      if      (/rabia/i.test(u.name||'') || /rabia/i.test(u.email||'')) map[u.id] = 'rabia';
+      else if (/clare/i.test(u.name||'') || /clare/i.test(u.email||'')) map[u.id] = 'clare';
+    });
+    serverUidMapCache = map;
+    setTimeout(() => { serverUidMapCache = null; }, 60 * 60 * 1000); // refresh hourly
+    return map;
+  } catch(e) {
+    console.warn('[UidMap] Failed:', e.message);
+    return serverUidMapCache || {};
+  }
+}
+
+// Periodic Todoist sync — picks up tasks completed outside the hub app
+async function syncCompletedTasks() {
+  const data      = loadData();
+  const syncToken = data.todoist_sync_token || '*';
+  const isInit    = !data.todoist_sync_initialized;
+  try {
+    const syncRes = await fetch(`${TODOIST_SYNC_BASE}/sync`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${process.env.TODOIST_TOKEN}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sync_token: syncToken, resource_types: ['items'] }),
+    }).then(r => r.json());
+
+    data.todoist_sync_token       = syncRes.sync_token;
+    data.todoist_sync_initialized = true;
+    saveData(data);
+
+    if (isInit) {
+      console.log('[Sync] Todoist sync initialized — will track future completions');
+      return;
+    }
+
+    const completedItems = (syncRes.items || []).filter(item => item.checked && !item.is_deleted);
+    if (completedItems.length === 0) return;
+
+    const [projectsRes, uidMap] = await Promise.all([
+      fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json()),
+      getServerUidMap(),
+    ]);
+    const pm = {};
+    todoList(projectsRes).forEach(p => { pm[p.id] = p.name; });
+
+    // Load existing tracked IDs to avoid double-counting
+    const existing  = await fetchTaskHistoryFromSheet();
+    const trackedIds = new Set(existing.map(h => h.todoist_id).filter(Boolean));
+
+    let added = 0;
+    for (const item of completedItems) {
+      const itemId = String(item.id);
+      if (trackedIds.has(itemId)) continue;
+
+      const projectName = pm[item.project_id] || 'Inbox';
+      if (!countsForReward(projectName))  continue;
+      if (item.due?.is_recurring)         continue;
+
+      // Determine assignee; skip if we can't identify them
+      const who = uidMap[item.responsible_uid] || null;
+      if (!who) continue;
+
+      await appendTaskHistoryRow({
+        completedAt: item.date_completed || new Date().toISOString(),
+        title:       item.content || 'Task',
+        project:     projectName,
+        who,
+        points:      5,
+        todoist_id:  itemId,
+      });
+      trackedIds.add(itemId); // prevent same-run duplicates
+      added++;
+    }
+    if (added > 0) console.log(`[Sync] Added ${added} task(s) to Task History from Todoist`);
+  } catch(e) {
+    console.error('[Sync] Error:', e.message);
+  }
+}
+// Run once on startup, then every 5 minutes
+setTimeout(syncCompletedTasks, 5000);
+setInterval(syncCompletedTasks, 5 * 60 * 1000);
+
 app.get('/api/rewards', async (req, res) => {
-  const [{ rewards, error: sheetError }, data] = await Promise.all([fetchRewardsFromSheet(), Promise.resolve(loadData())]);
-  res.json({ rewards, redeemed: data.redeemed, task_history: data.task_history || [], sheetError });
+  const [{ rewards, error: sheetError }, data, task_history] = await Promise.all([
+    fetchRewardsFromSheet(),
+    Promise.resolve(loadData()),
+    fetchTaskHistoryFromSheet(),
+  ]);
+  res.json({ rewards, redeemed: data.redeemed, task_history, sheetError });
+});
+
+// POST /api/admin/migrate-task-history — one-time migration of local data.json history → Sheets
+app.post('/api/admin/migrate-task-history', async (req, res) => {
+  try {
+    // Read old history from a backup key if it exists, or from a passed-in body
+    const rows = req.body.rows; // array of {completedAt,title,project,who,points}
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: 'No rows provided' });
+    const sheets = sheetsClient();
+    const values = rows.map(r => [r.completedAt || '', r.title || '', r.project || '', r.who || '', r.points || 5]);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${TASK_HISTORY_SHEET}!A:E`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values },
+    });
+    taskHistoryCache = { data: null, ts: 0 };
+    res.json({ ok: true, migrated: rows.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Add reward — append row to sheet
@@ -627,17 +848,19 @@ app.delete('/api/rewards/:id', async (req, res) => {
 });
 
 // Redeem — reward data comes from client (sourced from sheet)
-app.post('/api/rewards/redeem', (req, res) => {
+app.post('/api/rewards/redeem', async (req, res) => {
   const { who, name, cost, icon } = req.body;
   if (!who || !name || cost == null) return res.status(400).json({ error: 'Missing fields' });
-  const data = loadData();
-  const pts = who === 'rabia' ? data.rabia_points : data.clare_points;
-  if (pts < cost) return res.status(400).json({ error: 'Not enough points' });
-  if (who === 'rabia') data.rabia_points = pts - cost;
-  else                 data.clare_points = pts - cost;
-  data.redeemed.push({ name, cost, icon: icon||'🎁', who, redeemedAt: new Date().toISOString() });
-  saveData(data);
-  res.json({ ok: true, points: data });
+  try {
+    const computed = await computePointsFromSheet();
+    const pts = computed[`${who}_points`] || 0;
+    if (pts < cost) return res.status(400).json({ error: 'Not enough points' });
+    const data = loadData();
+    data.redeemed.push({ name, cost, icon: icon||'🎁', who, redeemedAt: new Date().toISOString() });
+    saveData(data);
+    const newPts = await computePointsFromSheet();
+    res.json({ ok: true, points: { ...data, ...newPts } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── Google Calendar OAuth + two-way sync ────────────────────────────────────
