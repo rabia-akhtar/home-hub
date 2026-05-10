@@ -1257,7 +1257,8 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
       {taskDetailFor && (() => {
         const person  = taskDetailFor==="rabia" ? RABIA : CLARE;
         const ptsKey  = `${taskDetailFor}_points`;
-        let remaining = pts[ptsKey] || 0;
+        const balance = pts[ptsKey] || 0;
+        let remaining = balance;
         // Walk history newest-first, accumulate until we reach current balance
         const contributing = [];
         const sorted = [...history].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt));
@@ -1268,13 +1269,12 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
             remaining -= t.points;
           }
         }
-        const total = contributing.reduce((s,t)=>s+t.points, 0);
         return (
           <div style={{...CARD,overflow:"hidden"}}>
             <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",background:`linear-gradient(135deg,${person.color}12,${person.color}06)`,display:"flex",alignItems:"center",gap:10}}>
               <Av person={person} size={28}/>
               <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{person.name}'s unspent tasks</div>
-              <div style={{fontSize:12,color:"#94a3b8",marginLeft:4}}>{contributing.length} tasks · {total}⭐</div>
+              <div style={{fontSize:12,color:"#94a3b8",marginLeft:4}}>{contributing.length} tasks · {balance}⭐</div>
               <button onClick={()=>setTaskDetailFor(null)} style={{marginLeft:"auto",background:"none",border:"none",fontSize:18,color:"#94a3b8",cursor:"pointer",lineHeight:1}}>×</button>
             </div>
             {contributing.length===0

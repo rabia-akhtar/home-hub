@@ -443,9 +443,16 @@ app.post('/api/tasks', async (req,res) => {
 // POST /api/tasks/:id/close — complete + award points
 app.post('/api/tasks/:id/close', async (req,res) => {
   try {
+    // Fetch task BEFORE closing so we can check is_recurring server-side
+    let isRecurring = false;
+    try {
+      const taskData = await fetch(`${TODO_BASE}/tasks/${req.params.id}`,{headers:TODO_HDR}).then(r=>r.json());
+      isRecurring = !!(taskData?.due?.is_recurring);
+    } catch { /* if fetch fails, fall back to client-sent value */ isRecurring = !!req.body.is_recurring; }
+
     await fetch(`${TODO_BASE}/tasks/${req.params.id}/close`,{method:'POST',headers:TODO_HDR});
     const data = loadData();
-    if (req.body.counts_for_reward && !req.body.is_recurring) {
+    if (req.body.counts_for_reward && !isRecurring) {
       const who = req.body.assignee;
       if (who==='rabia'  || who==='family') data.rabia_points=Math.min((data.rabia_points||0)+5,9999);
       if (who==='clare'  || who==='family') data.clare_points=Math.min((data.clare_points||0)+5,9999);
@@ -457,7 +464,7 @@ app.post('/api/tasks/:id/close', async (req,res) => {
         points:  5,
         completedAt: new Date().toISOString(),
       };
-      data.task_history = [entry, ...(data.task_history||[])].slice(0,200);
+      data.task_history = [entry, ...(data.task_history||[])].slice(0,5000);
     }
     saveData(data);
     res.json({ok:true, points:data});
