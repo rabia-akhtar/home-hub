@@ -1255,26 +1255,38 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
 
       {/* Task history detail for selected person */}
       {taskDetailFor && (() => {
-        const person   = taskDetailFor==="rabia" ? RABIA : CLARE;
-        const myTasks  = history.filter(t => t.who===taskDetailFor || t.who==="family");
+        const person  = taskDetailFor==="rabia" ? RABIA : CLARE;
+        const ptsKey  = `${taskDetailFor}_points`;
+        let remaining = pts[ptsKey] || 0;
+        // Walk history newest-first, accumulate until we reach current balance
+        const contributing = [];
+        const sorted = [...history].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt));
+        for (const t of sorted) {
+          if (remaining <= 0) break;
+          if (t.who === taskDetailFor || t.who === 'family') {
+            contributing.push(t);
+            remaining -= t.points;
+          }
+        }
+        const total = contributing.reduce((s,t)=>s+t.points, 0);
         return (
           <div style={{...CARD,overflow:"hidden"}}>
             <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",background:`linear-gradient(135deg,${person.color}12,${person.color}06)`,display:"flex",alignItems:"center",gap:10}}>
               <Av person={person} size={28}/>
-              <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{person.name}'s Tasks</div>
-              <div style={{fontSize:12,color:"#94a3b8",marginLeft:4}}>{myTasks.length} completed</div>
+              <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{person.name}'s unspent tasks</div>
+              <div style={{fontSize:12,color:"#94a3b8",marginLeft:4}}>{contributing.length} tasks · {total}⭐</div>
               <button onClick={()=>setTaskDetailFor(null)} style={{marginLeft:"auto",background:"none",border:"none",fontSize:18,color:"#94a3b8",cursor:"pointer",lineHeight:1}}>×</button>
             </div>
-            {myTasks.length===0
-              ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>No completed tasks yet</div>
+            {contributing.length===0
+              ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>No unspent points yet</div>
               : <div style={{maxHeight:340,overflowY:"auto"}}>
-                  {myTasks.slice(0,60).map((t,i)=>(
+                  {contributing.map((t,i)=>(
                     <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:"1px solid #f8fafc"}}>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
                         <div style={{fontSize:11,color:"#94a3b8"}}>{t.project} · {new Date(t.completedAt).toLocaleDateString()}</div>
                       </div>
-                      <div style={{fontSize:12,fontWeight:700,color:"#10b981",flexShrink:0}}>+{t.who==="family"?t.points*2:t.points}⭐{t.who==="family"?" (shared)":""}</div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#10b981",flexShrink:0}}>+{t.points}⭐{t.who==="family"?" (shared)":""}</div>
                     </div>
                   ))}
                 </div>
@@ -2631,7 +2643,7 @@ function AppInner() {
     hub.setTasks(ts=>ts.filter(t=>t.id!==task.id));
     const res = await fetch(`${API}/tasks/${task.id}/close`,{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({assignee:who, counts_for_reward:countsForReward||task.counts_for_reward, title:task.content, project:task.project_name||''}),
+      body:JSON.stringify({assignee:who, counts_for_reward:countsForReward||task.counts_for_reward, is_recurring:!!task.due?.is_recurring, title:task.content, project:task.project_name||''}),
     }).then(r=>r.json());
     if(res.points) hub.setPts(res.points);
   };

@@ -364,7 +364,7 @@ app.get('/api/tasks', async (req,res) => {
     const enriched = todoList(tasks).map(t=>({
       ...t,
       project_name: pm[t.project_id]||'Inbox',
-      counts_for_reward: countsForReward(pm[t.project_id]||'Inbox'),
+      counts_for_reward: countsForReward(pm[t.project_id]||'Inbox') && !t.due?.is_recurring,
     }));
     res.json(enriched);
   } catch(e) { res.status(500).json({error:e.message}); }
@@ -445,7 +445,7 @@ app.post('/api/tasks/:id/close', async (req,res) => {
   try {
     await fetch(`${TODO_BASE}/tasks/${req.params.id}/close`,{method:'POST',headers:TODO_HDR});
     const data = loadData();
-    if (req.body.counts_for_reward) {
+    if (req.body.counts_for_reward && !req.body.is_recurring) {
       const who = req.body.assignee;
       if (who==='rabia'  || who==='family') data.rabia_points=Math.min((data.rabia_points||0)+5,9999);
       if (who==='clare'  || who==='family') data.clare_points=Math.min((data.clare_points||0)+5,9999);
