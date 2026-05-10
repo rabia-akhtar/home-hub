@@ -1393,36 +1393,65 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
         );
       })}
 
-      {/* Points earned — task history */}
-      {history.length > 0 && (
-        <div style={{...CARD,padding:"18px 20px"}}>
-          <button onClick={()=>setShowHistory(v=>!v)}
-            style={{width:"100%",background:"none",border:"none",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",padding:0,fontFamily:"inherit"}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase"}}>
-              Points earned ({history.length} tasks)
-            </div>
-            <span style={{fontSize:12,color:"#94a3b8"}}>{showHistory?"▲":"▼"}</span>
-          </button>
-          {showHistory && (
-            <div style={{marginTop:12}}>
-              {history.slice(0,50).map((t,i)=>{
-                const person = t.who==="rabia"||t.who==="family" ? RABIA : CLARE;
-                const both   = t.who==="family";
-                return (
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid #f8fafc"}}>
-                    <Av person={person} size={26}/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
-                      <div style={{fontSize:11,color:"#94a3b8"}}>{t.project} · {new Date(t.completedAt).toLocaleDateString()}</div>
+      {/* Points earned — tasks contributing to current unused balance */}
+      {(() => {
+        // For each person, walk history newest-first and accumulate until we
+        // reach their current balance. Those are the tasks "on the hook".
+        const sorted = [...history].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt));
+        const contributing = [];
+        let rabiaRem = pts.rabia_points || 0;
+        let clareRem = pts.clare_points || 0;
+        for (const t of sorted) {
+          if (rabiaRem <= 0 && clareRem <= 0) break;
+          const isRabia  = t.who === 'rabia';
+          const isClare  = t.who === 'clare';
+          const isFamily = t.who === 'family';
+          if (isFamily && (rabiaRem > 0 || clareRem > 0)) {
+            contributing.push(t);
+            rabiaRem -= t.points;
+            clareRem -= t.points;
+          } else if (isRabia && rabiaRem > 0) {
+            contributing.push(t);
+            rabiaRem -= t.points;
+          } else if (isClare && clareRem > 0) {
+            contributing.push(t);
+            clareRem -= t.points;
+          }
+        }
+        if (!contributing.length) return null;
+        return (
+          <div style={{...CARD,padding:"18px 20px"}}>
+            <button onClick={()=>setShowHistory(v=>!v)}
+              style={{width:"100%",background:"none",border:"none",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",padding:0,fontFamily:"inherit"}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase"}}>
+                Points earned ({contributing.length} task{contributing.length!==1?"s":""})
+              </div>
+              <span style={{fontSize:12,color:"#94a3b8"}}>{showHistory?"▲":"▼"}</span>
+            </button>
+            {showHistory && (
+              <div style={{marginTop:12}}>
+                {contributing.map((t,i)=>{
+                  const person = t.who==="clare" ? CLARE : RABIA;
+                  const both   = t.who==="family";
+                  return (
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid #f8fafc"}}>
+                      {both
+                        ? <div style={{display:"flex",marginRight:2}}><Av person={RABIA} size={22}/><Av person={CLARE} size={22} style={{marginLeft:-6}}/></div>
+                        : <Av person={person} size={26}/>
+                      }
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
+                        <div style={{fontSize:11,color:"#94a3b8"}}>{t.project} · {new Date(t.completedAt).toLocaleDateString()}</div>
+                      </div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#10b981",flexShrink:0}}>+{t.points}⭐{both?" each":""}</div>
                     </div>
-                    <div style={{fontSize:12,fontWeight:700,color:"#10b981",flexShrink:0}}>+{both?t.points*2:t.points}⭐{both?" (both)":""}</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Redeemed history */}
       {rwds.redeemed.length>0 && (
@@ -2662,55 +2691,7 @@ function AppInner() {
 
   // ── JS-driven scroll with momentum ──
   // Handles BOTH touch events (proper touch screens) AND mouse-drag events
-  // (USB HID touchscreens on Linux/Pi often report as mouse, not touch)
-  const scrollRef  = useRef(null);
-  const dragState  = useRef(null);   // shared by touch + mouse handlers
-  const rafRef     = useRef(null);
-
-  const startDrag = useCallback((clientY) => {
-    cancelAnimationFrame(rafRef.current);
-    dragState.current = {
-      startY:   clientY,
-      startTop: scrollRef.current ? scrollRef.current.scrollTop : 0,
-      lastY:    clientY,
-      lastT:    Date.now(),
-      vel:      0,
-    };
-  }, []);
-
-  const moveDrag = useCallback((clientY) => {
-    if (!dragState.current || !scrollRef.current) return;
-    const now = Date.now();
-    const dt  = now - dragState.current.lastT;
-    if (dt > 0) dragState.current.vel = (dragState.current.lastY - clientY) / dt;
-    dragState.current.lastY = clientY;
-    dragState.current.lastT = now;
-    scrollRef.current.scrollTop = dragState.current.startTop + (dragState.current.startY - clientY);
-  }, []);
-
-  const endDrag = useCallback(() => {
-    if (!dragState.current || !scrollRef.current) return;
-    let vel = dragState.current.vel * 16;
-    dragState.current = null;
-    const el = scrollRef.current;
-    const step = () => {
-      if (Math.abs(vel) < 0.5) return;
-      el.scrollTop += vel;
-      vel *= 0.93;
-      rafRef.current = requestAnimationFrame(step);
-    };
-    rafRef.current = requestAnimationFrame(step);
-  }, []);
-
-  // Touch handlers
-  const onTouchStart = useCallback(e => startDrag(e.touches[0].clientY), [startDrag]);
-  const onTouchMove  = useCallback(e => moveDrag(e.touches[0].clientY),  [moveDrag]);
-  const onTouchEnd   = useCallback(() => endDrag(), [endDrag]);
-
-  // Mouse-drag handlers (fallback for HID touchscreens that send mouse events)
-  const onMouseDown  = useCallback(e => { if(e.button!==0) return; startDrag(e.clientY); }, [startDrag]);
-  const onMouseMove  = useCallback(e => { if(!dragState.current) return; moveDrag(e.clientY); }, [moveDrag]);
-  const onMouseUp    = useCallback(() => endDrag(), [endDrag]);
+  const scrollRef = useRef(null);
 
   const uidMap = {};
   hub.users.forEach(u=>{
@@ -2787,14 +2768,7 @@ function AppInner() {
         {/* Scrollable content */}
         <div
           ref={scrollRef}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
-          style={{ flex:1, minHeight:0, overflowY:"scroll", touchAction:"none", cursor: dragState.current ? "grabbing" : "default", userSelect:"none", WebkitUserSelect:"none", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
+          style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
         >
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
