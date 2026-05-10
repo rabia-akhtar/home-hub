@@ -634,9 +634,9 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidM
             {adding===proj.id && (
               <div style={{padding:"12px 20px",background:"#f8fafc",borderBottom:"1px solid #f1f5f9",display:"flex",flexDirection:"column",gap:10}}>
                 <input autoFocus value={newContent} onChange={e=>setNewContent(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAdd(proj.id)}
-                  placeholder="Task name…" style={{padding:"12px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1e293b"}}/>
+                  inputMode="text" placeholder="Task name…" style={{padding:"12px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1e293b"}}/>
                 <div style={{display:"flex",gap:8}}>
-                  <input value={newDue} onChange={e=>setNewDue(e.target.value)} placeholder="Due (e.g. tomorrow)" style={{flex:1,padding:"10px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1e293b"}}/>
+                  <input value={newDue} onChange={e=>setNewDue(e.target.value)} inputMode="text" placeholder="Due (e.g. tomorrow)" style={{flex:1,padding:"10px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1e293b"}}/>
                   <div style={{display:"flex",gap:6}}>
                     {[RABIA,CLARE].map(p=>(
                       <button key={p.name} onClick={()=>setAssignee(p.name.toLowerCase())} style={{width:40,height:40,borderRadius:"50%",border:`3px solid ${assignee===p.name.toLowerCase()?p.color:"#e2e8f0"}`,background:assignee===p.name.toLowerCase()?p.color:"#fff",color:assignee===p.name.toLowerCase()?"#fff":p.color,fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>{p.initial}</button>
@@ -765,7 +765,7 @@ function CalendarTab({ evts, authOk, reload }) {
       {showAdd && (
         <div style={{...CARD,padding:"20px"}}>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Event title" style={{padding:"14px 18px",borderRadius:16,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} inputMode="text" placeholder="Event title" style={{padding:"14px 18px",borderRadius:16,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
             <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{padding:"14px 18px",borderRadius:16,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
             <div style={{display:"flex",gap:10}}>
               <input type="time" value={form.startTime} onChange={e=>setForm(f=>({...f,startTime:e.target.value}))} style={{flex:1,padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
@@ -1183,12 +1183,13 @@ function LightsTab() {
 
 // ─── REWARDS TAB ──────────────────────────────────────────────────────────────
 function RewardsTab({ pts, setPts, rwds, setRwds }) {
-  const [confetti,    setConfetti]    = useState(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showAdd,     setShowAdd]     = useState(false);
-  const [form,        setForm]        = useState({ name:"", cost:100, icon:"🎁", who:"both" });
-  const [editing,     setEditing]     = useState(null);
-  const [editForm,    setEditForm]    = useState({});
+  const [confetti,      setConfetti]      = useState(null);
+  const [showHistory,   setShowHistory]   = useState(false);
+  const [showAdd,       setShowAdd]       = useState(false);
+  const [form,          setForm]          = useState({ name:"", cost:100, icon:"🎁", who:"both" });
+  const [editing,       setEditing]       = useState(null);
+  const [editForm,      setEditForm]      = useState({});
+  const [taskDetailFor, setTaskDetailFor] = useState(null);
 
   const REWARD_ICONS = ["🎬","☕","🍕","🎮","💆","✈️","🍽️","🎁","🛍️","🏖️","🎭","🎵","🍦","📚","🏃","🧖","🍷","🎨","💅","🧘","🏋️","🎲","🎤","🛁","🌅","🎊","🍰","🧁"];
 
@@ -1257,7 +1258,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
           const pKey   = person.name.toLowerCase();
           const points = pts[`${pKey}_points`]||0;
           return (
-            <div key={person.name} style={{...CARD,flex:1,padding:"18px",textAlign:"center",background:`linear-gradient(145deg,${person.color}12,${person.color}06)`,border:`2px solid ${person.color}30`}}>
+            <div key={person.name} onClick={()=>setTaskDetailFor(taskDetailFor===pKey?null:pKey)} style={{...CARD,flex:1,padding:"18px",textAlign:"center",background:`linear-gradient(145deg,${person.color}12,${person.color}06)`,border:`2px solid ${person.color}30`,cursor:"pointer"}}>
               <Av person={person} size={48}/>
               <div style={{marginTop:10}}>
                 <ProgressRing pts={points} max={500} color={person.color}/>
@@ -1268,6 +1269,36 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
         })}
       </div>
 
+      {/* Task history detail for selected person */}
+      {taskDetailFor && (() => {
+        const person   = taskDetailFor==="rabia" ? RABIA : CLARE;
+        const myTasks  = history.filter(t => t.who===taskDetailFor || t.who==="family");
+        return (
+          <div style={{...CARD,overflow:"hidden"}}>
+            <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",background:`linear-gradient(135deg,${person.color}12,${person.color}06)`,display:"flex",alignItems:"center",gap:10}}>
+              <Av person={person} size={28}/>
+              <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{person.name}'s Tasks</div>
+              <div style={{fontSize:12,color:"#94a3b8",marginLeft:4}}>{myTasks.length} completed</div>
+              <button onClick={()=>setTaskDetailFor(null)} style={{marginLeft:"auto",background:"none",border:"none",fontSize:18,color:"#94a3b8",cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            {myTasks.length===0
+              ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>No completed tasks yet</div>
+              : <div style={{maxHeight:340,overflowY:"auto"}}>
+                  {myTasks.slice(0,60).map((t,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:"1px solid #f8fafc"}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
+                        <div style={{fontSize:11,color:"#94a3b8"}}>{t.project} · {new Date(t.completedAt).toLocaleDateString()}</div>
+                      </div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#10b981",flexShrink:0}}>+{t.who==="family"?t.points*2:t.points}⭐{t.who==="family"?" (shared)":""}</div>
+                    </div>
+                  ))}
+                </div>
+            }
+          </div>
+        );
+      })()}
+
       {/* Add reward */}
       <button onClick={()=>setShowAdd(v=>!v)} style={{padding:"16px",borderRadius:20,border:"2px dashed #e2e8f0",background:"transparent",color:"#64748b",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
         {showAdd?"✕ Cancel":"+ Add reward"}
@@ -1275,10 +1306,10 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
       {showAdd && (
         <div style={{...CARD,padding:"20px"}}>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Reward name (e.g. Movie night)" style={{padding:"14px 18px",borderRadius:16,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} inputMode="text" placeholder="Reward name (e.g. Movie night)" style={{padding:"14px 18px",borderRadius:16,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
               <div style={{fontSize:13,fontWeight:700,color:"#64748b"}}>Cost:</div>
-              <input type="number" value={form.cost} onChange={e=>setForm(f=>({...f,cost:parseInt(e.target.value)||0}))} style={{width:90,padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+              <input type="number" value={form.cost} onChange={e=>setForm(f=>({...f,cost:parseInt(e.target.value)||0}))} inputMode="numeric" style={{width:90,padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
               <div style={{fontSize:14,color:"#64748b"}}>⭐ points</div>
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
@@ -1324,9 +1355,9 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
                         <button key={ic} onClick={()=>setEditForm(f=>({...f,icon:ic}))} style={{width:36,height:36,fontSize:18,borderRadius:10,border:`2px solid ${editForm.icon===ic?"#6366f1":"#e2e8f0"}`,background:editForm.icon===ic?"#eef2ff":"#fff",cursor:"pointer"}}>{ic}</button>
                       ))}
                     </div>
-                    <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} style={{padding:"10px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+                    <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} inputMode="text" style={{padding:"10px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                      <input type="number" value={editForm.cost} onChange={e=>setEditForm(f=>({...f,cost:parseInt(e.target.value)||0}))} style={{width:80,padding:"9px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+                      <input type="number" value={editForm.cost} onChange={e=>setEditForm(f=>({...f,cost:parseInt(e.target.value)||0}))} inputMode="numeric" style={{width:80,padding:"9px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
                       <span style={{fontSize:13,color:"#64748b"}}>⭐</span>
                     </div>
                     <div style={{display:"flex",gap:6}}>
@@ -1441,7 +1472,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
         {adding ? (
           <div style={{display:"flex",gap:10}}>
             <input autoFocus value={newItem} onChange={e=>setNewItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAdd()}
-              placeholder="Add item…"
+              inputMode="text" placeholder="Add item…"
               style={{flex:1,padding:"12px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
             <button onClick={doAdd} style={{padding:"12px 20px",borderRadius:14,border:"none",background:"#10b981",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
             <button onClick={()=>{setAdding(false);setNewItem("");}} style={{padding:"12px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
@@ -1532,7 +1563,7 @@ function UpcomingTab({ tasks, projs, uidMap }) {
       <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",paddingLeft:4}}>
         Next 7 days · {weekTasks.length} task{weekTasks.length!==1?"s":""}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"start"}}>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
         <Col person={RABIA}  color={RABIA.color}  wt={weekRabia}/>
         <Col person={CLARE}  color={CLARE.color}  wt={weekClare}/>
         <Col person={null}   color="#6366f1"       wt={weekFamily}/>
@@ -1931,7 +1962,7 @@ function BudgetTab() {
         {/* Search bar */}
         <div style={{position:"relative",marginBottom:12}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"#94a3b8"}}><circle cx="11" cy="11" r="7" stroke="#94a3b8" strokeWidth="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>
-          <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Search items, categories…" style={{width:"100%",padding:"9px 12px 9px 36px",border:"1.5px solid #e2e8f0",borderRadius:12,fontSize:14,fontFamily:"inherit",outline:"none",background:"#f8fafc"}}/>
+          <input value={filter} onChange={e=>setFilter(e.target.value)} inputMode="search" placeholder="Search items, categories…" style={{width:"100%",padding:"9px 12px 9px 36px",border:"1.5px solid #e2e8f0",borderRadius:12,fontSize:14,fontFamily:"inherit",outline:"none",background:"#f8fafc"}}/>
         </div>
 
         {/* Add/Edit form */}
@@ -1961,7 +1992,7 @@ function BudgetTab() {
                       <option>Rabia</option><option>Clare</option>
                     </select>
                   ) : (
-                    <input value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} placeholder={key==="date"?"6/2/2025":""} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff"}}/>
+                    <input value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} inputMode="text" placeholder={key==="date"?"6/2/2025":""} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff"}}/>
                   )}
                 </div>
               ))}
@@ -2215,6 +2246,82 @@ function VoiceTab({ triggerRecord = 0 }) {
 }
 
 // ─── DEBUG TAB ───────────────────────────────────────────────────────────────
+function MicDebugCard({ API, Section }) {
+  const [micState,    setMicState]    = useState('idle'); // idle|recording|transcribing|done|error
+  const [transcript,  setTranscript]  = useState('');
+  const [micErr,      setMicErr]      = useState('');
+  const mediaRef  = useRef(null);
+  const chunksRef = useRef([]);
+
+  const startMic = async () => {
+    setTranscript(''); setMicErr('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        setMicState('transcribing');
+        try {
+          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+          const res  = await fetch(`${API}/api/voice/transcribe`, {
+            method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob,
+          });
+          const data = await res.json();
+          if (data.error) { setMicErr(data.error); setMicState('error'); return; }
+          setTranscript(data.transcript || '(no speech detected)');
+          setMicState('done');
+        } catch(e) { setMicErr(e.message); setMicState('error'); }
+      };
+      mr.start();
+      mediaRef.current = mr;
+      setMicState('recording');
+    } catch(e) { setMicErr(`Mic error: ${e.message}`); setMicState('error'); }
+  };
+
+  const stopMic = () => { mediaRef.current?.stop(); };
+  const resetMic = () => { setMicState('idle'); setTranscript(''); setMicErr(''); };
+
+  return (
+    <Section title="Microphone Test" color="#8b5cf6">
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        {micState !== 'recording'
+          ? <button onClick={startMic} disabled={micState==='transcribing'}
+              style={{padding:"8px 18px",borderRadius:99,border:"none",background:"#8b5cf6",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",opacity:micState==='transcribing'?0.6:1}}>
+              🎙 Start recording
+            </button>
+          : <button onClick={stopMic}
+              style={{padding:"8px 18px",borderRadius:99,border:"none",background:"#ef4444",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+              ⏹ Stop
+            </button>
+        }
+        {(micState==='done'||micState==='error') && (
+          <button onClick={resetMic}
+            style={{padding:"8px 14px",borderRadius:99,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+            Reset
+          </button>
+        )}
+        <span style={{fontSize:12,color:micState==='error'?"#ef4444":micState==='recording'?"#ef4444":"#64748b"}}>
+          {micState==='idle'       && 'Tap to test microphone input'}
+          {micState==='recording'  && '🔴 Listening…'}
+          {micState==='transcribing' && '⏳ Transcribing…'}
+          {micState==='done'       && '✓ Done'}
+          {micState==='error'      && micErr}
+        </span>
+      </div>
+      {transcript && (
+        <div style={{background:"#f5f3ff",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#4c1d95",fontStyle:"italic",marginTop:4}}>
+          "{transcript}"
+        </div>
+      )}
+      {micState==='error' && micErr && (
+        <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",marginTop:4}}>{micErr}</div>
+      )}
+    </Section>
+  );
+}
+
 function DebugTab() {
   const API = import.meta.env.VITE_API_URL || '';
   const [data,    setData]    = useState(null);
@@ -2374,6 +2481,9 @@ function DebugTab() {
           <Row label="Longitude" value={env.lon} mono/>
           <Row label="City" value={env.city}/>
         </Section>
+
+        {/* Microphone test */}
+        <MicDebugCard API={API} Section={Section} />
 
       </div>
     </div>
@@ -2630,6 +2740,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:99px;}
         ::-webkit-scrollbar-track{background:transparent;}
         a{text-decoration:none;}
+        input:not([type=range]), textarea { font-size: max(16px, 1em); touch-action: manipulation; }
       `}</style>
 
       {/* Header — always visible */}
