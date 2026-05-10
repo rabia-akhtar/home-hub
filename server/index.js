@@ -860,6 +860,13 @@ const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:3b';
 
 // POST /api/voice/transcribe — send audio to Groq Whisper API, return transcript
 // Groq accepts webm directly — no ffmpeg needed. Free tier at console.groq.com
+// Whisper hallucinates these phrases on silence or very short audio — treat as empty
+const WHISPER_HALLUCINATIONS = [
+  'thank you', 'thanks for watching', 'thanks for listening', 'thank you for watching',
+  'thank you for listening', 'thank you for your time', 'please subscribe',
+  'bye', 'bye bye', 'you', 'you.', '.', '...', '…',
+];
+
 app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY not set in .env — get a free key at console.groq.com' });
   try {
@@ -868,6 +875,8 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
     form.append('file', blob, 'audio.webm');
     form.append('model', GROQ_STT_MODEL);
     form.append('language', 'en');
+    // Prompt biases Whisper toward home-hub commands and away from filler hallucinations
+    form.append('prompt', 'Smart home voice command. Add groceries, set task, turn lights on or off.');
 
     const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',
@@ -880,7 +889,11 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
       return res.status(500).json({ error: `Groq error ${r.status}: ${err}` });
     }
     const data = await r.json();
-    res.json({ transcript: data.text?.trim() || '' });
+    const raw = (data.text || '').trim();
+    // Filter hallucinated phrases
+    const isHallucination = WHISPER_HALLUCINATIONS.some(h => raw.toLowerCase() === h);
+    const transcript = isHallucination ? '' : raw;
+    res.json({ transcript });
   } catch (e) {
     console.error('[Groq STT]', e.message);
     res.status(500).json({ error: e.message });

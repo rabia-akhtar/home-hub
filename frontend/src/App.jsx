@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Component } from "react";
 
 const API = "/api";
 const RABIA = { name:"Rabia", color:"#38bdf8", light:"#e0f2fe", dark:"#0369a1", initial:"R" };
@@ -128,10 +128,10 @@ function useHub() {
   const [rwds,  setRwds]  = useState({rewards:[],redeemed:[]});
   const [users, setUsers] = useState([]);
 
-  const loadWx   = useCallback(()=>fetch(`${API}/weather`).then(r=>r.json()).then(setWx).catch(()=>{}), []);
-  const loadSun  = useCallback(()=>fetch(`${API}/sun`).then(r=>r.json()).then(setSun).catch(()=>{}), []);
-  const loadPts  = useCallback(()=>fetch(`${API}/points`).then(r=>r.json()).then(setPts).catch(()=>{}), []);
-  const loadRwds = useCallback(()=>fetch(`${API}/rewards`).then(r=>r.json()).then(setRwds).catch(()=>{}), []);
+  const loadWx   = useCallback(()=>fetch(`${API}/weather`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object'&&!d.error)setWx(d);}).catch(()=>{}), []);
+  const loadSun  = useCallback(()=>fetch(`${API}/sun`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object'&&!d.error)setSun(d);}).catch(()=>{}), []);
+  const loadPts  = useCallback(()=>fetch(`${API}/points`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object')setPts(d);}).catch(()=>{}), []);
+  const loadRwds = useCallback(()=>fetch(`${API}/rewards`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object')setRwds(d);}).catch(()=>{}), []);
   const loadProjs= useCallback(()=>fetch(`${API}/projects`).then(r=>r.json()).then(d=>setProjs(Array.isArray(d)?d:[])).catch(()=>{}), []);
   const loadTasks= useCallback(()=>fetch(`${API}/tasks`).then(r=>r.json()).then(d=>setTasks(Array.isArray(d)?d:[])).catch(()=>{}), []);
   const loadUsers= useCallback(()=>fetch(`${API}/users`).then(r=>r.json()).then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}), []);
@@ -139,7 +139,8 @@ function useHub() {
     try {
       const r=await fetch(`${API}/calendar`);
       if(r.status===401){setAuthOk(false);return;}
-      setEvts(await r.json()); setAuthOk(true);
+      const d=await r.json();
+      setEvts(Array.isArray(d)?d:[]); setAuthOk(true);
     } catch{setAuthOk(false);}
   },[]);
 
@@ -1512,7 +1513,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
 }
 
 // ─── UPCOMING TAB ────────────────────────────────────────────────────────────
-function UpcomingTab({ tasks, projs, uidMap }) {
+function UpcomingTab({ tasks, projs, uidMap, onCompleteTask }) {
   const today = new Date(); today.setHours(0,0,0,0);
   const groceriesProj     = projs.find(p=>p.name.toLowerCase()==="groceries");
   const rabiaPersonalProj = projs.find(p=>p.name.toLowerCase()==="rabia's personal");
@@ -1542,18 +1543,9 @@ function UpcomingTab({ tasks, projs, uidMap }) {
       </div>
       {wt.length===0
         ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>Nothing this week</div>
-        : wt.map((t,i)=>{
-            const due=fmtDue(t.due?.date);
-            return (
-              <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:54,borderBottom:i<wt.length-1?"1px solid #f8fafc":"none",gap:12}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,color:"#1e293b",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.content}</div>
-                  {t.project_name && <div style={{fontSize:11,color:"#94a3b8"}}>{t.project_name}</div>}
-                </div>
-                {due && <span style={{fontSize:12,fontWeight:700,color:due.color,flexShrink:0,whiteSpace:"nowrap"}}>{due.label}</span>}
-              </div>
-            );
-          })
+        : wt.map(t=>(
+            <HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>
+          ))
       }
     </div>
   );
@@ -2250,13 +2242,28 @@ function MicDebugCard({ API, Section }) {
   const [micState,    setMicState]    = useState('idle'); // idle|recording|transcribing|done|error
   const [transcript,  setTranscript]  = useState('');
   const [micErr,      setMicErr]      = useState('');
+  const [devices,     setDevices]     = useState([]);
+  const [deviceId,    setDeviceId]    = useState('');  // '' = browser default
   const mediaRef  = useRef(null);
   const chunksRef = useRef([]);
+
+  // Enumerate audio input devices (requires a brief permission grant first)
+  const loadDevices = useCallback(async () => {
+    try {
+      // Request permission so labels are populated
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach(t => t.stop());
+      const all = await navigator.mediaDevices.enumerateDevices();
+      setDevices(all.filter(d => d.kind === 'audioinput'));
+    } catch {}
+  }, []);
+  useEffect(() => { loadDevices(); }, [loadDevices]);
 
   const startMic = async () => {
     setTranscript(''); setMicErr('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioConstraint = deviceId ? { deviceId: { exact: deviceId } } : true;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint });
       const mr = new MediaRecorder(stream);
       chunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
@@ -2270,7 +2277,7 @@ function MicDebugCard({ API, Section }) {
           });
           const data = await res.json();
           if (data.error) { setMicErr(data.error); setMicState('error'); return; }
-          setTranscript(data.transcript || '(no speech detected)');
+          setTranscript(data.transcript || '(no speech detected — check selected device)');
           setMicState('done');
         } catch(e) { setMicErr(e.message); setMicState('error'); }
       };
@@ -2280,11 +2287,25 @@ function MicDebugCard({ API, Section }) {
     } catch(e) { setMicErr(`Mic error: ${e.message}`); setMicState('error'); }
   };
 
-  const stopMic = () => { mediaRef.current?.stop(); };
+  const stopMic  = () => { mediaRef.current?.stop(); };
   const resetMic = () => { setMicState('idle'); setTranscript(''); setMicErr(''); };
 
   return (
     <Section title="Microphone Test" color="#8b5cf6">
+      {/* Device picker */}
+      {devices.length > 1 && (
+        <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:4}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#64748b"}}>Input device</div>
+          {devices.map(d=>(
+            <button key={d.deviceId} onClick={()=>setDeviceId(d.deviceId)}
+              style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${deviceId===d.deviceId?"#8b5cf6":"#e2e8f0"}`,
+                background:deviceId===d.deviceId?"#f5f3ff":"#fff",color:deviceId===d.deviceId?"#6d28d9":"#1e293b",
+                fontSize:12,fontWeight:deviceId===d.deviceId?700:500,textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
+              {d.label||`Device ${d.deviceId.slice(0,6)}`}
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         {micState !== 'recording'
           ? <button onClick={startMic} disabled={micState==='transcribing'}
@@ -2303,11 +2324,11 @@ function MicDebugCard({ API, Section }) {
           </button>
         )}
         <span style={{fontSize:12,color:micState==='error'?"#ef4444":micState==='recording'?"#ef4444":"#64748b"}}>
-          {micState==='idle'       && 'Tap to test microphone input'}
-          {micState==='recording'  && '🔴 Listening…'}
+          {micState==='idle'         && 'Tap to test microphone input'}
+          {micState==='recording'    && '🔴 Listening…'}
           {micState==='transcribing' && '⏳ Transcribing…'}
-          {micState==='done'       && '✓ Done'}
-          {micState==='error'      && micErr}
+          {micState==='done'         && '✓ Done'}
+          {micState==='error'        && micErr}
         </span>
       </div>
       {transcript && (
@@ -2557,7 +2578,7 @@ const NAV = [
 ];
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
-export default function App() {
+function AppInner() {
   const [tab,        setTab]        = useState("home");
   const [screensaver,setScreensaver]= useState(false);
   const hub  = useHub();
@@ -2777,7 +2798,7 @@ export default function App() {
         >
           {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
-          {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap}/>}
+          {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap} onCompleteTask={handleCompleteTask}/>}
           {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
           {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
@@ -2792,7 +2813,7 @@ export default function App() {
 
       {/* Bottom nav — narrow screens (mobile) */}
       {!wide && (
-      <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(255,255,255,0.97)", backdropFilter:"blur(20px)", borderTop:"1px solid rgba(0,0,0,0.07)", display:"flex", justifyContent:"space-around", padding:"10px 2px 20px", zIndex:200, overflowX:"auto" }}>
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(255,255,255,0.97)", backdropFilter:"blur(20px)", borderTop:"1px solid rgba(0,0,0,0.07)", display:"flex", justifyContent:"space-around", padding:"10px 2px 20px", zIndex:200, overflowX:"auto"}}>
         {NAV.map(n=>{
           const active=tab===n.id;
           return (
@@ -2832,4 +2853,57 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppInner/>
+    </ErrorBoundary>
+  );
+}
+
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+// Catches any rendering error in the tree and shows a recovery screen instead
+// of a white screen. Auto-reloads after 10 s.
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null, reloading: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary] Caught error:', error, info?.componentStack);
+  }
+  componentDidUpdate(_, prev) {
+    if (this.state.error && !prev.error && !this.state.reloading) {
+      this.setState({ reloading: true });
+      setTimeout(() => window.location.reload(), 10000);
+    }
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const msg = this.state.error?.message || String(this.state.error);
+    return (
+      <div onClick={() => window.location.reload()}
+        style={{ position:"fixed", inset:0, background:"#0f172a", display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center", gap:20, cursor:"pointer", zIndex:99999 }}>
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="#f87171" strokeWidth="1.8"/>
+          <line x1="12" y1="7" x2="12" y2="13" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/>
+          <circle cx="12" cy="16.5" r="1.2" fill="#f87171"/>
+        </svg>
+        <div style={{ fontSize:20, fontWeight:800, color:"#f1f5f9" }}>Something went wrong</div>
+        <div style={{ fontSize:13, color:"#94a3b8", maxWidth:320, textAlign:"center", fontFamily:"monospace",
+          background:"#1e293b", padding:"10px 16px", borderRadius:12, wordBreak:"break-all" }}>
+          {msg}
+        </div>
+        <div style={{ fontSize:13, color:"#64748b" }}>
+          {this.state.reloading ? "Reloading in 10 s…" : "Tap to reload"}
+        </div>
+      </div>
+    );
+  }
 }
