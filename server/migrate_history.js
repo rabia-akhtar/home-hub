@@ -25,12 +25,15 @@ const TASK_HISTORY_TAB = 'Task History';
 const REST_BASE        = 'https://api.todoist.com/api/v1';
 const HDR              = { Authorization: `Bearer ${TODOIST_TOKEN}`, 'Content-Type': 'application/json' };
 const REWARD_PROJECTS  = ['chores', 'house items', 'cats'];
+const EXCLUDE_LABELS   = ['personal', 'exclude'];
 
 // How far back to search (years). Increase if needed.
 const YEARS_BACK = 3;
 
-function countsForReward(name) {
-  return REWARD_PROJECTS.includes((name || '').toLowerCase().trim());
+function countsForReward(name, labels) {
+  if (!REWARD_PROJECTS.includes((name || '').toLowerCase().trim())) return false;
+  if ((labels || []).some(l => EXCLUDE_LABELS.includes(l.toLowerCase().trim()))) return false;
+  return true;
 }
 
 function sheetsClient() {
@@ -181,7 +184,7 @@ async function main() {
     if (alreadyIn.has(id)){ skippedDupe++; continue; }
 
     const projectName = projectMap[item.project_id] || 'Inbox';
-    if (!countsForReward(projectName)) { skippedProject++; continue; }
+    if (!countsForReward(projectName, item.labels)) { skippedProject++; continue; }
 
     // due.is_recurring is present on ItemSyncView
     if (item.due?.is_recurring) { skippedRecurring++; continue; }

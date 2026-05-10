@@ -101,9 +101,12 @@ function ensureRewards() {
 ensureRewards();
 
 // Projects that count toward rewards
-const REWARD_PROJECTS = ['chores','house items','cats'];
-function countsForReward(projectName) {
-  return REWARD_PROJECTS.includes((projectName||'').toLowerCase().trim());
+const REWARD_PROJECTS  = ['chores','house items','cats'];
+const EXCLUDE_LABELS   = ['personal','exclude'];
+function countsForReward(projectName, labels) {
+  if (!REWARD_PROJECTS.includes((projectName||'').toLowerCase().trim())) return false;
+  if ((labels||[]).some(l => EXCLUDE_LABELS.includes(l.toLowerCase().trim()))) return false;
+  return true;
 }
 
 // ─── Kasa / Tapo KLAP protocol (EP25 + newer devices) ───────────────────────
@@ -367,7 +370,7 @@ app.get('/api/tasks', async (req,res) => {
     const enriched = todoList(tasks).map(t=>({
       ...t,
       project_name: pm[t.project_id]||'Inbox',
-      counts_for_reward: countsForReward(pm[t.project_id]||'Inbox') && !t.due?.is_recurring,
+      counts_for_reward: countsForReward(pm[t.project_id]||'Inbox', t.labels) && !t.due?.is_recurring,
     }));
     res.json(enriched);
   } catch(e) { res.status(500).json({error:e.message}); }
@@ -446,16 +449,18 @@ app.post('/api/tasks', async (req,res) => {
 // POST /api/tasks/:id/close — complete + award points
 app.post('/api/tasks/:id/close', async (req,res) => {
   try {
-    // Fetch task BEFORE closing so we can check is_recurring server-side
+    // Fetch task BEFORE closing so we can check is_recurring and labels server-side
     let isRecurring = false;
+    let hasExcludeLabel = false;
     try {
       const taskData = await fetch(`${TODO_BASE}/tasks/${req.params.id}`,{headers:TODO_HDR}).then(r=>r.json());
       isRecurring = !!(taskData?.due?.is_recurring);
-    } catch { /* if fetch fails, fall back to client-sent value */ isRecurring = !!req.body.is_recurring; }
+      hasExcludeLabel = (taskData?.labels||[]).some(l => EXCLUDE_LABELS.includes(l.toLowerCase().trim()));
+    } catch { isRecurring = !!req.body.is_recurring; }
 
     await fetch(`${TODO_BASE}/tasks/${req.params.id}/close`,{method:'POST',headers:TODO_HDR});
     const data = loadData();
-    if (req.body.counts_for_reward && !isRecurring) {
+    if (req.body.counts_for_reward && !isRecurring && !hasExcludeLabel) {
       const who = req.body.assignee;
       // Append to Google Sheets "Task History" — source of truth for all points
       appendTaskHistoryRow({
@@ -732,7 +737,7 @@ async function syncCompletedTasks() {
         if (!itemId || trackedIds.has(itemId)) continue;
 
         const projectName = pm[item.project_id] || 'Inbox';
-        if (!countsForReward(projectName)) continue;
+        if (!countsForReward(projectName, item.labels)) continue;
         if (item.due?.is_recurring)        continue;
 
         const who = uidMap[item.responsible_uid || item.completed_by_uid] || null;
