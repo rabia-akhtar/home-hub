@@ -37,8 +37,46 @@ function sheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
-// Fetch all completed items from Todoist via REST API v1 (paged)
+// Fetch all completed items — tries Sync API v9 (premium) first, falls back to REST v1
 async function fetchAllCompleted() {
+  console.log('  Trying Todoist Sync API (premium) completed items endpoint…');
+  const syncItems = await fetchCompletedViaSync();
+  if (syncItems !== null) {
+    console.log(`  Sync API returned ${syncItems.length} items`);
+    if (syncItems.length > 0) console.log('  Sample item keys:', Object.keys(syncItems[0]).join(', '));
+    return syncItems;
+  }
+  console.log('  Sync API unavailable, falling back to REST API v1…');
+  return fetchCompletedViaRest();
+}
+
+async function fetchCompletedViaSync() {
+  const all = [];
+  let offset = 0;
+  const limit = 200;
+  while (true) {
+    const url = `${SYNC_BASE}/items/completed/get_all?limit=${limit}&offset=${offset}`;
+    const raw = await fetch(url, { headers: HDR });
+    const text = await raw.text();
+    let r;
+    try { r = JSON.parse(text); } catch {
+      console.log(`  Sync API response (first 300 chars): ${text.slice(0, 300)}`);
+      return null; // signal fallback
+    }
+    if (r.error || r.error_code) {
+      console.log(`  Sync API error: ${r.error || JSON.stringify(r)}`);
+      return null;
+    }
+    const items = r.items || [];
+    all.push(...items);
+    console.log(`  Fetched ${all.length} completed tasks so far…`);
+    if (items.length < limit) break;
+    offset += limit;
+  }
+  return all;
+}
+
+async function fetchCompletedViaRest() {
   const all = [];
   let cursor = null;
   const limit = 200;
@@ -46,15 +84,18 @@ async function fetchAllCompleted() {
     const params = new URLSearchParams({ is_completed: '1', limit: String(limit) });
     if (cursor) params.set('cursor', cursor);
     const url = `${REST_BASE}/tasks?${params}`;
-    const raw = await fetch(url, { headers: HDR });
+    const raw  = await fetch(url, { headers: HDR });
     const text = await raw.text();
     let r;
     try { r = JSON.parse(text); } catch {
-      console.error('Unexpected response:', text.slice(0, 200));
-      throw new Error('Todoist returned non-JSON: ' + text.slice(0, 100));
+      console.error('REST API unexpected response:', text.slice(0, 300));
+      throw new Error('Todoist returned non-JSON');
     }
-    // REST v1 wraps results in { results: [...], next_cursor: '...' }
     const items = r.results || (Array.isArray(r) ? r : []);
+    if (all.length === 0 && items.length > 0) {
+      console.log('  REST sample item keys:', Object.keys(items[0]).join(', '));
+      console.log('  REST sample item:', JSON.stringify(items[0], null, 2).slice(0, 400));
+    }
     all.push(...items);
     console.log(`  Fetched ${all.length} completed tasks so far…`);
     cursor = r.next_cursor || null;
@@ -145,18 +186,18 @@ async function main() {
   const rows = [];
   let skippedRecurring = 0, skippedProject = 0, skippedUnknown = 0;
   for (const item of completed) {
-    // REST v1 completed tasks use 'id' directly
-    const id = String(item.id || '');
+    // Sync API uses task_id, REST v1 uses id
+    const id = String(item.task_id || item.id || '');
     if (!id || alreadyIn.has(id)) continue;
 
     const projectName = projectMap[item.project_id] || 'Inbox';
     if (!countsForReward(projectName)) { skippedProject++; continue; }
 
-    // REST v1 completed tasks carry due.is_recurring directly
+    // Recurring check: REST v1 has due.is_recurring; Sync API completed items rarely carry due
     if (item.due?.is_recurring) { skippedRecurring++; continue; }
 
-    // Determine who: responsible_uid on the task, fall back to creator_id
-    const uid = item.responsible_uid || item.creator_id;
+    // Sync API uses user_id (completer); REST v1 uses responsible_uid or creator_id
+    const uid = item.responsible_uid || item.user_id || item.creator_id;
     const who = uidMap[uid] || null;
     if (!who) {
       skippedUnknown++;
@@ -164,7 +205,8 @@ async function main() {
       continue;
     }
 
-    const completedAt = item.completed_at || item.date_completed || new Date().toISOString();
+    // Sync API uses 'date_completed', REST v1 uses 'completed_at'
+    const completedAt = item.date_completed || item.completed_at || item.date_added || new Date().toISOString();
     rows.push([completedAt, item.content || 'Task', projectName, who, 5, id]);
   }
   console.log(`   Skipped: ${skippedProject} wrong project, ${skippedRecurring} recurring, ${skippedUnknown} unknown assignee`);
