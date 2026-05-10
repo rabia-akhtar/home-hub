@@ -1263,7 +1263,6 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
               <Av person={person} size={48}/>
               <div style={{marginTop:10}}>
                 <ProgressRing pts={points} max={500} color={person.color}/>
-                <div style={{fontSize:13,color:"#64748b",marginTop:4,fontWeight:600}}>to next reward</div>
               </div>
             </div>
           );
