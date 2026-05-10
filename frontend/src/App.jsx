@@ -1253,21 +1253,6 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
         </div>
       )}
 
-      {/* Points summary */}
-      <div style={{display:"flex",gap:12}}>
-        {people.map(person=>{
-          const pKey   = person.name.toLowerCase();
-          const points = pts[`${pKey}_points`]||0;
-          return (
-            <div key={person.name} onClick={()=>setTaskDetailFor(taskDetailFor===pKey?null:pKey)} style={{...CARD,flex:1,padding:"18px",textAlign:"center",background:`linear-gradient(145deg,${person.color}12,${person.color}06)`,border:`2px solid ${person.color}30`,cursor:"pointer"}}>
-              <Av person={person} size={48}/>
-              <div style={{marginTop:10}}>
-                <ProgressRing pts={points} max={500} color={person.color}/>
-              </div>
-            </div>
-          );
-        })}
-      </div>
 
       {/* Task history detail for selected person */}
       {taskDetailFor && (() => {
@@ -1344,6 +1329,10 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
               <Av person={person} size={36}/>
               <div style={{fontSize:16,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
               <div style={{fontSize:13,color:person.color,fontWeight:700}}>{myPts} pts</div>
+              <button onClick={()=>setTaskDetailFor(taskDetailFor===pKey?null:pKey)}
+                style={{marginLeft:"auto",fontSize:11,padding:"4px 10px",borderRadius:99,border:`1px solid ${person.color}40`,background:"transparent",color:person.color,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
+                {taskDetailFor===pKey?"Hide tasks":"Tasks ▸"}
+              </button>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               {myRwds.map(r=>{
