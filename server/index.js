@@ -647,19 +647,14 @@ async function appendTaskHistoryRow(entry) {
   }
 }
 
-// Compute points entirely from sheet history (sum) minus redeemed (JSON)
+// Compute points entirely from Task History sheet — positive rows earn, negative rows spend.
 async function computePointsFromSheet() {
   const history = await fetchTaskHistoryFromSheet();
-  const data    = loadData();
   let rabia = 0, clare = 0;
   for (const t of history) {
     const p = parseFloat(t.points) || 0;
     if (t.who === 'rabia'  || t.who === 'family') rabia += p;
     if (t.who === 'clare'  || t.who === 'family') clare += p;
-  }
-  for (const r of (data.redeemed || [])) {
-    if (r.who === 'rabia') rabia -= (r.cost || 0);
-    if (r.who === 'clare') clare -= (r.cost || 0);
   }
   return { rabia_points: Math.max(0, rabia), clare_points: Math.max(0, clare) };
 }
@@ -864,8 +859,19 @@ app.post('/api/rewards/redeem', async (req, res) => {
     const computed = await computePointsFromSheet();
     const pts = computed[`${who}_points`] || 0;
     if (pts < cost) return res.status(400).json({ error: 'Not enough points' });
+    const redeemedAt = new Date().toISOString();
+    // Write negative row to Task History sheet — this is what reduces the balance
+    await appendTaskHistoryRow({
+      completedAt: redeemedAt,
+      title:       `[Redeemed: ${name}]`,
+      project:     '',
+      who,
+      points:      -cost,
+      todoist_id:  '',
+    });
+    // Also keep in JSON for the redemption history display in the app
     const data = loadData();
-    data.redeemed.push({ name, cost, icon: icon||'🎁', who, redeemedAt: new Date().toISOString() });
+    data.redeemed.push({ name, cost, icon: icon||'🎁', who, redeemedAt });
     saveData(data);
     const newPts = await computePointsFromSheet();
     res.json({ ok: true, points: { ...data, ...newPts } });
