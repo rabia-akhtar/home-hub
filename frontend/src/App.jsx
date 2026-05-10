@@ -2262,19 +2262,23 @@ function MicDebugCard({ API, Section }) {
   return (
     <Section title="Microphone Test" color="#8b5cf6">
       {/* Device picker */}
-      {devices.length > 1 && (
-        <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:4}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#64748b"}}>Input device</div>
-          {devices.map(d=>(
-            <button key={d.deviceId} onClick={()=>setDeviceId(d.deviceId)}
-              style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${deviceId===d.deviceId?"#8b5cf6":"#e2e8f0"}`,
-                background:deviceId===d.deviceId?"#f5f3ff":"#fff",color:deviceId===d.deviceId?"#6d28d9":"#1e293b",
-                fontSize:12,fontWeight:deviceId===d.deviceId?700:500,textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
-              {d.label||`Device ${d.deviceId.slice(0,6)}`}
-            </button>
-          ))}
-        </div>
-      )}
+      <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#64748b"}}>Input device {devices.length===0&&<span style={{fontWeight:400,color:"#94a3b8"}}>(loading…)</span>}</div>
+        <button key="" onClick={()=>setDeviceId('')}
+          style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${deviceId===''?"#8b5cf6":"#e2e8f0"}`,
+            background:deviceId===''?"#f5f3ff":"#fff",color:deviceId===''?"#6d28d9":"#1e293b",
+            fontSize:12,fontWeight:deviceId===''?700:500,textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
+          Browser default
+        </button>
+        {devices.map(d=>(
+          <button key={d.deviceId} onClick={()=>setDeviceId(d.deviceId)}
+            style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${deviceId===d.deviceId?"#8b5cf6":"#e2e8f0"}`,
+              background:deviceId===d.deviceId?"#f5f3ff":"#fff",color:deviceId===d.deviceId?"#6d28d9":"#1e293b",
+              fontSize:12,fontWeight:deviceId===d.deviceId?700:500,textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
+            {d.label||`Device ${d.deviceId.slice(0,6)}`}
+          </button>
+        ))}
+      </div>
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         {micState !== 'recording'
           ? <button onClick={startMic} disabled={micState==='transcribing'}
