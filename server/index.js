@@ -1105,12 +1105,17 @@ const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:3b';
 
 // POST /api/voice/transcribe — send audio to Groq Whisper API, return transcript
 // Groq accepts webm directly — no ffmpeg needed. Free tier at console.groq.com
-// Whisper hallucinates these phrases on silence or very short audio — treat as empty
+// Whisper hallucinates these phrases on silence or wrong mic — treat as empty.
+// Compared after stripping punctuation/whitespace from both sides.
 const WHISPER_HALLUCINATIONS = [
-  'thank you', 'thanks for watching', 'thanks for listening', 'thank you for watching',
-  'thank you for listening', 'thank you for your time', 'please subscribe',
-  'bye', 'bye bye', 'you', 'you.', '.', '...', '…',
+  'thank you', 'thanks', 'thanks for watching', 'thanks for listening',
+  'thank you for watching', 'thank you for listening', 'thank you for your time',
+  'please subscribe', 'bye', 'bye bye', 'you', 'hello', 'hello hello',
+  'hi', 'okay', 'oh', 'um', 'uh', 'hmm', 'hm',
+  'subtitles by', 'subtitles', 'captions by',
+  '.', '...', '…', '-', '–',
 ];
+function stripPunct(s) { return s.replace(/[.,!?;:\-–—…'"()[\]]/g, '').replace(/\s+/g, ' ').trim(); }
 
 app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY not set in .env — get a free key at console.groq.com' });
@@ -1135,9 +1140,12 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
     }
     const data = await r.json();
     const raw = (data.text || '').trim();
-    // Filter hallucinated phrases
-    const isHallucination = WHISPER_HALLUCINATIONS.some(h => raw.toLowerCase() === h);
+    console.log('[Groq STT] raw:', JSON.stringify(raw));
+    // Filter hallucinated phrases (strip punctuation before comparing)
+    const normalized = stripPunct(raw.toLowerCase());
+    const isHallucination = !normalized || WHISPER_HALLUCINATIONS.some(h => normalized === h);
     const transcript = isHallucination ? '' : raw;
+    if (isHallucination && raw) console.log('[Groq STT] filtered hallucination:', JSON.stringify(raw));
     res.json({ transcript });
   } catch (e) {
     console.error('[Groq STT]', e.message);
