@@ -371,6 +371,9 @@ app.get('/api/tasks', async (req,res) => {
       ...t,
       project_name: pm[t.project_id]||'Inbox',
       counts_for_reward: countsForReward(pm[t.project_id]||'Inbox', t.labels) && !t.due?.is_recurring,
+      // REST API v1 uses assignee_id; frontend expects responsible_uid (Sync API field name)
+      responsible_uid: t.assignee_id || t.responsible_uid || null,
+      checked: t.is_completed || t.checked || false,
     }));
     res.json(enriched);
   } catch(e) { res.status(500).json({error:e.message}); }
