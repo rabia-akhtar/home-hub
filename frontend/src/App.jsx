@@ -146,11 +146,14 @@ function useHub() {
 
   useEffect(()=>{
     loadWx(); loadSun(); loadPts(); loadRwds(); loadProjs(); loadTasks(); loadCal(); loadUsers();
-    const t1=setInterval(loadWx,  600000);
-    const t2=setInterval(loadSun, 600000);
-    const t3=setInterval(loadTasks,30000);
-    const t4=setInterval(loadCal,  60000);
-    return()=>{clearInterval(t1);clearInterval(t2);clearInterval(t3);clearInterval(t4);};
+    const t1=setInterval(loadWx,    600000); // weather every 10 min
+    const t2=setInterval(loadSun,   600000); // sunrise every 10 min
+    const t3=setInterval(loadTasks,  20000); // tasks every 20 s  (Sheets + Todoist)
+    const t4=setInterval(loadCal,    60000); // calendar every 1 min
+    const t5=setInterval(loadPts,    30000); // points every 30 s
+    const t6=setInterval(loadRwds,   60000); // rewards every 1 min
+    const t7=setInterval(loadProjs, 300000); // projects every 5 min (rarely change)
+    return()=>{clearInterval(t1);clearInterval(t2);clearInterval(t3);clearInterval(t4);clearInterval(t5);clearInterval(t6);clearInterval(t7);};
   },[]);
 
   return { wx,sun,pts,setPts,tasks,setTasks,projs,evts,setEvts,authOk,rwds,setRwds,users, reload:{wx:loadWx,sun:loadSun,pts:loadPts,rwds:loadRwds,tasks:loadTasks,cal:loadCal,projs:loadProjs} };
@@ -2862,6 +2865,9 @@ function AppInner() {
       </div>
       )}
 
+      {/* Virtual keyboard — always on top, rendered by Chromium itself */}
+      <VirtualKeyboard />
+
       {/* Zoom control — floating bottom-right */}
       <div style={{
         position:"fixed", bottom: wide ? 16 : 86, right:14, zIndex:300,
@@ -2895,6 +2901,194 @@ export default function App() {
     <ErrorBoundary>
       <AppInner/>
     </ErrorBoundary>
+  );
+}
+
+// ─── Virtual Keyboard ─────────────────────────────────────────────────────────
+// Rendered inside Chromium so it's always above the kiosk window.
+// Auto-shows on focusin/touchstart/click on inputs; floating ⌨ button as fallback.
+
+function kbtnStyle(bg, minW, color="#1e293b") {
+  return {
+    minWidth: minW, height: 46,
+    background: bg, border: "none", borderRadius: 9,
+    fontSize: 17, fontWeight: 700, color,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    padding: "0 6px",
+    boxShadow: "0 2px 0 rgba(0,0,0,0.25)",
+    cursor: "pointer",
+    WebkitTapHighlightColor: "transparent",
+    touchAction: "manipulation",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    userSelect: "none",
+    flexShrink: 0,
+  };
+}
+
+function VirtualKeyboard() {
+  const [visible, setVisible] = useState(false);
+  const [shift,   setShift]   = useState(false);
+  const [layer,   setLayer]   = useState("alpha");
+  const targetRef = useRef(null);
+
+  // ── helpers ──────────────────────────────────────────────────────────────────
+  const isTextInput = (el) => {
+    if (!el) return false;
+    const tag  = el.tagName;
+    const type = (el.type || "").toLowerCase();
+    if (tag === "TEXTAREA") return true;
+    if (tag !== "INPUT") return false;
+    return !["date","time","range","color","file","submit","button","reset","image","checkbox","radio"].includes(type);
+  };
+
+  const attachTarget = useCallback((el) => {
+    if (!isTextInput(el)) return;
+    targetRef.current = el;
+    setVisible(true);
+    setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+  }, []);
+
+  // ── event listeners: focusin + touchstart + click (belt-and-suspenders) ─────
+  useEffect(() => {
+    const onFocusIn   = (e) => attachTarget(e.target);
+    const onTouchStart = (e) => { if (isTextInput(e.target)) attachTarget(e.target); };
+    const onClick      = (e) => { if (isTextInput(e.target)) attachTarget(e.target); };
+    const onFocusOut  = (e) => {
+      setTimeout(() => {
+        const a = document.activeElement;
+        if (!isTextInput(a)) { setVisible(false); targetRef.current = null; }
+        else targetRef.current = a;
+      }, 200);
+    };
+    document.addEventListener("focusin",    onFocusIn);
+    document.addEventListener("focusout",   onFocusOut);
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("click",      onClick);
+    return () => {
+      document.removeEventListener("focusin",    onFocusIn);
+      document.removeEventListener("focusout",   onFocusOut);
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("click",      onClick);
+    };
+  }, [attachTarget]);
+
+  // ── text injection (works with React-controlled inputs) ──────────────────────
+  const injectText = useCallback((char) => {
+    const el = targetRef.current;
+    if (!el) return;
+    const proto  = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+    const start  = el.selectionStart ?? el.value.length;
+    const end    = el.selectionEnd   ?? el.value.length;
+    const newVal = el.value.slice(0, start) + char + el.value.slice(end);
+    setter?.call(el, newVal);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.setSelectionRange(start + char.length, start + char.length);
+    if (shift && char !== " ") setShift(false);
+  }, [shift]);
+
+  const doBackspace = useCallback(() => {
+    const el = targetRef.current;
+    if (!el) return;
+    const proto  = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+    const start  = el.selectionStart ?? el.value.length;
+    const end    = el.selectionEnd   ?? el.value.length;
+    let newVal, pos;
+    if (start !== end) { newVal = el.value.slice(0, start) + el.value.slice(end); pos = start; }
+    else if (start > 0) { newVal = el.value.slice(0, start - 1) + el.value.slice(start); pos = start - 1; }
+    else return;
+    setter?.call(el, newVal);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.setSelectionRange(pos, pos);
+  }, []);
+
+  const doEnter = useCallback(() => {
+    const el = targetRef.current;
+    if (!el) return;
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", bubbles: true }));
+    if (el.tagName === "TEXTAREA") injectText("\n");
+    else setVisible(false);
+  }, [injectText]);
+
+  // ── manual toggle: show keyboard pointed at current focused element ──────────
+  const manualToggle = useCallback(() => {
+    if (visible) {
+      setVisible(false);
+    } else {
+      const a = document.activeElement;
+      if (isTextInput(a)) { targetRef.current = a; setVisible(true); }
+      else setVisible(true); // show anyway so user can tap an input
+    }
+  }, [visible]);
+
+  // ── layouts ──────────────────────────────────────────────────────────────────
+  const alphaRows = shift
+    ? [["Q","W","E","R","T","Y","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["Z","X","C","V","B","N","M"]]
+    : [["q","w","e","r","t","y","u","i","o","p"],["a","s","d","f","g","h","j","k","l"],["z","x","c","v","b","n","m"]];
+  const numRows = [["1","2","3","4","5","6","7","8","9","0"],["-","/",":",";","(",")","\u0024","&","@","\u0022"],[".",",","?","!","'"]];
+  const rows = layer === "alpha" ? alphaRows : numRows;
+  const GAP  = 5;
+
+  return (
+    <>
+      {/* Floating ⌨ toggle — always visible, bottom-left */}
+      <button
+        onPointerDown={e => { e.preventDefault(); manualToggle(); }}
+        style={{
+          position: "fixed", bottom: 90, left: 14, zIndex: 99998,
+          width: 44, height: 44, borderRadius: "50%",
+          background: visible ? "#6366f1" : "rgba(255,255,255,0.92)",
+          border: "1px solid rgba(0,0,0,0.10)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.18)",
+          fontSize: 20, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          WebkitTapHighlightColor: "transparent",
+          touchAction: "manipulation",
+          backdropFilter: "blur(12px)",
+        }}
+      >⌨</button>
+
+      {/* Keyboard panel */}
+      {visible && (
+        <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 99999,
+          background: "#c7cacc",
+          padding: "10px 4px 20px",
+          boxShadow: "0 -4px 24px rgba(0,0,0,0.30)",
+          userSelect: "none",
+          touchAction: "manipulation",
+        }}>
+          {rows.map((row, ri) => (
+            <div key={ri} style={{ display:"flex", justifyContent:"center", gap: GAP, marginBottom: GAP }}>
+              {ri === 2 && (
+                <button onPointerDown={e=>{ e.preventDefault(); setShift(s=>!s); }}
+                  style={kbtnStyle(shift ? "#6366f1" : "#9ca3af", 54, "#fff")}>⇧</button>
+              )}
+              {row.map(ch => (
+                <button key={ch} onPointerDown={e=>{ e.preventDefault(); injectText(ch); }}
+                  style={kbtnStyle("#fff", 34)}>{ch}</button>
+              ))}
+              {ri === 2 && (
+                <button onPointerDown={e=>{ e.preventDefault(); doBackspace(); }}
+                  style={kbtnStyle("#9ca3af", 54, "#fff")}>⌫</button>
+              )}
+            </div>
+          ))}
+          <div style={{ display:"flex", justifyContent:"center", gap: GAP }}>
+            <button onPointerDown={e=>{ e.preventDefault(); setLayer(l => l==="alpha" ? "num" : "alpha"); setShift(false); }}
+              style={kbtnStyle("#9ca3af", 70, "#fff")}>{layer==="alpha" ? "123" : "ABC"}</button>
+            <button onPointerDown={e=>{ e.preventDefault(); injectText(" "); }}
+              style={kbtnStyle("#fff", 220)}>space</button>
+            <button onPointerDown={e=>{ e.preventDefault(); doEnter(); }}
+              style={kbtnStyle("#6366f1", 96, "#fff")}>return</button>
+            <button onPointerDown={e=>{ e.preventDefault(); setVisible(false); targetRef.current?.blur(); }}
+              style={kbtnStyle("#9ca3af", 50, "#fff")}>✕</button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
