@@ -1523,6 +1523,15 @@ app.get('/api/debug/system', async (req, res) => {
       tokens_saved: hasGoogleTokens,
       token_expiry: data.google_tokens?.expiry ? new Date(data.google_tokens.expiry).toISOString() : null,
     },
+    pushover: {
+      app_token_set:  !!process.env.PUSHOVER_APP_TOKEN,
+      rabia_user_set: !!process.env.PUSHOVER_RABIA_USER,
+      clare_user_set: !!process.env.PUSHOVER_CLARE_USER,
+      // Mask keys — show last 4 chars only so you can verify without exposing full token
+      app_token_hint:  process.env.PUSHOVER_APP_TOKEN  ? '…' + process.env.PUSHOVER_APP_TOKEN.slice(-4)  : null,
+      rabia_user_hint: process.env.PUSHOVER_RABIA_USER ? '…' + process.env.PUSHOVER_RABIA_USER.slice(-4) : null,
+      clare_user_hint: process.env.PUSHOVER_CLARE_USER ? '…' + process.env.PUSHOVER_CLARE_USER.slice(-4) : null,
+    },
     env: {
       port: PORT,
       node_env: process.env.NODE_ENV || 'production',

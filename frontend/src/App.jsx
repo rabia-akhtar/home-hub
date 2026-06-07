@@ -2380,7 +2380,7 @@ function DebugTab() {
   if (error)   return <div style={{padding:40,textAlign:"center",color:"#ef4444",fontSize:14}}>Error: {error}</div>;
   if (!data)   return null;
 
-  const { lights, motion, weather, todoist, google_calendar: gcal, voice, env } = data;
+  const { lights, motion, weather, todoist, google_calendar: gcal, voice, pushover, env } = data;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -2475,6 +2475,20 @@ function DebugTab() {
           <Row label="Groq LLM" value={voice.groq_llm?.key_set?"API key set ✓":"Missing"} status={voice.groq_llm?.key_set?"ok":"error"}/>
           <Row label="Intent model" value={voice.groq_llm?.model||"llama-3.1-8b-instant"}/>
           {!voice.groq_stt?.key_set && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Add <code>GROQ_API_KEY=...</code> to .env — free key at console.groq.com</div>}
+        </Section>
+        )}
+
+        {/* Pushover */}
+        {pushover && (
+        <Section title="Pushover (Phone Ping)" color="#f97316">
+          <Row label="App Token"        value={pushover.app_token_set  ? `Set ✓ (${pushover.app_token_hint})`  : 'Missing PUSHOVER_APP_TOKEN'}  status={pushover.app_token_set ?'ok':'error'}/>
+          <Row label="Rabia user key"   value={pushover.rabia_user_set ? `Set ✓ (${pushover.rabia_user_hint})` : 'Missing PUSHOVER_RABIA_USER'}  status={pushover.rabia_user_set?'ok':'error'}/>
+          <Row label="Clare user key"   value={pushover.clare_user_set ? `Set ✓ (${pushover.clare_user_hint})` : 'Missing PUSHOVER_CLARE_USER'}   status={pushover.clare_user_set?'ok':'error'}/>
+          {(!pushover.app_token_set || !pushover.rabia_user_set || !pushover.clare_user_set) && (
+            <div style={{background:'#fff7ed',borderRadius:8,padding:'8px 10px',fontSize:11,color:'#c2410c'}}>
+              Add missing keys to <code>.env</code> on the Pi, then restart the server.
+            </div>
+          )}
         </Section>
         )}
 
