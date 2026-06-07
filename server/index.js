@@ -1399,35 +1399,43 @@ app.post('/api/findmy/open/:account', (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── ntfy Phone Ping ──────────────────────────────────────────────────────────
+// ─── Pushover Phone Ping ──────────────────────────────────────────────────────
+// Priority 2 = Emergency: repeats every RETRY seconds until acknowledged,
+// bypasses silent mode when Critical Alerts is enabled in iOS Settings > Pushover.
 app.post('/api/ping/:who', async (req, res) => {
   const { who } = req.params;
   if (!['rabia', 'clare'].includes(who))
     return res.status(400).json({ error: 'Invalid person' });
 
-  const topicEnv = who === 'rabia' ? process.env.NTFY_RABIA_TOPIC : process.env.NTFY_CLARE_TOPIC;
-  if (!topicEnv)
-    return res.status(503).json({ error: `NTFY_${who.toUpperCase()}_TOPIC not set in .env` });
+  const appToken = process.env.PUSHOVER_APP_TOKEN;
+  const userKey  = who === 'rabia' ? process.env.PUSHOVER_RABIA_USER : process.env.PUSHOVER_CLARE_USER;
+  const name     = who.charAt(0).toUpperCase() + who.slice(1);
 
-  const server = (process.env.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, '');
-  const name   = who.charAt(0).toUpperCase() + who.slice(1);
+  if (!appToken) return res.status(503).json({ error: 'PUSHOVER_APP_TOKEN not set in .env' });
+  if (!userKey)  return res.status(503).json({ error: `PUSHOVER_${who.toUpperCase()}_USER not set in .env` });
 
   try {
-    const r = await fetch(`${server}/${topicEnv}`, {
-      method: 'POST',
-      headers: {
-        'Title':    `\u{1F4CD} Where are you, ${name}?`,
-        'Priority': 'high',
-        'Tags':     'rotating_light,iphone',
-        'Content-Type': 'text/plain',
-      },
-      body: `Hey ${name}, someone is looking for you! \u{1F4F1}`,
+    const body = new URLSearchParams({
+      token:    appToken,
+      user:     userKey,
+      title:    `\uD83D\uDCCD Where are you, ${name}?`,
+      message:  `Someone at home is looking for you! \uD83D\uDCF1`,
+      priority: '2',   // Emergency — repeats + bypasses silent mode (needs Critical Alerts on in iOS)
+      retry:    '30',  // Retry every 30 seconds…
+      expire:   '300', // …for up to 5 minutes
+      sound:    'alien',
     });
-    if (!r.ok) {
-      const txt = await r.text();
-      return res.status(502).json({ error: `ntfy error ${r.status}: ${txt}` });
-    }
-    res.json({ ok: true, sent_to: `${server}/${topicEnv}` });
+
+    const r = await fetch('https://api.pushover.net/1/messages.json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    const data = await r.json();
+    if (data.status !== 1)
+      return res.status(502).json({ error: data.errors?.join(', ') || 'Pushover error' });
+
+    res.json({ ok: true, receipt: data.receipt });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
