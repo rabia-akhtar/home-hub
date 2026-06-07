@@ -2630,17 +2630,6 @@ function FindMyTab() {
       })}
 
       {/* Setup hint */}
-      <div style={{ background:'#f8fafc', borderRadius:14, padding:'14px 16px', border:'1px solid #e2e8f0' }}>
-        <div style={{ fontSize:12, fontWeight:700, color:'#64748b', marginBottom:6 }}>Setup</div>
-        <ol style={{ margin:0, paddingLeft:18, fontSize:12, color:'#94a3b8', lineHeight:1.9 }}>
-          <li>Create a free account at <strong style={{color:'#6366f1'}}>pushover.net</strong> — note your <em>User Key</em></li>
-          <li>Create an Application on Pushover — note the <em>App Token</em></li>
-          <li>Install <strong style={{color:'#6366f1'}}>Pushover</strong> ($5 one-time) on each iPhone</li>
-          <li>Add keys to <code style={{background:'#e2e8f0',padding:'1px 5px',borderRadius:4}}>.env</code> on the Pi — see command below</li>
-          <li>In iOS: <strong>Settings → Pushover → Notifications → Critical Alerts → ON</strong> to bypass silent mode</li>
-          <li>Restart the server</li>
-        </ol>
-      </div>
 
       <style>{`@keyframes spin { to { transform:rotate(360deg); } }`}</style>
     </div>
