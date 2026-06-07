@@ -2908,20 +2908,19 @@ export default function App() {
 // Rendered inside Chromium so it's always above the kiosk window.
 // Auto-shows on focusin/touchstart/click on inputs; floating ⌨ button as fallback.
 
-function kbtnStyle(bg, minW, color="#1e293b") {
+function kbtnStyle(bg, flex=1, color="#1e293b", minW=0) {
   return {
-    minWidth: minW, height: 46,
+    flex, minWidth: minW, height: 52,
     background: bg, border: "none", borderRadius: 9,
-    fontSize: 17, fontWeight: 700, color,
+    fontSize: 18, fontWeight: 700, color,
     display: "flex", alignItems: "center", justifyContent: "center",
-    padding: "0 6px",
-    boxShadow: "0 2px 0 rgba(0,0,0,0.25)",
+    padding: 0,
+    boxShadow: "0 2px 0 rgba(0,0,0,0.28)",
     cursor: "pointer",
     WebkitTapHighlightColor: "transparent",
     touchAction: "manipulation",
     fontFamily: "system-ui, -apple-system, sans-serif",
     userSelect: "none",
-    flexShrink: 0,
   };
 }
 
@@ -3055,36 +3054,36 @@ function VirtualKeyboard() {
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 99999,
           background: "#c7cacc",
-          padding: "10px 4px 20px",
+          padding: "8px 6px 18px",
           boxShadow: "0 -4px 24px rgba(0,0,0,0.30)",
           userSelect: "none",
           touchAction: "manipulation",
         }}>
           {rows.map((row, ri) => (
-            <div key={ri} style={{ display:"flex", justifyContent:"center", gap: GAP, marginBottom: GAP }}>
+            <div key={ri} style={{ display:"flex", gap: GAP, marginBottom: GAP }}>
               {ri === 2 && (
                 <button onPointerDown={e=>{ e.preventDefault(); setShift(s=>!s); }}
-                  style={kbtnStyle(shift ? "#6366f1" : "#9ca3af", 54, "#fff")}>⇧</button>
+                  style={kbtnStyle(shift ? "#6366f1" : "#9ca3af", 1.5, "#fff")}>⇧</button>
               )}
               {row.map(ch => (
                 <button key={ch} onPointerDown={e=>{ e.preventDefault(); injectText(ch); }}
-                  style={kbtnStyle("#fff", 34)}>{ch}</button>
+                  style={kbtnStyle("#fff", 1)}>{ch}</button>
               ))}
               {ri === 2 && (
                 <button onPointerDown={e=>{ e.preventDefault(); doBackspace(); }}
-                  style={kbtnStyle("#9ca3af", 54, "#fff")}>⌫</button>
+                  style={kbtnStyle("#9ca3af", 1.5, "#fff")}>⌫</button>
               )}
             </div>
           ))}
-          <div style={{ display:"flex", justifyContent:"center", gap: GAP }}>
+          <div style={{ display:"flex", gap: GAP }}>
             <button onPointerDown={e=>{ e.preventDefault(); setLayer(l => l==="alpha" ? "num" : "alpha"); setShift(false); }}
-              style={kbtnStyle("#9ca3af", 70, "#fff")}>{layer==="alpha" ? "123" : "ABC"}</button>
+              style={kbtnStyle("#9ca3af", 1.5, "#fff")}>{layer==="alpha" ? "123" : "ABC"}</button>
             <button onPointerDown={e=>{ e.preventDefault(); injectText(" "); }}
-              style={kbtnStyle("#fff", 220)}>space</button>
+              style={kbtnStyle("#fff", 5)}>space</button>
             <button onPointerDown={e=>{ e.preventDefault(); doEnter(); }}
-              style={kbtnStyle("#6366f1", 96, "#fff")}>return</button>
+              style={kbtnStyle("#6366f1", 2, "#fff")}>return</button>
             <button onPointerDown={e=>{ e.preventDefault(); setVisible(false); targetRef.current?.blur(); }}
-              style={kbtnStyle("#9ca3af", 50, "#fff")}>✕</button>
+              style={kbtnStyle("#9ca3af", 1, "#fff")}>✕</button>
           </div>
         </div>
       )}
