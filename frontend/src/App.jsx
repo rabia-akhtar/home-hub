@@ -2522,8 +2522,8 @@ function BatteryBar({ level, charging }) {
 }
 
 function FindMyTab() {
-  const [states, setStates] = React.useState({ rabia: 'idle', clare: 'idle' });
-  const [lastPing, setLastPing] = React.useState({ rabia: null, clare: null });
+  const [states, setStates] = useState({ rabia: 'idle', clare: 'idle' });
+  const [lastPing, setLastPing] = useState({ rabia: null, clare: null });
 
   const ping = async (who) => {
     setStates(s => ({ ...s, [who]: 'sending' }));
