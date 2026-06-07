@@ -1160,7 +1160,7 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
 // Bypasses the browser mic API entirely — useful for Wayland kiosks where
 // getUserMedia hangs. The browser just calls start/stop; arecord does the work.
 const VOICE_TMP = '/tmp/hub_voice.wav';
-const ALSA_MIC  = process.env.ALSA_MIC_DEVICE || 'hw:2,0';
+const ALSA_MIC  = process.env.ALSA_MIC_DEVICE || 'plughw:2,0';
 let voiceRecProc = null;
 
 app.post('/api/voice/record/start', (req, res) => {
