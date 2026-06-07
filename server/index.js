@@ -1399,6 +1399,40 @@ app.post('/api/findmy/open/:account', (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── ntfy Phone Ping ──────────────────────────────────────────────────────────
+app.post('/api/ping/:who', async (req, res) => {
+  const { who } = req.params;
+  if (!['rabia', 'clare'].includes(who))
+    return res.status(400).json({ error: 'Invalid person' });
+
+  const topicEnv = who === 'rabia' ? process.env.NTFY_RABIA_TOPIC : process.env.NTFY_CLARE_TOPIC;
+  if (!topicEnv)
+    return res.status(503).json({ error: `NTFY_${who.toUpperCase()}_TOPIC not set in .env` });
+
+  const server = (process.env.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, '');
+  const name   = who.charAt(0).toUpperCase() + who.slice(1);
+
+  try {
+    const r = await fetch(`${server}/${topicEnv}`, {
+      method: 'POST',
+      headers: {
+        'Title':    `\u{1F4CD} Where are you, ${name}?`,
+        'Priority': 'high',
+        'Tags':     'rotating_light,iphone',
+        'Content-Type': 'text/plain',
+      },
+      body: `Hey ${name}, someone is looking for you! \u{1F4F1}`,
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      return res.status(502).json({ error: `ntfy error ${r.status}: ${txt}` });
+    }
+    res.json({ ok: true, sent_to: `${server}/${topicEnv}` });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/findmy/ring/:account/:deviceId', async (req, res) => {
   const { account, deviceId } = req.params;
   if (!['rabia', 'clare'].includes(account))

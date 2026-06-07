@@ -2511,24 +2511,128 @@ function BatteryBar({ level, charging }) {
 }
 
 function FindMyTab() {
-  const accounts = [
-    { label:'Rabia', color:RABIA.color, shadow:'rgba(56,189,248,0.3)' },
-    { label:'Clare', color:CLARE.color, shadow:'rgba(244,114,182,0.3)' },
+  const [states, setStates] = React.useState({ rabia: 'idle', clare: 'idle' });
+  const [lastPing, setLastPing] = React.useState({ rabia: null, clare: null });
+
+  const ping = async (who) => {
+    setStates(s => ({ ...s, [who]: 'sending' }));
+    try {
+      const r = await fetch(`${API}/ping/${who}`, { method: 'POST' });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Failed');
+      setLastPing(p => ({ ...p, [who]: new Date() }));
+      setStates(s => ({ ...s, [who]: 'sent' }));
+      setTimeout(() => setStates(s => ({ ...s, [who]: 'idle' })), 4000);
+    } catch(e) {
+      setStates(s => ({ ...s, [who]: 'error:' + e.message }));
+      setTimeout(() => setStates(s => ({ ...s, [who]: 'idle' })), 5000);
+    }
+  };
+
+  const cards = [
+    { who:'rabia', person:RABIA },
+    { who:'clare', person:CLARE },
   ];
+
   return (
-    <div style={{ maxWidth:500, margin:'0 auto', textAlign:'center', paddingTop:40 }}>
-      <div style={{ fontSize:48, marginBottom:16 }}>📍</div>
-      <h2 style={{ margin:'0 0 8px', fontSize:22, fontWeight:700, color:'#1e293b' }}>Find My</h2>
-      <p style={{ color:'#64748b', marginBottom:32, fontSize:15 }}>Opens iCloud Find My in a new window.<br/>Close that window to return to the dashboard.</p>
-      <div style={{ display:'flex', gap:16, justifyContent:'center' }}>
-        {accounts.map(({ label, color, shadow }) => (
-          <button key={label}
-            onClick={() => fetch(`${API}/findmy/open/${label.toLowerCase()}`, { method:'POST' })}
-            style={{ padding:'16px 32px', background:color, color:'#fff', border:'none', borderRadius:16, fontSize:17, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:`0 4px 12px ${shadow}` }}>
-            {label}
-          </button>
-        ))}
+    <div style={{ maxWidth:480, margin:'0 auto', paddingTop:32, display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Header */}
+      <div style={{ textAlign:'center', marginBottom:8 }}>
+        <div style={{ fontSize:44, marginBottom:10 }}>📱</div>
+        <div style={{ fontSize:22, fontWeight:800, color:'#1e293b' }}>Ping a Phone</div>
+        <div style={{ fontSize:14, color:'#64748b', marginTop:6 }}>
+          Sends a loud notification via ntfy.<br/>
+          Make sure the ntfy app is installed on each iPhone.
+        </div>
       </div>
+
+      {cards.map(({ who, person }) => {
+        const st = states[who];
+        const sending = st === 'sending';
+        const sent    = st === 'sent';
+        const errMsg  = st.startsWith('error:') ? st.slice(6) : null;
+        const lp      = lastPing[who];
+
+        return (
+          <div key={who} style={{
+            background:'#fff', borderRadius:20, overflow:'hidden',
+            boxShadow:'0 2px 12px rgba(0,0,0,0.07)',
+            border: sent ? `2px solid ${person.color}` : '2px solid transparent',
+            transition:'border-color 0.3s',
+          }}>
+            {/* Person header */}
+            <div style={{
+              background:`linear-gradient(135deg,${person.color}18,${person.color}08)`,
+              padding:'16px 20px', display:'flex', alignItems:'center', gap:14,
+            }}>
+              <Av person={person} size={52}/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:18, fontWeight:800, color:'#1e293b' }}>{person.name}</div>
+                {lp && (
+                  <div style={{ fontSize:12, color:'#94a3b8', marginTop:2 }}>
+                    Last pinged {lp.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Ping button */}
+            <div style={{ padding:'16px 20px' }}>
+              <button
+                onClick={() => !sending && ping(who)}
+                disabled={sending}
+                style={{
+                  width:'100%', padding:'14px', borderRadius:14, border:'none',
+                  background: sent    ? '#dcfce7'
+                            : errMsg  ? '#fef2f2'
+                            : sending ? `${person.color}88`
+                            : person.color,
+                  color:  sent   ? '#16a34a'
+                        : errMsg ? '#ef4444'
+                        : '#fff',
+                  fontSize:16, fontWeight:700, cursor: sending ? 'wait' : 'pointer',
+                  fontFamily:'inherit', transition:'all 0.2s',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                }}
+              >
+                {sending ? (
+                  <>
+                    <span style={{ display:'inline-block', animation:'spin 1s linear infinite' }}>⏳</span>
+                    Sending…
+                  </>
+                ) : sent ? (
+                  <>✓ Notification sent!</>
+                ) : errMsg ? (
+                  <>{errMsg}</>
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                      <path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    Ping {person.name}&apos;s iPhone
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Setup hint */}
+      <div style={{ background:'#f8fafc', borderRadius:14, padding:'14px 16px', border:'1px solid #e2e8f0' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'#64748b', marginBottom:6 }}>Setup</div>
+        <ol style={{ margin:0, paddingLeft:18, fontSize:12, color:'#94a3b8', lineHeight:1.8 }}>
+          <li>Install <strong style={{color:'#6366f1'}}>ntfy</strong> (free) on each iPhone from the App Store</li>
+          <li>In ntfy, subscribe to a unique topic (e.g. <code style={{background:'#e2e8f0',padding:'1px 5px',borderRadius:4}}>rabia-hub-abc123</code>)</li>
+          <li>Add each topic to <code style={{background:'#e2e8f0',padding:'1px 5px',borderRadius:4}}>.env</code> on the Pi:<br/>
+            <code style={{background:'#e2e8f0',padding:'1px 5px',borderRadius:4,display:'inline-block',marginTop:4}}>NTFY_RABIA_TOPIC=your-topic-here</code>
+          </li>
+          <li>Restart the server — buttons will activate</li>
+        </ol>
+      </div>
+
+      <style>{`@keyframes spin { to { transform:rotate(360deg); } }`}</style>
     </div>
   );
 }
