@@ -2034,7 +2034,12 @@ function VoiceTab({ triggerRecord = 0 }) {
   const start = async () => {
     setTranscript(''); setIntent(null); setResult(null); setErrMsg('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 16000,
+      }});
       const mr = new MediaRecorder(stream);
       chunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
@@ -2231,7 +2236,13 @@ function MicDebugCard({ API, Section }) {
   const startMic = async () => {
     setTranscript(''); setMicErr('');
     try {
-      const audioConstraint = deviceId ? { deviceId: { exact: deviceId } } : true;
+      const audioConstraint = {
+        ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 16000,
+      };
       const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint });
       const mr = new MediaRecorder(stream);
       chunksRef.current = [];

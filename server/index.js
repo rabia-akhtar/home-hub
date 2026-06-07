@@ -1113,8 +1113,8 @@ const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2:3b';
 const WHISPER_HALLUCINATIONS = [
   'thank you', 'thanks', 'thanks for watching', 'thanks for listening',
   'thank you for watching', 'thank you for listening', 'thank you for your time',
-  'please subscribe', 'bye', 'bye bye', 'you', 'hello', 'hello hello',
-  'hi', 'okay', 'oh', 'um', 'uh', 'hmm', 'hm',
+  'please subscribe', 'bye', 'bye bye', 'you',
+  'okay', 'oh', 'um', 'uh', 'hmm', 'hm',
   'subtitles by', 'subtitles', 'captions by',
   '.', '...', '…', '-', '–',
 ];
@@ -1128,8 +1128,8 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
     form.append('file', blob, 'audio.webm');
     form.append('model', GROQ_STT_MODEL);
     form.append('language', 'en');
-    // Prompt biases Whisper toward home-hub commands and away from filler hallucinations
-    form.append('prompt', 'Smart home voice command. Add groceries, set task, turn lights on or off.');
+    // NOTE: Do NOT add a 'prompt' here — Whisper treats it as prior speech context,
+    // not an instruction, causing it to hallucinate prompt-like phrases on short audio.
 
     const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',
