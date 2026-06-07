@@ -2027,9 +2027,7 @@ function VoiceTab({ triggerRecord = 0 }) {
   const [intent,     setIntent]     = useState(null);
   const [result,     setResult]     = useState(null);
   const [errMsg,     setErrMsg]     = useState('');
-  const [history,    setHistory]    = useState([]);
-  const mediaRecRef  = useRef(null);
-  const chunksRef    = useRef([]);
+  const [history, setHistory] = useState([]);
 
   // Auto-start when triggered from header button
   useEffect(() => { if (triggerRecord > 0) start(); }, [triggerRecord]);
@@ -2037,32 +2035,17 @@ function VoiceTab({ triggerRecord = 0 }) {
   const start = async () => {
     setTranscript(''); setIntent(null); setResult(null); setErrMsg('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 16000,
-      }});
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        sendAudio(blob);
-      };
-      mr.start();
-      mediaRecRef.current = mr;
+      // Use server-side arecord — bypasses browser mic API (works on Wayland kiosk)
+      const r = await fetch(`${API}/api/voice/record/start`, { method: 'POST' });
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
       setState('listening');
-    } catch(e) { setErrMsg(`Mic error: ${e.message}`); setState('error'); }
+    } catch(e) { setErrMsg(`Could not start recording: ${e.message}`); setState('error'); }
   };
 
-  const stopListening = () => { mediaRecRef.current?.stop(); };
-
-  const sendAudio = async blob => {
+  const stopListening = async () => {
     setState('transcribing');
     try {
-      const res  = await fetch(`${API}/api/voice/transcribe`, { method:'POST', headers:{'Content-Type':'audio/webm'}, body: blob });
+      const res  = await fetch(`${API}/api/voice/record/stop`, { method: 'POST' });
       const data = await res.json();
       if (data.error) { setErrMsg(data.error); setState('error'); return; }
       const text = data.transcript;

@@ -1156,6 +1156,58 @@ app.post('/api/voice/transcribe', express.raw({ type: '*/*', limit: '20mb' }), a
   }
 });
 
+// ── Server-side recording via arecord ─────────────────────────────────────────
+// Bypasses the browser mic API entirely — useful for Wayland kiosks where
+// getUserMedia hangs. The browser just calls start/stop; arecord does the work.
+const VOICE_TMP = '/tmp/hub_voice.wav';
+const ALSA_MIC  = process.env.ALSA_MIC_DEVICE || 'hw:2,0';
+let voiceRecProc = null;
+
+app.post('/api/voice/record/start', (req, res) => {
+  if (voiceRecProc) { try { voiceRecProc.kill('SIGTERM'); } catch {} voiceRecProc = null; }
+  try { fs.unlinkSync(VOICE_TMP); } catch {}
+  voiceRecProc = spawn('arecord', ['-D', ALSA_MIC, '-f', 'S16_LE', '-r', '16000', '-c', '1', VOICE_TMP]);
+  voiceRecProc.on('error', e => { console.error('[arecord]', e.message); voiceRecProc = null; });
+  voiceRecProc.stderr.on('data', d => console.log('[arecord]', d.toString().trim()));
+  console.log(`[arecord] started on ${ALSA_MIC} → ${VOICE_TMP}`);
+  res.json({ ok: true });
+});
+
+app.post('/api/voice/record/stop', async (req, res) => {
+  if (voiceRecProc) {
+    try { voiceRecProc.kill('SIGTERM'); } catch {}
+    voiceRecProc = null;
+    await new Promise(r => setTimeout(r, 400)); // let file flush
+  }
+  if (!fs.existsSync(VOICE_TMP)) return res.status(500).json({ error: 'No recording found — was start called?' });
+  const size = fs.statSync(VOICE_TMP).size;
+  if (size < 2000) return res.json({ transcript: '' }); // too short to contain speech
+  if (!GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY not set' });
+  try {
+    const audioData = fs.readFileSync(VOICE_TMP);
+    const blob = new Blob([audioData], { type: 'audio/wav' });
+    const form = new FormData();
+    form.append('file', blob, 'audio.wav');
+    form.append('model', GROQ_STT_MODEL);
+    form.append('language', 'en');
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` },
+      body: form,
+    });
+    if (!r.ok) { const err = await r.text(); return res.status(500).json({ error: `Groq ${r.status}: ${err}` }); }
+    const data = await r.json();
+    const raw = (data.text || '').trim();
+    console.log('[arecord→Groq]', JSON.stringify(raw));
+    const normalized = stripPunct(raw.toLowerCase());
+    const isHallucination = !normalized || WHISPER_HALLUCINATIONS.some(h => normalized === h);
+    res.json({ transcript: isHallucination ? '' : raw });
+  } catch (e) {
+    console.error('[arecord→Groq]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/voice/parse — send transcript to Groq, get back intent JSON
 app.post('/api/voice/parse', async (req, res) => {
   const { transcript } = req.body;
