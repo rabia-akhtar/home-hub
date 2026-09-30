@@ -200,6 +200,7 @@ async function refreshTapoDevices() {
 
 initTapo();
 setInterval(refreshTapoDevices, 30000);
+initBroadlink();
 
 // GET /api/lights — list all devices with current state
 app.get('/api/lights', async (req, res) => {
@@ -300,6 +301,121 @@ app.get('/api/lights/debug', (req, res) => {
     log:     tapoLog.slice(-30),
     credentials_set: !!(KASA_EMAIL && KASA_PASSWORD),
   });
+});
+
+// ─── BroadLink RM4 Mini (IR blaster) ─────────────────────────────────────────
+// Requires: npm install node-broadlink   in ~/home-hub/server/
+// Optional: BROADLINK_IP=192.168.1.x in .env (skips auto-discovery)
+// IR commands are stored in ir_commands.json next to this file.
+
+const IR_CMDS_FILE = path.join(__dirname, 'ir_commands.json');
+
+let blDevice   = null;
+let blLog      = [];
+let blReady    = false;
+let blLearning = false;
+
+function blInfo(msg) {
+  const t = new Date().toISOString();
+  console.log('[BL]', msg);
+  blLog.push(`${t} ${msg}`);
+  if (blLog.length > 60) blLog.shift();
+}
+
+function loadIrCmds() {
+  try { return JSON.parse(fs.readFileSync(IR_CMDS_FILE, 'utf8')); } catch { return {}; }
+}
+function saveIrCmds(cmds) {
+  fs.writeFileSync(IR_CMDS_FILE, JSON.stringify(cmds, null, 2));
+}
+
+async function initBroadlink() {
+  try {
+    const bl = require('node-broadlink');
+    const ip = process.env.BROADLINK_IP;
+    blInfo(ip ? `Connecting to RM4 Mini @ ${ip}…` : 'Discovering BroadLink devices…');
+    const devices = await bl.discover(3000, ip || undefined);
+    if (!devices || devices.length === 0) {
+      blInfo('No BroadLink devices found. Set BROADLINK_IP=x.x.x.x in .env or check network.');
+      return;
+    }
+    blDevice = devices[0];
+    await blDevice.auth();
+    blReady = true;
+    blInfo(`✓ Connected to ${blDevice.constructor.name} @ ${blDevice.host.address}`);
+  } catch(e) {
+    blInfo(`Failed: ${e.message}`);
+    blInfo('Run: cd ~/home-hub/server && npm install node-broadlink');
+  }
+}
+
+app.get('/api/ir/status', (req, res) => {
+  const cmds = loadIrCmds();
+  res.json({
+    ready: blReady,
+    learning: blLearning,
+    device: blDevice ? { host: blDevice.host?.address, model: blDevice.constructor?.name } : null,
+    commands: Object.entries(cmds).map(([key, v]) => ({ key, label: v.label, device: v.device })),
+    log: blLog.slice(-20),
+  });
+});
+
+app.post('/api/ir/discover', async (req, res) => {
+  blDevice = null; blReady = false;
+  blInfo('Re-discovering…');
+  await initBroadlink();
+  res.json({ ok: true, ready: blReady });
+});
+
+app.post('/api/ir/learn', async (req, res) => {
+  if (!blReady) return res.status(503).json({ error: 'RM4 Mini not connected' });
+  if (blLearning) return res.status(409).json({ error: 'Already in learn mode' });
+  const { key, label, device: devName } = req.body;
+  if (!key || !label) return res.status(400).json({ error: 'key and label required' });
+  blLearning = true;
+  blInfo(`Learn mode: waiting for "${label}"…`);
+  try { await blDevice.enterLearning(); } catch(e) { blLearning = false; return res.status(500).json({ error: e.message }); }
+  let code = null;
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    try { code = await blDevice.checkData(); if (code) break; } catch {}
+  }
+  blLearning = false;
+  if (!code) { blInfo(`Learn timeout for "${label}"`); return res.status(408).json({ error: 'Timeout — no IR signal received. Point remote at the hub and try again.' }); }
+  const hexCode = Buffer.isBuffer(code) ? code.toString('hex') : code;
+  const cmds = loadIrCmds();
+  cmds[key] = { label, device: devName || 'Other', code: hexCode };
+  saveIrCmds(cmds);
+  blInfo(`✓ Learned "${label}"`);
+  res.json({ ok: true, key, label });
+});
+
+app.post('/api/ir/send/:key', async (req, res) => {
+  if (!blReady) return res.status(503).json({ error: 'RM4 Mini not connected' });
+  const cmds = loadIrCmds();
+  const cmd = cmds[req.params.key];
+  if (!cmd) return res.status(404).json({ error: 'Command not found' });
+  try {
+    await blDevice.sendData(cmd.code);
+    blInfo(`→ Sent "${cmd.label}"`);
+    res.json({ ok: true });
+  } catch(e) {
+    blInfo(`✗ Send failed for "${cmd.label}": ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/ir/commands/:key', (req, res) => {
+  const cmds = loadIrCmds();
+  if (!cmds[req.params.key]) return res.status(404).json({ error: 'Not found' });
+  delete cmds[req.params.key];
+  saveIrCmds(cmds);
+  res.json({ ok: true });
+});
+
+app.post('/api/ir/cancel', (req, res) => {
+  blLearning = false;
+  res.json({ ok: true });
 });
 
 // ─── Motion sensor ────────────────────────────────────────────────────────────
