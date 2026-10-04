@@ -200,7 +200,6 @@ async function refreshTapoDevices() {
 
 initTapo();
 setInterval(refreshTapoDevices, 30000);
-initBroadlink();
 
 // GET /api/lights — list all devices with current state
 app.get('/api/lights', async (req, res) => {
@@ -417,6 +416,8 @@ app.post('/api/ir/cancel', (req, res) => {
   blLearning = false;
   res.json({ ok: true });
 });
+
+initBroadlink();
 
 // ─── Motion sensor ────────────────────────────────────────────────────────────
 app.get('/api/motion', (req, res) => {
