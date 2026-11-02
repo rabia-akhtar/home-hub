@@ -399,15 +399,16 @@ function HomeLights() {
         return (
           <button key={id} onClick={() => toggle(id)}
             style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-              padding:'12px 10px', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'inherit',
-              fontSize:13, fontWeight:700, transition:'background 0.2s, box-shadow 0.2s',
-              background: on ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : '#f1f5f9',
-              boxShadow: on ? '0 2px 12px rgba(251,191,36,0.25)' : 'none',
-              color: on ? '#92400e' : '#64748b' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              padding:'14px 10px', borderRadius:16, cursor:'pointer', fontFamily:'inherit',
+              fontSize:14, fontWeight:700, transition:'all 0.15s',
+              background: on ? 'linear-gradient(145deg,#fef08a,#fbbf24)' : '#fff',
+              border: on ? '2px solid #f59e0b' : '2px solid #e2e8f0',
+              boxShadow: on ? '0 4px 16px rgba(251,191,36,0.35), inset 0 1px 0 rgba(255,255,255,0.4)' : '0 2px 6px rgba(0,0,0,0.07), inset 0 1px 0 #fff',
+              color: on ? '#78350f' : '#475569' }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
               <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
-                stroke={on ? '#d97706' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                fill={on ? 'rgba(253,230,138,0.5)' : 'none'}/>
+                stroke={on ? '#92400e' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                fill={on ? 'rgba(253,230,138,0.6)' : 'none'}/>
             </svg>
             {label}
           </button>
@@ -449,10 +450,13 @@ function HomePing() {
         return (
           <button key={who} onClick={() => !sending && ping(who)} disabled={sending}
             style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-              padding:'12px 10px', borderRadius:14, border:'none', cursor: sending ? 'wait' : 'pointer',
-              fontFamily:'inherit', fontSize:13, fontWeight:700, transition:'background 0.2s',
-              background: sent ? '#dcfce7' : err ? '#fef2f2' : sending ? `${person.color}88` : `${person.color}18`,
-              color:      sent ? '#16a34a' : err ? '#ef4444' : person.color }}>
+              padding:'14px 10px', borderRadius:16, cursor: sending ? 'wait' : 'pointer',
+              fontFamily:'inherit', fontSize:14, fontWeight:700, transition:'all 0.15s',
+              background: sent ? '#16a34a' : err ? '#ef4444' : person.color,
+              border: `2px solid ${sent ? '#15803d' : err ? '#dc2626' : person.color}`,
+              boxShadow: sent || err ? 'none' : `0 4px 14px ${person.color}55, inset 0 1px 0 rgba(255,255,255,0.25)`,
+              color: '#fff',
+              opacity: sending ? 0.75 : 1 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
               <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.05 2.18 2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 14v2.92z"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -647,7 +651,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </div>
   ) : null;
 
-  const grocCard = groceriesProj ? (
+  const grocCard = (groceriesProj && groceryTasks.length > 0) ? (
     <div style={{...CARD,overflow:"hidden",border:"1px solid #bbf7d040"}}>
       {/* Header matches the person-column header style */}
       <div style={{background:"linear-gradient(135deg,#05966912,#06966908)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
