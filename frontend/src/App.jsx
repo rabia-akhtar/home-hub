@@ -417,6 +417,54 @@ function HomeLights() {
   );
 }
 
+// ─── HOME PING ROW ────────────────────────────────────────────────────────────
+function HomePing() {
+  const PEOPLE = [
+    { who:'rabia', person:RABIA },
+    { who:'clare', person:CLARE },
+  ];
+  const [states, setStates] = useState({ rabia:'idle', clare:'idle' });
+
+  const ping = async (who) => {
+    setStates(s => ({ ...s, [who]:'sending' }));
+    try {
+      const r = await fetch(`${API}/ping/${who}`, { method:'POST' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed');
+      setStates(s => ({ ...s, [who]:'sent' }));
+      setTimeout(() => setStates(s => ({ ...s, [who]:'idle' })), 4000);
+    } catch(e) {
+      setStates(s => ({ ...s, [who]:'error' }));
+      setTimeout(() => setStates(s => ({ ...s, [who]:'idle' })), 4000);
+    }
+  };
+
+  return (
+    <div style={{ display:'flex', gap:10 }}>
+      {PEOPLE.map(({ who, person }) => {
+        const st = states[who];
+        const sending = st === 'sending';
+        const sent    = st === 'sent';
+        const err     = st === 'error';
+        return (
+          <button key={who} onClick={() => !sending && ping(who)} disabled={sending}
+            style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+              padding:'12px 10px', borderRadius:14, border:'none', cursor: sending ? 'wait' : 'pointer',
+              fontFamily:'inherit', fontSize:13, fontWeight:700, transition:'background 0.2s',
+              background: sent ? '#dcfce7' : err ? '#fef2f2' : sending ? `${person.color}88` : `${person.color}18`,
+              color:      sent ? '#16a34a' : err ? '#ef4444' : person.color }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.05 2.18 2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 14v2.92z"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            {sent ? '✓ Sent' : err ? 'Failed' : sending ? 'Pinging…' : `Ping ${person.name}`}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
 function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTask, onSetTab, wide, uidMap }) {
   const today = new Date(); today.setHours(0,0,0,0);
@@ -470,6 +518,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   );
 
   const makeCol = (person, myEvts, myTasks, personalTasks=[], growable=false, myOverdue=[]) => {
+    if (!myEvts.length && !myTasks.length && !personalTasks.length && !myOverdue.length) return null;
     const pKey  = person.name.toLowerCase();
     const points= pts[`${pKey}_points`]||0;
     const next  = [100,250,500,750,1000].find(m=>m>points)||1000;
@@ -628,6 +677,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   if(wide) return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <HomeLights/>
+      <HomePing/>
       {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
       {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
       {hasFamilyContent && familyCol}
@@ -638,6 +688,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <HomeLights/>
+      <HomePing/>
       {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
       {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
       {hasFamilyContent && familyCol}
