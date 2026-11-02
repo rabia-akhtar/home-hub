@@ -2719,7 +2719,7 @@ function AppInner() {
 
   const resetIdle = useCallback(() => {
     clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setScreensaver(true), IDLE_MS);
+    idleTimer.current = setTimeout(() => { setScreensaver(true); setTab("home"); }, IDLE_MS);
   }, []); // no dependency on screensaver — always restarts the timer
   useEffect(() => { resetIdle(); return () => clearTimeout(idleTimer.current); }, []);
 
