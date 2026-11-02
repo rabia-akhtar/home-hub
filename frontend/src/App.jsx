@@ -251,17 +251,6 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
                 </svg>
               </button>
             )}
-            {/* Lights */}
-            {onToggleLights && (
-              <button onClick={onToggleLights} title={lightsOn ? "Turn all lights off" : "Turn all lights on"}
-                style={{width:44,height:44,borderRadius:"50%",border:"none",background:lightsOn?"rgba(255,237,100,0.35)":"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
-                    stroke={lightsOn ? "#fde68a" : "rgba(255,255,255,0.85)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    fill={lightsOn ? "rgba(253,230,138,0.4)" : "none"}/>
-                </svg>
-              </button>
-            )}
             {/* Screensaver */}
             {onStartScreensaver && (
               <button onClick={onStartScreensaver} title="Start screensaver"
@@ -367,6 +356,63 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── HOME LIGHTS ROW ─────────────────────────────────────────────────────────
+function HomeLights() {
+  const GROUPS = [
+    { id: 'kitchen',  label: 'Kitchen + Dining' },
+    { id: 'bedroom',  label: 'Bedroom'           },
+  ];
+  const [state, setState] = useState({ kitchen: null, bedroom: null });
+
+  const load = useCallback(async () => {
+    try {
+      const devices = await fetch(`${API}/lights`).then(r => r.json());
+      if (!Array.isArray(devices)) return;
+      const next = { kitchen: null, bedroom: null };
+      GROUPS.forEach(({ id }) => {
+        const grp = devices.filter(d => d.group === id && !d.unreachable);
+        if (grp.length) next[id] = grp.some(d => d.on);
+      });
+      setState(next);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (id) => {
+    const next = !state[id];
+    setState(s => ({ ...s, [id]: next }));
+    try {
+      await fetch(`${API}/lights/group/${id}/${next ? 'on' : 'off'}`, { method: 'POST' });
+    } catch {}
+    setTimeout(load, 800);
+  };
+
+  return (
+    <div style={{ display:'flex', gap:10 }}>
+      {GROUPS.map(({ id, label }) => {
+        const on = state[id];
+        return (
+          <button key={id} onClick={() => toggle(id)}
+            style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+              padding:'12px 10px', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'inherit',
+              fontSize:13, fontWeight:700, transition:'background 0.2s, box-shadow 0.2s',
+              background: on ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : '#f1f5f9',
+              boxShadow: on ? '0 2px 12px rgba(251,191,36,0.25)' : 'none',
+              color: on ? '#92400e' : '#64748b' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
+                stroke={on ? '#d97706' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                fill={on ? 'rgba(253,230,138,0.5)' : 'none'}/>
+            </svg>
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -581,6 +627,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   if(wide) return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <HomeLights/>
       {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
       {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
       {hasFamilyContent && familyCol}
@@ -590,6 +637,7 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <HomeLights/>
       {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
       {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
       {hasFamilyContent && familyCol}
