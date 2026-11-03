@@ -363,19 +363,19 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
 // ─── HOME LIGHTS ROW ─────────────────────────────────────────────────────────
 function HomeLights() {
   const GROUPS = [
-    { id: 'kitchen',  label: 'Kitchen + Dining' },
-    { id: 'bedroom',  label: 'Bedroom'           },
+    { key: 'living', ids: ['living_room', 'kitchen'], label: 'Living Area' },
+    { key: 'bedroom', ids: ['bedroom'],               label: 'Bedroom'      },
   ];
-  const [state, setState] = useState({ kitchen: null, bedroom: null });
+  const [state, setState] = useState({ living: null, bedroom: null });
 
   const load = useCallback(async () => {
     try {
       const devices = await fetch(`${API}/lights`).then(r => r.json());
       if (!Array.isArray(devices)) return;
-      const next = { kitchen: null, bedroom: null };
-      GROUPS.forEach(({ id }) => {
-        const grp = devices.filter(d => d.group === id && !d.unreachable);
-        if (grp.length) next[id] = grp.some(d => d.on);
+      const next = { living: null, bedroom: null };
+      GROUPS.forEach(({ key, ids }) => {
+        const grp = devices.filter(d => ids.includes(d.group) && !d.unreachable);
+        if (grp.length) next[key] = grp.some(d => d.on);
       });
       setState(next);
     } catch {}
@@ -383,21 +383,23 @@ function HomeLights() {
 
   useEffect(() => { load(); }, [load]);
 
-  const toggle = async (id) => {
-    const next = !state[id];
-    setState(s => ({ ...s, [id]: next }));
+  const toggle = async (key, ids) => {
+    const next = !state[key];
+    setState(s => ({ ...s, [key]: next }));
     try {
-      await fetch(`${API}/lights/group/${id}/${next ? 'on' : 'off'}`, { method: 'POST' });
+      await Promise.all(ids.map(id =>
+        fetch(`${API}/lights/group/${id}/${next ? 'on' : 'off'}`, { method: 'POST' })
+      ));
     } catch {}
     setTimeout(load, 800);
   };
 
   return (
     <div style={{ display:'flex', gap:10 }}>
-      {GROUPS.map(({ id, label }) => {
-        const on = state[id];
+      {GROUPS.map(({ key, ids, label }) => {
+        const on = state[key];
         return (
-          <button key={id} onClick={() => toggle(id)}
+          <button key={key} onClick={() => toggle(key, ids)}
             style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
               padding:'14px 10px', borderRadius:16, cursor:'pointer', fontFamily:'inherit',
               fontSize:14, fontWeight:700, transition:'all 0.15s',
