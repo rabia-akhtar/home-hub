@@ -187,7 +187,7 @@ function ProgressRing({ pts, max=500, size=56, color }) {
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, onOpenVoice }) {
+function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, onStartCozy, onOpenVoice }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -248,6 +248,16 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
                   <path d="M5 10a7 7 0 0014 0" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
                   <line x1="12" y1="19" x2="12" y2="22" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
                   <line x1="8" y1="22" x2="16" y2="22" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
+            {/* Cozy mode */}
+            {onStartCozy && (
+              <button onClick={onStartCozy} title="Cozy ambient video"
+                style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2C8 6 6 9 6 12a6 6 0 0012 0c0-3-2-6-6-10z" fill="rgba(255,165,80,0.9)" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M12 8c-1.5 2-2 3.5-2 5a2 2 0 004 0c0-1.5-.5-3-2-5z" fill="rgba(255,220,100,0.9)"/>
                 </svg>
               </button>
             )}
@@ -1870,6 +1880,54 @@ function ScreensaverClock() {
   );
 }
 
+// ─── COZY SCREENSAVER ────────────────────────────────────────────────────────
+const COZY_VIDEOS = [
+  { id: 'L_LUpnjgPso', label: 'Crackling Fireplace'       },
+  { id: 'UgHKb_7884o', label: 'Hogwarts Common Room Fire'  },
+  { id: 'mUDMagRVmTw', label: 'Snowy Window'              },
+  { id: 'xNN7iTA57jM', label: 'Harry Potter Fireplace'    },
+  { id: 'hHW1oY26kxQ', label: 'Cozy Cabin Fireplace'      },
+  { id: 'ZJAtgqpbuLk', label: 'Christmas Fireplace'       },
+  { id: 'qHGTs1NSB1s', label: 'Snowfall & Piano'          },
+];
+
+function CozyScreensaver({ onDismiss }) {
+  const [video]   = useState(() => COZY_VIDEOS[Math.floor(Math.random() * COZY_VIDEOS.length)]);
+  const [current, setCurrent] = useState(0);
+
+  const nextVideo = (e) => {
+    e.stopPropagation();
+    setCurrent(i => (i + 1) % COZY_VIDEOS.length);
+  };
+
+  const vid = COZY_VIDEOS[(COZY_VIDEOS.indexOf(video) + current) % COZY_VIDEOS.length] || video;
+  const src = `https://www.youtube.com/embed/${vid.id}?autoplay=1&mute=1&loop=1&playlist=${vid.id}&controls=0&iv_load_policy=3&modestbranding=1&rel=0&playsinline=1`;
+
+  return (
+    <div onClick={onDismiss}
+      style={{position:"fixed",inset:0,zIndex:9999,background:"#000",cursor:"pointer"}}>
+      {/* YouTube iframe */}
+      <iframe
+        key={vid.id}
+        src={src}
+        allow="autoplay; fullscreen"
+        style={{position:"absolute",inset:0,width:"100%",height:"100%",border:"none",pointerEvents:"none"}}
+        title={vid.label}
+      />
+      {/* Clock */}
+      <ScreensaverClock/>
+      {/* Label + controls */}
+      <div style={{position:"absolute",bottom:28,left:28,right:28,display:"flex",alignItems:"flex-end",justifyContent:"space-between",pointerEvents:"none"}}>
+        <div style={{color:"rgba(255,255,255,0.45)",fontSize:11}}>{vid.label} · Tap to wake</div>
+        <button onClick={nextVideo}
+          style={{pointerEvents:"all",background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,color:"#fff",fontSize:12,padding:"6px 14px",cursor:"pointer",backdropFilter:"blur(6px)"}}>
+          Next video →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── BUDGET TAB ──────────────────────────────────────────────────────────────
 const CATEGORY_COLORS = {
   "Furniture":         { bg:"#dbeafe", text:"#1e40af" },
@@ -2763,6 +2821,7 @@ const NAV = [
 function AppInner() {
   const [tab,        setTab]        = useState("home");
   const [screensaver,setScreensaver]= useState(false);
+  const [cozyMode,   setCozyMode]   = useState(false);
   const hub  = useHub();
   const wide = useWide();
 
@@ -2788,6 +2847,18 @@ function AppInner() {
     setScreensaver(true);
     clearTimeout(idleTimer.current); // don't auto-dismiss while manually locked
   }, []);
+
+  const startCozy = useCallback(() => {
+    motionPausedUntil.current = Date.now() + 10_000;
+    setCozyMode(true);
+    clearTimeout(idleTimer.current);
+  }, []);
+
+  const dismissCozy = useCallback(() => {
+    setCozyMode(false);
+    setTab("home");
+    resetIdle();
+  }, [resetIdle]);
 
   // ── Header lights toggle ──
   const [headerLightsOn, setHeaderLightsOn] = useState(null); // null = unknown
@@ -2882,6 +2953,7 @@ function AppInner() {
       onMouseMove={resetIdle} onMouseDown={resetIdle} onTouchStart={resetIdle} onKeyDown={resetIdle}
     >
       {screensaver && <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>}
+      {cozyMode && <CozyScreensaver onDismiss={dismissCozy}/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
@@ -2899,7 +2971,7 @@ function AppInner() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onOpenVoice={openVoice}/>
+      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onStartCozy={startCozy} onOpenVoice={openVoice}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
