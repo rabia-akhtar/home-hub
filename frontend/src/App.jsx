@@ -2854,12 +2854,6 @@ function AppInner() {
     clearTimeout(idleTimer.current);
   }, []);
 
-  const dismissCozy = useCallback(() => {
-    setCozyMode(false);
-    setTab("home");
-    resetIdle();
-  }, [resetIdle]);
-
   // ── Header lights toggle ──
   const [headerLightsOn, setHeaderLightsOn] = useState(null); // null = unknown
   const toggleAllLights = useCallback(async () => {
@@ -2953,7 +2947,7 @@ function AppInner() {
       onMouseMove={resetIdle} onMouseDown={resetIdle} onTouchStart={resetIdle} onKeyDown={resetIdle}
     >
       {screensaver && <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>}
-      {cozyMode && <CozyScreensaver onDismiss={dismissCozy}/>}
+      {cozyMode && <CozyScreensaver onDismiss={()=>{ setCozyMode(false); setTab("home"); resetIdle(); }}/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
