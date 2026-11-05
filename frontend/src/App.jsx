@@ -187,7 +187,7 @@ function ProgressRing({ pts, max=500, size=56, color }) {
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, onStartCozy, onOpenVoice }) {
+function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, onStartCozy }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -240,18 +240,6 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
             <div style={{ fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:2 }}>{fmtDate(now)}</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {/* Voice — first */}
-            {onOpenVoice && (
-              <button onClick={onOpenVoice} title="Voice assistant"
-                style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <rect x="9" y="3" width="6" height="11" rx="3" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8"/>
-                  <path d="M5 10a7 7 0 0014 0" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
-                  <line x1="12" y1="19" x2="12" y2="22" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
-                  <line x1="8" y1="22" x2="16" y2="22" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-              </button>
-            )}
             {/* Cozy mode */}
             {onStartCozy && (
               <button onClick={onStartCozy} title="Cozy ambient video"
@@ -720,6 +708,7 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidM
   const [newContent, setNewContent] = useState("");
   const [newDue,     setNewDue]     = useState("");
   const [assignee,   setAssignee]   = useState("rabia");
+  const [hwPanel,    setHwPanel]    = useState(false);
 
   const grouped = {};
   projs.forEach(p=>{ grouped[p.id]={ proj:p, tasks:[] }; });
@@ -753,8 +742,13 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidM
             {/* Add row */}
             {adding===proj.id && (
               <div style={{padding:"12px 20px",background:"#f8fafc",borderBottom:"1px solid #f1f5f9",display:"flex",flexDirection:"column",gap:10}}>
-                <input autoFocus value={newContent} onChange={e=>setNewContent(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAdd(proj.id)}
-                  inputMode="text" placeholder="Task name…" style={{padding:"12px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1e293b"}}/>
+                <div style={{display:"flex",gap:8}}>
+                  <input autoFocus value={newContent} onChange={e=>setNewContent(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAdd(proj.id)}
+                    inputMode="text" placeholder="Task name…" style={{flex:1,padding:"12px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1e293b"}}/>
+                  <button onClick={()=>setHwPanel(true)} title="Write with stylus"
+                    style={{padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#6366f1",fontSize:18,cursor:"pointer",lineHeight:1}}>✏️</button>
+                </div>
+                {hwPanel && <HandwritingPanel onDone={text=>{setNewContent(text);setHwPanel(false);}} onCancel={()=>setHwPanel(false)}/>}
                 <div style={{display:"flex",gap:8}}>
                   <input value={newDue} onChange={e=>setNewDue(e.target.value)} inputMode="text" placeholder="Due (e.g. tomorrow)" style={{flex:1,padding:"10px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1e293b"}}/>
                   <div style={{display:"flex",gap:6}}>
@@ -1537,6 +1531,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
 function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
   const [newItem, setNewItem] = useState("");
   const [adding,  setAdding]  = useState(false);
+  const [hwPanel, setHwPanel] = useState(false);
 
   const groceriesProj = projs.find(p=>p.name.toLowerCase()==="groceries");
   const groceryTasks  = groceriesProj ? tasks.filter(t=>!t.checked && t.project_id===groceriesProj.id) : [];
@@ -1555,6 +1550,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {hwPanel && <HandwritingPanel onDone={text=>{setNewItem(text);setHwPanel(false);setAdding(true);}} onCancel={()=>setHwPanel(false)}/>}
 
       {/* Quick add */}
       <div style={{...CARD,padding:"14px 18px"}}>
@@ -1563,6 +1559,8 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
             <input autoFocus value={newItem} onChange={e=>setNewItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAdd()}
               inputMode="text" placeholder="Add item…"
               style={{flex:1,padding:"12px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
+            <button onClick={()=>setHwPanel(true)} title="Write with stylus"
+              style={{padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#6366f1",fontSize:18,cursor:"pointer",lineHeight:1}}>✏️</button>
             <button onClick={doAdd} style={{padding:"12px 20px",borderRadius:14,border:"none",background:"#10b981",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
             <button onClick={()=>{setAdding(false);setNewItem("");}} style={{padding:"12px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
           </div>
@@ -1929,6 +1927,134 @@ function CozyScreensaver({ onDismiss }) {
   );
 }
 
+// ─── HANDWRITING PANEL ───────────────────────────────────────────────────────
+function HandwritingPanel({ onDone, onCancel, placeholder = "Write here…" }) {
+  const canvasRef = useRef(null);
+  const [drawing,  setDrawing]  = useState(false);
+  const [result,   setResult]   = useState('');
+  const [status,   setStatus]   = useState('idle'); // idle | recognizing | done | error
+  const lastPos = useRef(null);
+
+  const getPos = (e, canvas) => {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  };
+
+  const startDraw = (e) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const pos = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    lastPos.current = pos;
+    setDrawing(true);
+  };
+
+  const draw = (e) => {
+    if (!drawing) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const pos = getPos(e, canvas);
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    lastPos.current = pos;
+  };
+
+  const endDraw = (e) => { e && e.preventDefault(); setDrawing(false); };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    setResult('');
+    setStatus('idle');
+  };
+
+  const recognize = async () => {
+    const canvas = canvasRef.current;
+    setStatus('recognizing');
+    try {
+      // Try browser Handwriting Recognition API first
+      if (window.HandwritingRecognizer || navigator.createHandwritingRecognizer) {
+        const recognizer = await (navigator.createHandwritingRecognizer || window.HandwritingRecognizer.create)({ languages: ['en'] });
+        const drawing = recognizer.startDrawing();
+        // Not easy to replay strokes — fall through to Tesseract
+        recognizer.finish();
+      }
+      throw new Error('use-tesseract');
+    } catch {
+      // Use Tesseract.js via CDN
+      try {
+        if (!window.Tesseract) {
+          await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+            s.onload = res; s.onerror = rej;
+            document.head.appendChild(s);
+          });
+        }
+        const { data: { text } } = await window.Tesseract.recognize(canvas, 'eng', {
+          tessedit_pageseg_mode: '7',
+        });
+        const clean = text.trim().replace(/\n/g, ' ');
+        setResult(clean);
+        setStatus('done');
+      } catch (err) {
+        setStatus('error');
+      }
+    }
+  };
+
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:8000,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end'}}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div style={{width:'100%',background:'#fff',borderRadius:'24px 24px 0 0',padding:20,display:'flex',flexDirection:'column',gap:12,boxShadow:'0 -8px 32px rgba(0,0,0,0.2)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:15,fontWeight:700,color:'#1e293b'}}>Write with stylus</span>
+          <button onClick={onCancel} style={{border:'none',background:'none',fontSize:20,cursor:'pointer',color:'#94a3b8',padding:4}}>✕</button>
+        </div>
+
+        {/* Canvas */}
+        <canvas ref={canvasRef} width={600} height={160}
+          style={{width:'100%',height:160,background:'#f8fafc',borderRadius:12,border:'2px solid #e2e8f0',touchAction:'none',cursor:'crosshair'}}
+          onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
+          onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
+        />
+
+        {/* Result text */}
+        {(status === 'done' || result) && (
+          <input value={result} onChange={e => setResult(e.target.value)}
+            style={{padding:'10px 14px',borderRadius:10,border:'2px solid #6366f1',fontSize:15,fontFamily:'inherit',outline:'none',background:'#eef2ff',color:'#1e293b'}}
+            placeholder="Edit recognized text…"
+          />
+        )}
+        {status === 'error' && <div style={{color:'#ef4444',fontSize:13}}>Recognition failed — try writing more clearly or in block letters.</div>}
+
+        {/* Buttons */}
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={clear} style={{flex:1,padding:'12px 0',borderRadius:12,border:'2px solid #e2e8f0',background:'#fff',fontSize:14,fontWeight:600,color:'#64748b',cursor:'pointer',fontFamily:'inherit'}}>Clear</button>
+          <button onClick={recognize} disabled={status==='recognizing'}
+            style={{flex:1,padding:'12px 0',borderRadius:12,border:'none',background:'#6366f1',fontSize:14,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit',opacity:status==='recognizing'?0.7:1}}>
+            {status==='recognizing' ? 'Reading…' : 'Recognize'}
+          </button>
+          <button onClick={() => onDone(result)} disabled={!result}
+            style={{flex:1,padding:'12px 0',borderRadius:12,border:'none',background: result ? '#10b981' : '#e2e8f0',fontSize:14,fontWeight:700,color: result ? '#fff' : '#94a3b8',cursor: result ? 'pointer' : 'default',fontFamily:'inherit'}}>
+            Use Text
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── BUDGET TAB ──────────────────────────────────────────────────────────────
 const CATEGORY_COLORS = {
   "Furniture":         { bg:"#dbeafe", text:"#1e40af" },
@@ -2182,301 +2308,6 @@ function BudgetTab() {
   );
 }
 
-// ─── VOICE TAB ───────────────────────────────────────────────────────────────
-function VoiceTab({ triggerRecord = 0 }) {
-  const API = import.meta.env.VITE_API_URL || '';
-  // state: idle | listening | transcribing | thinking | confirming | executing | done | error
-  const [state,      setState]      = useState('idle');
-  const [transcript, setTranscript] = useState('');
-  const [intent,     setIntent]     = useState(null);
-  const [result,     setResult]     = useState(null);
-  const [errMsg,     setErrMsg]     = useState('');
-  const [history, setHistory] = useState([]);
-
-  // Auto-start when triggered from header button
-  useEffect(() => { if (triggerRecord > 0) start(); }, [triggerRecord]);
-
-  const start = async () => {
-    setTranscript(''); setIntent(null); setResult(null); setErrMsg('');
-    try {
-      // Use server-side arecord — bypasses browser mic API (works on Wayland kiosk)
-      const r = await fetch(`${API}/api/voice/record/start`, { method: 'POST' });
-      if (!r.ok) throw new Error(`Server error ${r.status}`);
-      setState('listening');
-    } catch(e) { setErrMsg(`Could not start recording: ${e.message}`); setState('error'); }
-  };
-
-  const stopListening = async () => {
-    setState('transcribing');
-    try {
-      const res  = await fetch(`${API}/api/voice/record/stop`, { method: 'POST' });
-      const data = await res.json();
-      if (data.error) { setErrMsg(data.error); setState('error'); return; }
-      const text = data.transcript;
-      if (!text) { setErrMsg("Couldn't hear anything — try again."); setState('error'); return; }
-      setTranscript(text);
-      parseIntent(text);
-    } catch(e) { setErrMsg(e.message); setState('error'); }
-  };
-
-  const parseIntent = async text => {
-    setState('thinking');
-    try {
-      const res  = await fetch(`${API}/api/voice/parse`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({transcript:text}) });
-      const data = await res.json();
-      if (data.error) { setErrMsg(data.error); setState('error'); return; }
-      setIntent(data);
-      setState('confirming');
-    } catch(e) { setErrMsg(e.message); setState('error'); }
-  };
-
-  const confirm = async () => {
-    setState('executing');
-    try {
-      const res  = await fetch(`${API}/api/voice/execute`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(intent) });
-      const data = await res.json();
-      setResult(data);
-      setHistory(h => [{ transcript, intent, result:data, ts:new Date() }, ...h.slice(0,9)]);
-      setState('done');
-      setTimeout(() => { setState('idle'); setTranscript(''); setIntent(null); setResult(null); }, 4000);
-    } catch(e) { setErrMsg(e.message); setState('error'); }
-  };
-
-  const reject = () => { setState('idle'); setTranscript(''); setIntent(null); };
-  const reset  = () => { setState('idle'); setTranscript(''); setIntent(null); setErrMsg(''); setResult(null); };
-
-  // ── Action label helpers ────────────────────────────────────────────────────
-  const actionLabel = a => ({add_grocery:'Add to Groceries', add_task:'Add Task', lights_on:'Lights On', lights_off:'Lights Off', unknown:'Unknown'})[a] || a;
-  const actionColor = a => ({add_grocery:'#059669', add_task:'#6366f1', lights_on:'#fbbf24', lights_off:'#94a3b8', unknown:'#ef4444'})[a] || '#94a3b8';
-
-  // ── Mic button visuals ──────────────────────────────────────────────────────
-  const busy     = ['transcribing','thinking','executing'].includes(state);
-  const micBg    = state==='listening' ? '#ef4444' : busy ? '#6366f1' : state==='done' ? '#10b981' : '#f1f5f9';
-  const micColor = state==='idle' ? '#64748b' : '#fff';
-
-  return (
-    <div style={{display:'flex',flexDirection:'column',gap:20,alignItems:'center',paddingTop:20}}>
-      {/* Mic button */}
-      <div style={{position:'relative',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
-        {state==='listening' && (
-          <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:110,height:110,borderRadius:'50%',background:'#ef444420',animation:'pulse 1.2s ease-in-out infinite'}}/>
-        )}
-        <button
-          onClick={state==='idle'?start : state==='listening'?stopListening : undefined}
-          disabled={busy||state==='confirming'||state==='done'}
-          style={{width:88,height:88,borderRadius:'50%',border:'none',background:micBg,cursor:state==='idle'||state==='listening'?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.3s',boxShadow:`0 4px 24px ${micBg}55`,position:'relative',zIndex:1}}
-        >
-          {busy
-            ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={micColor} strokeWidth="2" strokeDasharray="31.4" strokeDashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
-            : state==='done'
-            ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            : <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                <rect x="9" y="3" width="6" height="11" rx="3" stroke={micColor} strokeWidth="2"/>
-                <path d="M5 10a7 7 0 0014 0" stroke={micColor} strokeWidth="2" strokeLinecap="round"/>
-                <line x1="12" y1="19" x2="12" y2="22" stroke={micColor} strokeWidth="2" strokeLinecap="round"/>
-                <line x1="8" y1="22" x2="16" y2="22" stroke={micColor} strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-          }
-        </button>
-        <div style={{fontSize:13,fontWeight:600,color:'#64748b',textAlign:'center'}}>
-          {state==='idle'         && 'Tap to speak'}
-          {state==='listening'    && 'Listening… tap to stop'}
-          {state==='transcribing' && 'Transcribing…'}
-          {state==='thinking'     && 'Thinking…'}
-          {state==='confirming'   && 'Confirm below'}
-          {state==='executing'    && 'Executing…'}
-          {state==='done'         && 'Done!'}
-          {state==='error'        && 'Something went wrong'}
-        </div>
-      </div>
-
-      {/* Transcript */}
-      {transcript && (
-        <div style={{...CARD,padding:'16px 20px',maxWidth:520,width:'100%',textAlign:'center'}}>
-          <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>You said</div>
-          <div style={{fontSize:18,color:'#1e293b',fontWeight:500}}>{transcript}</div>
-        </div>
-      )}
-
-      {/* Intent confirmation card */}
-      {state==='confirming' && intent && (
-        <div style={{...CARD,padding:'20px 24px',maxWidth:520,width:'100%'}}>
-          <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',letterSpacing:1,textTransform:'uppercase',marginBottom:12}}>Understood as</div>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-            <span style={{fontSize:13,fontWeight:800,color:actionColor(intent.action),background:`${actionColor(intent.action)}15`,padding:'4px 12px',borderRadius:99}}>{actionLabel(intent.action)}</span>
-            {intent.content && <span style={{fontSize:16,fontWeight:600,color:'#1e293b'}}>"{intent.content}"</span>}
-            {intent.due && <span style={{fontSize:12,color:'#6366f1',fontWeight:600}}>due {intent.due}</span>}
-            {intent.assignee && <span style={{fontSize:12,color:'#94a3b8'}}>→ {intent.assignee}</span>}
-          </div>
-          {intent.action==='unknown'
-            ? <div style={{fontSize:13,color:'#ef4444',marginBottom:16}}>Could not understand the command. Try again.</div>
-            : null
-          }
-          <div style={{display:'flex',gap:12}}>
-            {intent.action!=='unknown' && (
-              <button onClick={confirm} style={{flex:1,padding:'14px',borderRadius:14,border:'none',background:'#10b981',color:'#fff',fontSize:15,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
-                Yes, do it
-              </button>
-            )}
-            <button onClick={reject} style={{flex:1,padding:'14px',borderRadius:14,border:'1px solid #e2e8f0',background:'#fff',color:'#64748b',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {intent.action==='unknown' ? 'Try again' : 'No, cancel'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Error */}
-      {state==='error' && (
-        <div style={{...CARD,padding:'16px 20px',maxWidth:520,width:'100%',background:'#fef2f2',border:'1px solid #fecaca'}}>
-          <div style={{fontSize:13,color:'#ef4444',marginBottom:12}}>{errMsg}</div>
-          <button onClick={reset} style={{padding:'10px 20px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Try again</button>
-        </div>
-      )}
-
-      {/* Result */}
-      {state==='done' && result && (
-        <div style={{...CARD,padding:'16px 20px',maxWidth:520,width:'100%',background:'#f0fdf4',border:'1px solid #bbf7d0',textAlign:'center'}}>
-          <div style={{fontSize:15,fontWeight:600,color:'#059669'}}>{result.message}</div>
-        </div>
-      )}
-
-      {/* History */}
-      {history.length>0 && (
-        <div style={{maxWidth:520,width:'100%'}}>
-          <div style={{fontSize:12,fontWeight:700,color:'#94a3b8',letterSpacing:1,textTransform:'uppercase',marginBottom:10}}>Recent</div>
-          <div style={{...CARD,overflow:'hidden'}}>
-            {history.map((h,i)=>(
-              <div key={i} style={{display:'flex',alignItems:'center',padding:'10px 16px',borderBottom:i<history.length-1?'1px solid #f8fafc':'none',gap:10}}>
-                <span style={{fontSize:11,fontWeight:800,color:actionColor(h.intent?.action),background:`${actionColor(h.intent?.action)}15`,padding:'2px 8px',borderRadius:99,flexShrink:0}}>{actionLabel(h.intent?.action)}</span>
-                <span style={{fontSize:13,color:'#1e293b',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h.transcript}</span>
-                <span style={{fontSize:11,color:'#94a3b8',flexShrink:0}}>{h.ts.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <style>{`@keyframes pulse { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6} 50%{transform:translate(-50%,-50%) scale(1.4);opacity:0.2} }`}</style>
-    </div>
-  );
-}
-
-// ─── DEBUG TAB ───────────────────────────────────────────────────────────────
-function MicDebugCard({ API, Section }) {
-  const [micState,    setMicState]    = useState('idle'); // idle|recording|transcribing|done|error
-  const [transcript,  setTranscript]  = useState('');
-  const [micErr,      setMicErr]      = useState('');
-  const [devices,     setDevices]     = useState([]);
-  const [deviceId,    setDeviceId]    = useState('');  // '' = browser default
-  const mediaRef  = useRef(null);
-  const chunksRef = useRef([]);
-
-  // Enumerate audio input devices (requires a brief permission grant first)
-  const loadDevices = useCallback(async () => {
-    try {
-      // Request permission so labels are populated
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      s.getTracks().forEach(t => t.stop());
-      const all = await navigator.mediaDevices.enumerateDevices();
-      setDevices(all.filter(d => d.kind === 'audioinput'));
-    } catch {}
-  }, []);
-  useEffect(() => { loadDevices(); }, [loadDevices]);
-
-  const startMic = async () => {
-    setTranscript(''); setMicErr('');
-    try {
-      const audioConstraint = {
-        ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 16000,
-      };
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint });
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        setMicState('transcribing');
-        try {
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-          const res  = await fetch(`${API}/api/voice/transcribe`, {
-            method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob,
-          });
-          const data = await res.json();
-          if (data.error) { setMicErr(data.error); setMicState('error'); return; }
-          setTranscript(data.transcript || '(no speech detected — check selected device)');
-          setMicState('done');
-        } catch(e) { setMicErr(e.message); setMicState('error'); }
-      };
-      mr.start();
-      mediaRef.current = mr;
-      setMicState('recording');
-    } catch(e) { setMicErr(`Mic error: ${e.message}`); setMicState('error'); }
-  };
-
-  const stopMic  = () => { mediaRef.current?.stop(); };
-  const resetMic = () => { setMicState('idle'); setTranscript(''); setMicErr(''); };
-
-  return (
-    <Section title="Microphone Test" color="#8b5cf6">
-      {/* Device picker */}
-      <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#64748b"}}>Input device {devices.length===0&&<span style={{fontWeight:400,color:"#94a3b8"}}>(loading…)</span>}</div>
-        <button key="" onClick={()=>setDeviceId('')}
-          style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${deviceId===''?"#8b5cf6":"#e2e8f0"}`,
-            background:deviceId===''?"#f5f3ff":"#fff",color:deviceId===''?"#6d28d9":"#1e293b",
-            fontSize:12,fontWeight:deviceId===''?700:500,textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
-          Browser default
-        </button>
-        {devices.map(d=>(
-          <button key={d.deviceId} onClick={()=>setDeviceId(d.deviceId)}
-            style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${deviceId===d.deviceId?"#8b5cf6":"#e2e8f0"}`,
-              background:deviceId===d.deviceId?"#f5f3ff":"#fff",color:deviceId===d.deviceId?"#6d28d9":"#1e293b",
-              fontSize:12,fontWeight:deviceId===d.deviceId?700:500,textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
-            {d.label||`Device ${d.deviceId.slice(0,6)}`}
-          </button>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-        {micState !== 'recording'
-          ? <button onClick={startMic} disabled={micState==='transcribing'}
-              style={{padding:"8px 18px",borderRadius:99,border:"none",background:"#8b5cf6",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",opacity:micState==='transcribing'?0.6:1}}>
-              🎙 Start recording
-            </button>
-          : <button onClick={stopMic}
-              style={{padding:"8px 18px",borderRadius:99,border:"none",background:"#ef4444",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-              ⏹ Stop
-            </button>
-        }
-        {(micState==='done'||micState==='error') && (
-          <button onClick={resetMic}
-            style={{padding:"8px 14px",borderRadius:99,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
-            Reset
-          </button>
-        )}
-        <span style={{fontSize:12,color:micState==='error'?"#ef4444":micState==='recording'?"#ef4444":"#64748b"}}>
-          {micState==='idle'         && 'Tap to test microphone input'}
-          {micState==='recording'    && '🔴 Listening…'}
-          {micState==='transcribing' && '⏳ Transcribing…'}
-          {micState==='done'         && '✓ Done'}
-          {micState==='error'        && micErr}
-        </span>
-      </div>
-      {transcript && (
-        <div style={{background:"#f5f3ff",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#4c1d95",fontStyle:"italic",marginTop:4}}>
-          "{transcript}"
-        </div>
-      )}
-      {micState==='error' && micErr && (
-        <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",marginTop:4}}>{micErr}</div>
-      )}
-    </Section>
-  );
-}
-
 function DebugTab() {
   const API = import.meta.env.VITE_API_URL || '';
   const [data,    setData]    = useState(null);
@@ -2530,7 +2361,7 @@ function DebugTab() {
   if (error)   return <div style={{padding:40,textAlign:"center",color:"#ef4444",fontSize:14}}>Error: {error}</div>;
   if (!data)   return null;
 
-  const { lights, motion, weather, todoist, google_calendar: gcal, voice, pushover, env } = data;
+  const { lights, motion, weather, todoist, google_calendar: gcal, pushover, env } = data;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -2617,16 +2448,6 @@ function DebugTab() {
           )}
         </Section>
 
-        {/* Voice */}
-        {voice && (
-        <Section title="Voice Assistant" color="#f43f5e">
-          <Row label="Groq STT" value={voice.groq_stt?.key_set?"API key set ✓":"Missing"} status={voice.groq_stt?.key_set?"ok":"error"}/>
-          <Row label="STT model" value={voice.groq_stt?.model||"whisper-large-v3-turbo"}/>
-          <Row label="Groq LLM" value={voice.groq_llm?.key_set?"API key set ✓":"Missing"} status={voice.groq_llm?.key_set?"ok":"error"}/>
-          <Row label="Intent model" value={voice.groq_llm?.model||"llama-3.1-8b-instant"}/>
-          {!voice.groq_stt?.key_set && <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444"}}>Add <code>GROQ_API_KEY=...</code> to .env — free key at console.groq.com</div>}
-        </Section>
-        )}
 
         {/* Pushover */}
         {pushover && (
@@ -2651,8 +2472,6 @@ function DebugTab() {
           <Row label="City" value={env.city}/>
         </Section>
 
-        {/* Microphone test */}
-        <MicDebugCard API={API} Section={Section} />
 
       </div>
     </div>
@@ -2813,7 +2632,6 @@ const NAV = [
   { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { id:"voice",     label:"Voice",     color:"#f43f5e", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.8"/><path d="M5 10a7 7 0 0014 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="22" x2="16" y2="22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
 ];
@@ -2836,12 +2654,6 @@ function AppInner() {
   const zoomIn  = useCallback(() => setZoom(z => Math.min(+(z + 0.05).toFixed(2), 2.0)),  []);
   const zoomOut = useCallback(() => setZoom(z => Math.max(+(z - 0.05).toFixed(2), 0.5)), []);
 
-  // ── Voice tab — open and auto-start mic from header button ──
-  const [voiceTrigger, setVoiceTrigger] = useState(0);
-  const openVoice = useCallback(() => {
-    setTab('voice');
-    setVoiceTrigger(t => t + 1);
-  }, []);
 
   // ── Manual screensaver — suppress motion dismiss for 10s ──
   const startScreensaver = useCallback(() => {
@@ -2967,7 +2779,7 @@ function AppInner() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onStartCozy={startCozy} onOpenVoice={openVoice}/>
+      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onStartCozy={startCozy}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
@@ -3000,7 +2812,6 @@ function AppInner() {
           {tab==="lights"    && <LightsTab/>}
           {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
           {tab==="budget"    && <BudgetTab/>}
-          {tab==="voice"     && <VoiceTab triggerRecord={voiceTrigger}/>}
           {tab==="findmy"    && <FindMyTab/>}
           {tab==="debug"     && <DebugTab/>}
         </div>
