@@ -227,8 +227,9 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
   const windMph2 = wx?.current?.wind_speed_10m ?? 0;
   if(windMph2>=35) advisories2.push({icon:"🌬️",msg:`Very windy (${Math.round(windMph2)} mph) — hold onto your hat!`});
 
+  const mobile = window.innerWidth < 700;
   return (
-    <div style={{ background:GRAD, padding:"28px 28px 24px", flexShrink:0, position:"relative", overflow:"hidden" }}>
+    <div style={{ background:GRAD, padding: mobile ? "14px 16px 12px" : "28px 28px 24px", flexShrink:0, position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute",top:-60,right:-60,width:240,height:240,borderRadius:"50%",background:"rgba(255,255,255,0.07)" }}/>
       <div style={{ position:"absolute",bottom:-80,left:-50,width:260,height:260,borderRadius:"50%",background:"rgba(255,255,255,0.05)" }}/>
       <div style={{ position:"relative", zIndex:1 }}>
@@ -262,7 +263,7 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
               </button>
             )}
             {/* Screensaver */}
-            {onStartScreensaver && (
+            {!mobile && onStartScreensaver && (
               <button onClick={onStartScreensaver} title="Start screensaver"
                 style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -273,10 +274,10 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
               </button>
             )}
             {/* Exit */}
-            <button onClick={exitKiosk} title="Exit kiosk / close browser" style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {!mobile && <button onClick={exitKiosk} title="Exit kiosk / close browser" style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
-            </button>
-            <div style={{ fontSize:52,fontWeight:200,color:"#fff",lineHeight:1,letterSpacing:-3 }}>{fmtTime(now)}</div>
+            </button>}
+            <div style={{ fontSize: mobile ? 32 : 52,fontWeight:200,color:"#fff",lineHeight:1,letterSpacing:-2 }}>{fmtTime(now)}</div>
           </div>
         </div>
 
@@ -2826,10 +2827,11 @@ function AppInner() {
   const wide = useWide();
 
   // ── Zoom — persisted in localStorage ──
-  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem('appZoom2') || '1.35'));
+  const isMobile = window.innerWidth < 700;
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem(isMobile ? 'appZoom2Mobile' : 'appZoom2') || (isMobile ? '1.0' : '1.35')));
   useEffect(() => {
     document.body.style.zoom = zoom;
-    localStorage.setItem('appZoom2', String(zoom));
+    localStorage.setItem(isMobile ? 'appZoom2Mobile' : 'appZoom2', String(zoom));
   }, [zoom]);
   const zoomIn  = useCallback(() => setZoom(z => Math.min(+(z + 0.05).toFixed(2), 2.0)),  []);
   const zoomOut = useCallback(() => setZoom(z => Math.max(+(z - 0.05).toFixed(2), 0.5)), []);
