@@ -1928,126 +1928,153 @@ function CozyScreensaver({ onDismiss }) {
 }
 
 // ─── HANDWRITING PANEL ───────────────────────────────────────────────────────
-function HandwritingPanel({ onDone, onCancel, placeholder = "Write here…" }) {
-  const canvasRef = useRef(null);
-  const [drawing,  setDrawing]  = useState(false);
+function HandwritingPanel({ onDone, onCancel }) {
+  const canvasRef   = useRef(null);
+  const strokesRef  = useRef([]);        // committed strokes
+  const activeRef   = useRef(null);      // stroke in progress
+  const startTime   = useRef(Date.now());
+  const ctxRef      = useRef(null);
+  const [strokeCount, setStrokeCount] = useState(0);
   const [result,   setResult]   = useState('');
-  const [status,   setStatus]   = useState('idle'); // idle | recognizing | done | error
-  const lastPos = useRef(null);
+  const [status,   setStatus]   = useState('idle'); // idle|recognizing|done|error
+  const [errMsg,   setErrMsg]   = useState('');
 
-  const getPos = (e, canvas) => {
-    const r = canvas.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - r.left, y: src.clientY - r.top };
-  };
-
-  const startDraw = (e) => {
-    e.preventDefault();
+  // Init canvas context once
+  useEffect(() => {
     const canvas = canvasRef.current;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = canvas.offsetWidth  * dpr;
+    canvas.height = canvas.offsetHeight * dpr;
     const ctx = canvas.getContext('2d');
-    const pos = getPos(e, canvas);
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-    lastPos.current = pos;
-    setDrawing(true);
-  };
-
-  const draw = (e) => {
-    if (!drawing) return;
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const pos = getPos(e, canvas);
-    ctx.lineWidth = 3;
+    ctx.scale(dpr, dpr);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-    lastPos.current = pos;
+    ctxRef.current = ctx;
+  }, []);
+
+  const canvasXY = (e) => {
+    const r = canvasRef.current.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
-  const endDraw = (e) => { e && e.preventDefault(); setDrawing(false); };
+  const onPointerDown = (e) => {
+    if (e.pointerType !== 'pen') return;   // palm rejection
+    e.preventDefault();
+    canvasRef.current.setPointerCapture(e.pointerId);
+    const { x, y } = canvasXY(e);
+    const t = Date.now() - startTime.current;
+    activeRef.current = { x: [x], y: [y], t: [t], p: [e.pressure] };
+    const ctx = ctxRef.current;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const onPointerMove = (e) => {
+    if (e.pointerType !== 'pen' || !activeRef.current) return;
+    e.preventDefault();
+    // Use getCoalescedEvents for high-fidelity MPP 2.0 input
+    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    const ctx = ctxRef.current;
+    for (const ev of events) {
+      const { x, y } = canvasXY(ev);
+      activeRef.current.x.push(x);
+      activeRef.current.y.push(y);
+      activeRef.current.t.push(Date.now() - startTime.current);
+      activeRef.current.p.push(ev.pressure);
+      ctx.lineWidth = Math.max(1, ev.pressure * 5);
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+  };
+
+  const onPointerUp = (e) => {
+    if (e.pointerType !== 'pen' || !activeRef.current) return;
+    e.preventDefault();
+    strokesRef.current.push(activeRef.current);
+    activeRef.current = null;
+    setStrokeCount(c => c + 1);
+  };
 
   const clear = () => {
     const canvas = canvasRef.current;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    ctxRef.current.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+    strokesRef.current = [];
+    activeRef.current  = null;
+    startTime.current  = Date.now();
+    setStrokeCount(0);
     setResult('');
     setStatus('idle');
+    setErrMsg('');
   };
 
   const recognize = async () => {
-    const canvas = canvasRef.current;
+    if (!strokesRef.current.length) return;
     setStatus('recognizing');
+    setErrMsg('');
     try {
-      // Try browser Handwriting Recognition API first
-      if (window.HandwritingRecognizer || navigator.createHandwritingRecognizer) {
-        const recognizer = await (navigator.createHandwritingRecognizer || window.HandwritingRecognizer.create)({ languages: ['en'] });
-        const drawing = recognizer.startDrawing();
-        // Not easy to replay strokes — fall through to Tesseract
-        recognizer.finish();
-      }
-      throw new Error('use-tesseract');
-    } catch {
-      // Use Tesseract.js via CDN
-      try {
-        if (!window.Tesseract) {
-          await new Promise((res, rej) => {
-            const s = document.createElement('script');
-            s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-            s.onload = res; s.onerror = rej;
-            document.head.appendChild(s);
-          });
-        }
-        const { data: { text } } = await window.Tesseract.recognize(canvas, 'eng', {
-          tessedit_pageseg_mode: '7',
-        });
-        const clean = text.trim().replace(/\n/g, ' ');
-        setResult(clean);
-        setStatus('done');
-      } catch (err) {
-        setStatus('error');
-      }
+      const r = await fetch(`${API}/api/handwriting/recognize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strokes: strokesRef.current })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Recognition failed');
+      setResult(d.text);
+      setStatus('done');
+    } catch (err) {
+      setErrMsg(err.message);
+      setStatus('error');
     }
   };
 
   return (
-    <div style={{position:'fixed',inset:0,zIndex:8000,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end'}}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
-      <div style={{width:'100%',background:'#fff',borderRadius:'24px 24px 0 0',padding:20,display:'flex',flexDirection:'column',gap:12,boxShadow:'0 -8px 32px rgba(0,0,0,0.2)'}}>
+    <div style={{position:'fixed',inset:0,zIndex:8000,background:'rgba(0,0,0,0.55)',display:'flex',alignItems:'flex-end'}}
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div style={{width:'100%',background:'#fff',borderRadius:'24px 24px 0 0',padding:20,display:'flex',flexDirection:'column',gap:12,boxShadow:'0 -8px 40px rgba(0,0,0,0.25)'}}>
+
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:15,fontWeight:700,color:'#1e293b'}}>Write with stylus</span>
-          <button onClick={onCancel} style={{border:'none',background:'none',fontSize:20,cursor:'pointer',color:'#94a3b8',padding:4}}>✕</button>
+          <div>
+            <span style={{fontSize:15,fontWeight:700,color:'#1e293b'}}>Write with stylus</span>
+            <span style={{fontSize:12,color:'#94a3b8',marginLeft:8}}>pen only · palm ignored</span>
+          </div>
+          <button onClick={onCancel} style={{border:'none',background:'none',fontSize:22,cursor:'pointer',color:'#94a3b8',lineHeight:1}}>✕</button>
         </div>
 
-        {/* Canvas */}
-        <canvas ref={canvasRef} width={600} height={160}
-          style={{width:'100%',height:160,background:'#f8fafc',borderRadius:12,border:'2px solid #e2e8f0',touchAction:'none',cursor:'crosshair'}}
-          onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
-          onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
+        {/* Canvas — tall for comfortable writing */}
+        <canvas ref={canvasRef}
+          style={{width:'100%',height:200,background:'#f8fafc',borderRadius:14,border:'2px solid #e2e8f0',touchAction:'none',cursor:'crosshair',display:'block'}}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
         />
 
-        {/* Result text */}
-        {(status === 'done' || result) && (
+        {/* Result edit box */}
+        {status === 'done' && (
           <input value={result} onChange={e => setResult(e.target.value)}
-            style={{padding:'10px 14px',borderRadius:10,border:'2px solid #6366f1',fontSize:15,fontFamily:'inherit',outline:'none',background:'#eef2ff',color:'#1e293b'}}
-            placeholder="Edit recognized text…"
+            style={{padding:'11px 14px',borderRadius:10,border:'2px solid #6366f1',fontSize:16,fontFamily:'inherit',outline:'none',background:'#eef2ff',color:'#1e293b'}}
+            placeholder="Edit if needed…"
           />
         )}
-        {status === 'error' && <div style={{color:'#ef4444',fontSize:13}}>Recognition failed — try writing more clearly or in block letters.</div>}
+        {status === 'error' && (
+          <div style={{color:'#ef4444',fontSize:13,background:'#fef2f2',borderRadius:8,padding:'8px 12px'}}>{errMsg || 'Recognition failed'}</div>
+        )}
 
-        {/* Buttons */}
         <div style={{display:'flex',gap:10}}>
-          <button onClick={clear} style={{flex:1,padding:'12px 0',borderRadius:12,border:'2px solid #e2e8f0',background:'#fff',fontSize:14,fontWeight:600,color:'#64748b',cursor:'pointer',fontFamily:'inherit'}}>Clear</button>
-          <button onClick={recognize} disabled={status==='recognizing'}
-            style={{flex:1,padding:'12px 0',borderRadius:12,border:'none',background:'#6366f1',fontSize:14,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit',opacity:status==='recognizing'?0.7:1}}>
-            {status==='recognizing' ? 'Reading…' : 'Recognize'}
+          <button onClick={clear}
+            style={{flex:1,padding:'13px 0',borderRadius:12,border:'2px solid #e2e8f0',background:'#fff',fontSize:14,fontWeight:600,color:'#64748b',cursor:'pointer',fontFamily:'inherit'}}>
+            Clear
           </button>
-          <button onClick={() => onDone(result)} disabled={!result}
-            style={{flex:1,padding:'12px 0',borderRadius:12,border:'none',background: result ? '#10b981' : '#e2e8f0',fontSize:14,fontWeight:700,color: result ? '#fff' : '#94a3b8',cursor: result ? 'pointer' : 'default',fontFamily:'inherit'}}>
-            Use Text
+          <button onClick={recognize} disabled={!strokeCount || status==='recognizing'}
+            style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:'#6366f1',fontSize:14,fontWeight:700,color:'#fff',cursor:(strokeCount&&status!=='recognizing')?'pointer':'default',fontFamily:'inherit',opacity:(!strokeCount||status==='recognizing')?0.5:1}}>
+            {status==='recognizing' ? 'Reading…' : 'Recognize ✦'}
+          </button>
+          <button onClick={() => result && onDone(result)} disabled={!result}
+            style={{flex:1,padding:'13px 0',borderRadius:12,border:'none',background:result?'#10b981':'#e2e8f0',fontSize:14,fontWeight:700,color:result?'#fff':'#94a3b8',cursor:result?'pointer':'default',fontFamily:'inherit'}}>
+            Use
           </button>
         </div>
       </div>

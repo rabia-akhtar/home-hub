@@ -1098,6 +1098,49 @@ app.post('/api/kiosk/exit', (req, res) => {
   setTimeout(()=>exec('pkill -f chromium'), 300);
 });
 
+// ── MyScript handwriting recognition ──────────────────────────────────────────
+app.post('/api/handwriting/recognize', express.json({ limit: '1mb' }), async (req, res) => {
+  const APP_KEY  = process.env.MYSCRIPT_APP_KEY;
+  const HMAC_KEY = process.env.MYSCRIPT_HMAC_KEY;
+  if (!APP_KEY || !HMAC_KEY) return res.status(503).json({ error: 'MyScript keys not configured' });
+
+  try {
+    const { strokes } = req.body;
+    if (!strokes?.length) return res.status(400).json({ error: 'No stroke data' });
+
+    const body = JSON.stringify({
+      xDPI: 96, yDPI: 96,
+      contentType: 'Text',
+      configuration: { lang: 'en_US' },
+      strokeGroups: [{ strokes }]
+    });
+
+    const { createHmac } = await import('crypto');
+    const hmac = createHmac('sha512', HMAC_KEY).update(APP_KEY + body).digest('hex');
+
+    const r = await fetch('https://cloud.myscript.com/api/v4.0/iink/batch', {
+      method: 'POST',
+      headers: {
+        'applicationKey': APP_KEY,
+        'hmac': hmac,
+        'Content-Type': 'application/json',
+        'Accept': 'text/plain'
+      },
+      body
+    });
+
+    if (!r.ok) {
+      const err = await r.text();
+      return res.status(r.status).json({ error: err });
+    }
+
+    const text = await r.text();
+    res.json({ text: text.trim() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Voice assistant ──────────────────────────────────────────────────────────
 const GROQ_API_KEY    = process.env.GROQ_API_KEY    || '';
 const GROQ_STT_MODEL  = process.env.GROQ_STT_MODEL  || 'whisper-large-v3-turbo';
