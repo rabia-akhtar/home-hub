@@ -362,7 +362,7 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
 // ─── HOME LIGHTS ROW ─────────────────────────────────────────────────────────
 function HomeLights() {
   const GROUPS = [
-    { key: 'living', ids: ['living_room', 'kitchen'], label: 'Living Area' },
+    { key: 'living', ids: ['living_room', 'kitchen', 'dining_room'], label: 'Living Area' },
     { key: 'bedroom', ids: ['bedroom'],               label: 'Bedroom'      },
   ];
   const [state, setState] = useState({ living: null, bedroom: null });
