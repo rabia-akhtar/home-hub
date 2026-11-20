@@ -454,12 +454,16 @@ function HomePing() {
 
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
 // ─── HOME QUICK-ADD SHEET ────────────────────────────────────────────────────
-function QuickAddSheet({ projs, onAdd, onClose }) {
+function QuickAddSheet({ projs, uidMap, onAdd, onClose }) {
   const groceriesProj = projs.find(p => p.name.toLowerCase() === "groceries");
   const rabiaProj     = projs.find(p => p.name.toLowerCase() === "rabia's personal");
+  // Todoist only allows assignees in shared projects, so Clare's items go to Chores.
+  const choresProj    = projs.find(p => p.name.toLowerCase() === "chores");
+  const clareUid      = Object.keys(uidMap || {}).find(k => uidMap[k] === "clare");
   const dests = [
     { id:"task",    label:"Task",    color:ACCENT2 },
     rabiaProj     && { id:"rabia",   label:"Rabia",   color:RABIA.color },
+    choresProj && clareUid && { id:"clare", label:"Clare", color:CLARE.color },
     groceriesProj && { id:"grocery", label:"Grocery", color:GROCERY },
   ].filter(Boolean);
 
@@ -496,6 +500,7 @@ function QuickAddSheet({ projs, onAdd, onClose }) {
     else {
       body.due_string = "today";
       if (dest === "rabia") body.project_id = rabiaProj.id;
+      if (dest === "clare") { body.project_id = choresProj.id; body.assignee_id = clareUid; }
     }
     setSaving(true);
     await onAdd(body);
@@ -787,7 +792,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
     </div>
   ) : null;
 
-  const quickAddModal = quickAdd && <QuickAddSheet projs={projs} onAdd={onAddTask} onClose={()=>setQuickAdd(false)}/>;
+  const quickAddModal = quickAdd && <QuickAddSheet projs={projs} uidMap={uidMap} onAdd={onAddTask} onClose={()=>setQuickAdd(false)}/>;
 
   const fabRow = (
     <button onClick={()=>setQuickAdd(true)}
@@ -2684,6 +2689,20 @@ function AppInner() {
   const wide = useWide();
 
   useEffect(() => { localStorage.setItem('navVisible', String(navVisible)); }, [navVisible]);
+
+  // Kiosk never reloads on its own — pick up new deploys by watching the bundle name in index.html.
+  useEffect(() => {
+    const current = document.querySelector('script[src*="/assets/index-"]')?.getAttribute('src');
+    if (!current) return;
+    const id = setInterval(async () => {
+      try {
+        const html = await fetch('/', { cache: 'no-store' }).then(r => r.text());
+        const latest = html.match(/\/assets\/index-[\w-]+\.js/)?.[0];
+        if (latest && !current.endsWith(latest)) location.reload();
+      } catch {}
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── Zoom — persisted in localStorage ──
   const isMobile = window.innerWidth < 700;
