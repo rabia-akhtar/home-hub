@@ -182,7 +182,7 @@ function Pill({ label, color, bg }) {
 
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, lightsOn, onToggleLights, onStartScreensaver, onStartCozy }) {
+function Header({ wx, sun, onStartScreensaver, onStartCozy }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -2601,34 +2601,6 @@ function AppInner() {
     clearTimeout(idleTimer.current);
   }, []);
 
-  // ── Header lights toggle ──
-  const [headerLightsOn, setHeaderLightsOn] = useState(null); // null = unknown
-  const toggleAllLights = useCallback(async () => {
-    const next = !headerLightsOn;
-    setHeaderLightsOn(next);
-    try {
-      await fetch(`${API}/lights/group`, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ on: next }),
-      });
-    } catch {}
-  }, [headerLightsOn]);
-
-  // Sync header lights state from /api/lights every 30s
-  useEffect(() => {
-    const sync = async () => {
-      try {
-        const devices = await fetch(`${API}/lights`).then(r => r.json());
-        if (Array.isArray(devices) && devices.length) {
-          setHeaderLightsOn(devices.some(d => d.on && !d.unreachable && d.id !== 'display'));
-        }
-      } catch {}
-    };
-    sync();
-    const t = setInterval(sync, 30000);
-    return () => clearInterval(t);
-  }, []);
-
   // ── Idle screensaver: activate after 2 min of no interaction ──
   const idleTimer = useRef(null);
   const IDLE_MS = 5 * 60 * 1000;
@@ -2709,7 +2681,7 @@ function AppInner() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onStartCozy={startCozy}/>
+      <Header wx={hub.wx} sun={hub.sun} onStartScreensaver={startScreensaver} onStartCozy={startCozy}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
