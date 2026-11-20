@@ -1154,13 +1154,41 @@ app.post('/api/kiosk/exit', (req, res) => {
 });
 
 // ── MyScript handwriting recognition ──────────────────────────────────────────
-app.post('/api/handwriting/recognize', express.json({ limit: '1mb' }), async (req, res) => {
+// Groq vision fallback: reads a snapshot of the canvas when MyScript is unavailable.
+async function recognizeImageWithGroq(image) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error('GROQ_API_KEY not configured');
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b',
+      max_tokens: 200,
+      temperature: 0,
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: 'Transcribe the handwritten text in this image. It is a short to-do or grocery item. Reply with only the text, no quotes or commentary.' },
+        { type: 'image_url', image_url: { url: image } },
+      ] }],
+    }),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error?.message || `Groq ${r.status}`);
+  return (d.choices?.[0]?.message?.content || '').trim().replace(/^["']|["']$/g, '');
+}
+
+app.post('/api/handwriting/recognize', express.json({ limit: '4mb' }), async (req, res) => {
   const APP_KEY  = process.env.MYSCRIPT_APP_KEY;
   const HMAC_KEY = process.env.MYSCRIPT_HMAC_KEY;
-  if (!APP_KEY || !HMAC_KEY) return res.status(503).json({ error: 'MyScript keys not configured' });
+  const { strokes, image } = req.body;
+
+  const viaGroq = async (why) => {
+    if (!image) return res.status(502).json({ error: why });
+    try { res.json({ text: await recognizeImageWithGroq(image) }); }
+    catch (e) { res.status(502).json({ error: e.message }); }
+  };
+  if (!APP_KEY || !HMAC_KEY) return viaGroq('MyScript keys not configured');
 
   try {
-    const { strokes } = req.body;
     if (!strokes?.length) return res.status(400).json({ error: 'No stroke data' });
 
     const body = JSON.stringify({
@@ -1184,15 +1212,12 @@ app.post('/api/handwriting/recognize', express.json({ limit: '1mb' }), async (re
       body
     });
 
-    if (!r.ok) {
-      const err = await r.text();
-      return res.status(r.status).json({ error: err });
-    }
+    if (!r.ok) return viaGroq(`MyScript ${r.status}: ${await r.text()}`);
 
     const text = await r.text();
     res.json({ text: text.trim() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    viaGroq(err.message);
   }
 });
 

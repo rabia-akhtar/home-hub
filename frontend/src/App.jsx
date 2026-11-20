@@ -474,7 +474,7 @@ function QuickAddSheet({ projs, onAdd, onClose }) {
     const id = ++reqId.current;
     setStatus("reading");
     try {
-      const t = await recognizeInk(strokes);
+      const t = await recognizeInk(strokes, ink.canvasRef.current);
       if (id === reqId.current) { setText(t); setStatus("idle"); }
       return t;
     } catch {
@@ -2000,14 +2000,25 @@ function useInk(onPause) {
 
   return {
     canvasProps: { ref: canvasRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
-    strokesRef, strokeCount, clear,
+    canvasRef, strokesRef, strokeCount, clear,
   };
 }
 
-async function recognizeInk(strokes) {
+// Snapshot on white so the server's vision fallback sees dark ink on a light page.
+function inkSnapshot(canvas) {
+  if (!canvas) return undefined;
+  const o = document.createElement('canvas');
+  o.width = canvas.width; o.height = canvas.height;
+  const x = o.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
+  x.drawImage(canvas, 0, 0);
+  return o.toDataURL('image/jpeg', 0.8);
+}
+
+async function recognizeInk(strokes, canvas) {
   const r = await fetch(`${API}/handwriting/recognize`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ strokes }),
+    body: JSON.stringify({ strokes, image: inkSnapshot(canvas) }),
   });
   const d = await r.json();
   if (!r.ok) throw new Error(d.error || 'Recognition failed');
@@ -2028,7 +2039,7 @@ function HandwritingPanel({ onDone, onCancel }) {
     setStatus('recognizing');
     setErrMsg('');
     try {
-      setResult(await recognizeInk(ink.strokesRef.current));
+      setResult(await recognizeInk(ink.strokesRef.current, ink.canvasRef.current));
       setStatus('done');
     } catch (err) {
       setErrMsg(err.message);
