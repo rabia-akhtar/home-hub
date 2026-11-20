@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
 
 const API = "/api";
-const RABIA = { name:"Rabia", color:"#38bdf8", light:"#e0f2fe", dark:"#0369a1", initial:"R" };
-const CLARE = { name:"Clare", color:"#f472b6", light:"#fce7f3", dark:"#9d174d", initial:"C" };
+const RABIA = { name:"Rabia", color:"#2563A8", light:"#dbeafe", dark:"#1e3a5f", initial:"R" };
+const CLARE = { name:"Clare", color:"#9B2D5A", light:"#fce7f3", dark:"#5e1a37", initial:"C" };
 
 const WX = {0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Foggy",48:"Foggy",51:"Drizzle",53:"Drizzle",55:"Drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",71:"Light snow",73:"Snow",75:"Heavy snow",80:"Showers",81:"Showers",82:"Showers",95:"Storm",96:"Storm",99:"Storm"};
 const wxL = c => WX[c] || "–";
@@ -115,24 +115,31 @@ function isXmasSeason() {
   return (m === 11 && day >= 15) || m === 12 || (m === 1 && day <= 15);
 }
 const XMAS = isXmasSeason();
-// Traditional Christmas palette — Santa Red / Christmas Green / Tinsel Gold
-const GRAD       = XMAS
-  ? "linear-gradient(160deg,#BB2528 0%,#8B0000 30%,#165B33 65%,#F8B229 100%)"
-  : "linear-gradient(160deg,#ff9472 0%,#f2709c 30%,#a78bfa 65%,#38bdf8 100%)";
-const ACCENT     = XMAS ? "#F8B229" : "#38bdf8";   // Tinsel Gold / sky blue
-const ACCENT2    = XMAS ? "#BB2528" : "#f2709c";   // Santa Red / pink
-const ACCENT3    = XMAS ? "#165B33" : "#a78bfa";   // Christmas Green / purple
-const ACCENT_L   = XMAS ? "#FFF8E7" : "#e0f2fe";  // warm cream tint / light blue
-const ACCENT_D   = XMAS ? "#8B0000" : "#0369a1";  // deep red / dark blue
-const APP_BG     = XMAS ? "#FDFAF0" : "#f0f4f8";  // warm parchment / cool gray
-const BTN_GRAD   = XMAS ? "linear-gradient(135deg,#BB2528,#165B33)" : "linear-gradient(135deg,#f2709c,#38bdf8)";
+
+// ── Winter lodge palette (Christmas) / clean light palette (rest of year) ──
+// Lodge: dark walnut header, warm parchment body, amber/pine/burgundy accents
+const HEADER_BG  = XMAS
+  ? "linear-gradient(180deg,#1E110A 0%,#2C1609 60%,#1A0D06 100%)"
+  : "linear-gradient(160deg,#1e3a5f 0%,#2563A8 50%,#1a3050 100%)";
+const GRAD       = HEADER_BG;
+const ACCENT     = XMAS ? "#C8871A" : "#2563A8";   // amber gold / steel blue
+const ACCENT2    = XMAS ? "#7A1F1F" : "#9B2D5A";   // deep holly red / rose
+const ACCENT3    = XMAS ? "#2A5230" : "#2D6A4F";   // pine green
+const ACCENT_L   = XMAS ? "#FEF3DC" : "#dbeafe";   // warm cream / light blue
+const ACCENT_D   = XMAS ? "#5C3A1A" : "#1e3a5f";   // dark walnut / dark blue
+const APP_BG     = XMAS ? "#EDE3CE" : "#f0f4f8";   // warm parchment / cool gray
+const BTN_GRAD   = XMAS ? "linear-gradient(135deg,#7A1F1F,#2A5230)" : "linear-gradient(135deg,#2563A8,#2D6A4F)";
 const XMAS_CSS   = XMAS ? `
-  body { background: #FDFAF0 !important; }
-  ::-webkit-scrollbar-thumb { background: rgba(187,37,40,0.25) !important; }
-  input[type=range]::-webkit-slider-thumb { border-color: #BB2528 !important; }
+  body { background: #EDE3CE !important; }
+  ::-webkit-scrollbar-thumb { background: rgba(200,135,26,0.35) !important; }
+  input[type=range]::-webkit-slider-thumb { border-color: #C8871A !important; }
 ` : '';
-const CARD = { background:"rgba(255,255,255,0.95)", borderRadius:24, boxShadow:"0 2px 16px rgba(0,0,0,0.06)", border:"1px solid rgba(255,255,255,0.8)" };
-const TOUCH_ROW = { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #f1f5f9", cursor:"pointer" };
+const CARD = XMAS
+  ? { background:"#FAF6EC", borderRadius:20, boxShadow:"0 2px 14px rgba(30,17,10,0.1)", border:"1.5px solid #D8C4A0" }
+  : { background:"#fff", borderRadius:20, boxShadow:"0 2px 14px rgba(0,0,0,0.07)", border:"1px solid #e8edf2" };
+const TOUCH_ROW = XMAS
+  ? { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #E5D3B3", cursor:"pointer" }
+  : { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #f1f5f9", cursor:"pointer" };
 
 // ─── Global state hook ────────────────────────────────────────────────────────
 function useHub() {
@@ -222,80 +229,78 @@ function Header({ wx, sun, onStartScreensaver, onStartCozy }) {
   const windMph2 = wx?.current?.wind_speed_10m ?? 0;
   if(windMph2>=35) advisories2.push({icon:"🌬️",msg:`Very windy (${Math.round(windMph2)} mph) — hold onto your hat!`});
 
+  // Lodge-style header colours
+  const HDR_TEXT   = XMAS ? "#F5E6C8" : "#dbeafe";   // warm cream / cool blue-white
+  const HDR_MUTED  = XMAS ? "rgba(245,230,200,0.55)" : "rgba(219,234,254,0.6)";
+  const HDR_PILL   = XMAS ? "rgba(200,135,26,0.18)"  : "rgba(37,99,168,0.25)";
+  const HDR_BORDER = XMAS ? "#C8871A"                 : "#2563A8";
+
   const mobile = window.innerWidth < 700;
   return (
-    <div style={{ background:GRAD, padding: mobile ? "14px 16px 12px" : "28px 28px 24px", flexShrink:0, position:"relative", overflow:"hidden" }}>
-      <div style={{ position:"absolute",top:-60,right:-60,width:240,height:240,borderRadius:"50%",background:"rgba(255,255,255,0.07)" }}/>
-      <div style={{ position:"absolute",bottom:-80,left:-50,width:260,height:260,borderRadius:"50%",background:"rgba(255,255,255,0.05)" }}/>
-      <div style={{ position:"relative", zIndex:1 }}>
-        {/* Top row: title + clock + kiosk buttons */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
-          <div>
-            <div style={{ fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.65)",letterSpacing:2,textTransform:"uppercase" }}>Clarabiner</div>
-            <div style={{ fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:2 }}>{fmtDate(now)}</div>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {/* Cozy mode */}
-            {onStartCozy && (
-              <button onClick={onStartCozy} title="Cozy ambient video"
-                style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2C8 6 6 9 6 12a6 6 0 0012 0c0-3-2-6-6-10z" fill="rgba(255,165,80,0.9)" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinejoin="round"/>
-                  <path d="M12 8c-1.5 2-2 3.5-2 5a2 2 0 004 0c0-1.5-.5-3-2-5z" fill="rgba(255,220,100,0.9)"/>
-                </svg>
-              </button>
-            )}
-            {/* Screensaver */}
-            {!mobile && onStartScreensaver && (
-              <button onClick={onStartScreensaver} title="Start screensaver"
-                style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.2s"}}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="3" width="18" height="18" rx="3" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8"/>
-                  <circle cx="8.5" cy="8.5" r="1.5" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5"/>
-                  <path d="M3 15l5-5 4 4 3-3 6 6" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-            )}
-            {/* Exit */}
-            {!mobile && <button onClick={exitKiosk} title="Exit kiosk / close browser" style={{width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.18)",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
-            </button>}
-            <div style={{ fontSize: mobile ? 32 : 52,fontWeight:200,color:"#fff",lineHeight:1,letterSpacing:-2 }}>{fmtTime(now)}</div>
-          </div>
+    <div style={{ background:GRAD, padding: mobile ? "14px 16px 12px" : "22px 28px 18px", flexShrink:0,
+                  borderBottom:`3px solid ${HDR_BORDER}` }}>
+      {/* Top row: name/date | buttons | clock */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+        <div>
+          <div style={{ fontSize:11, fontWeight:800, color:HDR_MUTED, letterSpacing:3, textTransform:"uppercase" }}>Clarabiner</div>
+          <div style={{ fontSize:mobile?20:28, fontWeight:700, color:HDR_TEXT, lineHeight:1.1, marginTop:2, letterSpacing:-0.5 }}>{fmtDate(now)}</div>
         </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {onStartCozy && (
+            <button onClick={onStartCozy} title="Cozy mode"
+              style={{width:40,height:40,borderRadius:12,border:`1px solid ${HDR_BORDER}40`,background:"rgba(255,255,255,0.08)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2C8 6 6 9 6 12a6 6 0 0012 0c0-3-2-6-6-10z" fill="rgba(255,165,80,0.9)" stroke={HDR_TEXT} strokeWidth="1.5" strokeLinejoin="round"/>
+                <path d="M12 8c-1.5 2-2 3.5-2 5a2 2 0 004 0c0-1.5-.5-3-2-5z" fill="rgba(255,220,100,0.9)"/>
+              </svg>
+            </button>
+          )}
+          {!mobile && onStartScreensaver && (
+            <button onClick={onStartScreensaver} title="Screensaver"
+              style={{width:40,height:40,borderRadius:12,border:`1px solid ${HDR_BORDER}40`,background:"rgba(255,255,255,0.08)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="18" height="18" rx="3" stroke={HDR_TEXT} strokeWidth="1.8"/>
+                <circle cx="8.5" cy="8.5" r="1.5" stroke={HDR_TEXT} strokeWidth="1.5"/>
+                <path d="M3 15l5-5 4 4 3-3 6 6" stroke={HDR_TEXT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          )}
+          {!mobile && (
+            <button onClick={exitKiosk} title="Exit kiosk"
+              style={{width:40,height:40,borderRadius:12,border:`1px solid ${HDR_BORDER}40`,background:"rgba(255,255,255,0.08)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke={HDR_TEXT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke={HDR_TEXT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke={HDR_TEXT} strokeWidth="2" strokeLinecap="round"/></svg>
+            </button>
+          )}
+          <div style={{ fontSize: mobile ? 36 : 56, fontWeight:700, color:HDR_TEXT, lineHeight:1, letterSpacing:-2, marginLeft:4 }}>{fmtTime(now)}</div>
+        </div>
+      </div>
 
-        {/* Bottom row: weather + sunset */}
-        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-          {cur && (
-            <div style={{ display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(12px)",borderRadius:16,padding:"10px 16px",flex:1 }}>
-              <WxIcon code={code} size={32}/>
-              <div>
-                <div style={{fontSize:22,fontWeight:700,color:"#fff",lineHeight:1}}>{Math.round(cur.temperature_2m)}°F</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.8)"}}>{wxL(code)} · {Math.round(cur.wind_speed_10m)}mph</div>
-              </div>
+      {/* Bottom row: weather + sunset pills */}
+      <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+        {cur && (
+          <div style={{ display:"flex",alignItems:"center",gap:10,background:HDR_PILL,borderRadius:14,padding:"9px 16px",flex:1 }}>
+            <WxIcon code={code} size={28}/>
+            <div>
+              <div style={{fontSize:20,fontWeight:700,color:HDR_TEXT,lineHeight:1}}>{Math.round(cur.temperature_2m)}°F</div>
+              <div style={{fontSize:11,color:HDR_MUTED}}>{wxL(code)} · {Math.round(cur.wind_speed_10m)} mph</div>
             </div>
-          )}
-          {sunset && (
-            <div style={{ display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(12px)",borderRadius:16,padding:"10px 16px" }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="11" r="4" fill="#fbbf24"/><line x1="12" y1="3" x2="12" y2="5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="19.8" y1="4.2" x2="18.4" y2="5.6" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="3" y1="11" x2="5" y2="11" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="21" y1="11" x2="19" y2="11" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="2" y1="18" x2="22" y2="18" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round"/><path d="M7 18a5 5 0 0110 0" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
-              <div>
-                <div style={{fontSize:13,fontWeight:700,color:"#fff"}}>{fmt12(sunset)}</div>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>Sunset</div>
-              </div>
-            </div>
-          )}
-        </div>
-        {/* Advisory strip — only shown when there are active advisories */}
-        {advisories2.length>0 && (
-          <div style={{marginTop:12,display:"flex",flexWrap:"wrap",gap:8}}>
-            {advisories2.map((a,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(8px)",borderRadius:99,padding:"6px 14px"}}>
-                <span style={{fontSize:16}}>{a.icon}</span>
-                <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{a.msg}</span>
-              </div>
-            ))}
           </div>
         )}
+        {sunset && (
+          <div style={{ display:"flex",alignItems:"center",gap:10,background:HDR_PILL,borderRadius:14,padding:"9px 16px" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="11" r="4" fill="#fbbf24"/><line x1="12" y1="3" x2="12" y2="5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="3" y1="11" x2="5" y2="11" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="21" y1="11" x2="19" y2="11" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><line x1="2" y1="18" x2="22" y2="18" stroke={HDR_MUTED} strokeWidth="1.5" strokeLinecap="round"/><path d="M7 18a5 5 0 0110 0" stroke={HDR_MUTED} strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:HDR_TEXT}}>{fmt12(sunset)}</div>
+              <div style={{fontSize:10,color:HDR_MUTED}}>Sunset</div>
+            </div>
+          </div>
+        )}
+        {advisories2.map((a,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:HDR_PILL,borderRadius:99,padding:"7px 14px"}}>
+            <span style={{fontSize:15}}>{a.icon}</span>
+            <span style={{fontSize:11,fontWeight:600,color:HDR_TEXT}}>{a.msg}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -2554,13 +2559,13 @@ function FindMyTab() {
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
-  { id:"home",      label:"Home",      color:XMAS?"#BB2528":"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
-  { id:"weather",   label:"Weather",   color:XMAS?"#F8B229":"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"upcoming",  label:"Upcoming",  color:XMAS?"#165B33":"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:"home",      label:"Home",      color:XMAS?ACCENT2:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
+  { id:"weather",   label:"Weather",   color:XMAS?ACCENT:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"upcoming",  label:"Upcoming",  color:XMAS?ACCENT3:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"groceries", label:"Groceries", color:"#059669", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
-  { id:"calendar",  label:"Calendar",  color:XMAS?"#F8B229":"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
+  { id:"calendar",  label:"Calendar",  color:XMAS?ACCENT:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
