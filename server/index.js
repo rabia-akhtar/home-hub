@@ -19,12 +19,26 @@ let pirError    = null;
 let pirLib      = 'python/gpiozero';
 let pirFires    = 0;
 let pirPin      = parseInt(process.env.PIR_GPIO || '17');
+// Require this many triggers within PIR_WINDOW_MS to actually wake the screen.
+// A walk-by usually fires once; standing in front fires repeatedly.
+const PIR_WAKE_COUNT  = parseInt(process.env.PIR_WAKE_COUNT  || '2');
+const PIR_WINDOW_MS   = parseInt(process.env.PIR_WINDOW_MS   || '20000');
+let   pirWindowFires  = 0;
+let   pirWindowTimer  = null;
 
 function onMotion() {
   pirFires++;
-  lastMotion = new Date();
-  exec('DISPLAY=:0 xset dpms force on 2>/dev/null; DISPLAY=:0 xset s reset 2>/dev/null', ()=>{});
-  console.log(`[PIR] Motion #${pirFires} at ${lastMotion.toISOString()}`);
+  pirWindowFires++;
+  if (!pirWindowTimer) {
+    pirWindowTimer = setTimeout(() => { pirWindowFires = 0; pirWindowTimer = null; }, PIR_WINDOW_MS);
+  }
+  if (pirWindowFires >= PIR_WAKE_COUNT) {
+    lastMotion = new Date();
+    exec('DISPLAY=:0 xset dpms force on 2>/dev/null; DISPLAY=:0 xset s reset 2>/dev/null', ()=>{});
+    console.log(`[PIR] Wake on fire #${pirFires} (${pirWindowFires}/${PIR_WAKE_COUNT} in window)`);
+  } else {
+    console.log(`[PIR] Motion #${pirFires} — ${pirWindowFires}/${PIR_WAKE_COUNT} needed to wake`);
+  }
 }
 
 const PIR_SCRIPT = path.join(__dirname, 'pir_watch.py');
