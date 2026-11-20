@@ -2570,7 +2570,6 @@ const NAV = [
 function AppInner() {
   const [tab,        setTab]        = useState("home");
   const [screensaver,setScreensaver]= useState(false);
-  const [cozyMode,   setCozyMode]   = useState(false);
   const [navVisible, setNavVisible] = useState(() => localStorage.getItem('navVisible') === 'true');
   const hub  = useHub();
   const wide = useWide();
@@ -2593,12 +2592,6 @@ function AppInner() {
     motionPausedUntil.current = Date.now() + 10_000;
     setScreensaver(true);
     clearTimeout(idleTimer.current); // don't auto-dismiss while manually locked
-  }, []);
-
-  const startCozy = useCallback(() => {
-    motionPausedUntil.current = Date.now() + 10_000;
-    setCozyMode(true);
-    clearTimeout(idleTimer.current);
   }, []);
 
   // ── Idle screensaver: activate after 2 min of no interaction ──
@@ -2660,8 +2653,9 @@ function AppInner() {
       style={{ height:"100vh", display:"flex", flexDirection:"column", background:APP_BG, fontFamily:"'DM Sans','Inter','Ubuntu','Noto Sans',system-ui,sans-serif", overflow:"hidden" }}
       onMouseMove={resetIdle} onMouseDown={resetIdle} onTouchStart={resetIdle} onKeyDown={resetIdle}
     >
-      {screensaver && <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>}
-      {cozyMode && <CozyScreensaver onDismiss={()=>{ setCozyMode(false); setTab("home"); resetIdle(); }}/>}
+      {screensaver && (XMAS
+        ? <CozyScreensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>
+        : <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>)}
       {XMAS && <XmasSnowOverlay/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=Inter:wght@400;500;600;700;800&display=swap');
