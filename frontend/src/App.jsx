@@ -117,12 +117,22 @@ function isXmasSeason() {
   return (m === 11 && day >= 15) || m === 12 || (m === 1 && day <= 15);
 }
 const XMAS = isXmasSeason();
-const GRAD     = XMAS
-  ? "linear-gradient(160deg,#c41e3a 0%,#8b1a1a 30%,#1a5c30 65%,#c8a000 100%)"
+// Traditional Christmas palette — Santa Red / Christmas Green / Tinsel Gold
+const GRAD       = XMAS
+  ? "linear-gradient(160deg,#BB2528 0%,#8B0000 30%,#165B33 65%,#F8B229 100%)"
   : "linear-gradient(160deg,#ff9472 0%,#f2709c 30%,#a78bfa 65%,#38bdf8 100%)";
-const ACCENT   = XMAS ? "#c8a000" : "#38bdf8";
-const ACCENT2  = XMAS ? "#c41e3a" : "#f2709c";
-const BTN_GRAD = XMAS ? "linear-gradient(135deg,#c41e3a,#1a5c30)" : "linear-gradient(135deg,#f2709c,#38bdf8)";
+const ACCENT     = XMAS ? "#F8B229" : "#38bdf8";   // Tinsel Gold / sky blue
+const ACCENT2    = XMAS ? "#BB2528" : "#f2709c";   // Santa Red / pink
+const ACCENT3    = XMAS ? "#165B33" : "#a78bfa";   // Christmas Green / purple
+const ACCENT_L   = XMAS ? "#FFF8E7" : "#e0f2fe";  // warm cream tint / light blue
+const ACCENT_D   = XMAS ? "#8B0000" : "#0369a1";  // deep red / dark blue
+const APP_BG     = XMAS ? "#FDFAF0" : "#f0f4f8";  // warm parchment / cool gray
+const BTN_GRAD   = XMAS ? "linear-gradient(135deg,#BB2528,#165B33)" : "linear-gradient(135deg,#f2709c,#38bdf8)";
+const XMAS_CSS   = XMAS ? `
+  body { background: #FDFAF0 !important; }
+  ::-webkit-scrollbar-thumb { background: rgba(187,37,40,0.25) !important; }
+  input[type=range]::-webkit-slider-thumb { border-color: #BB2528 !important; }
+` : '';
 const CARD = { background:"rgba(255,255,255,0.95)", borderRadius:24, boxShadow:"0 2px 16px rgba(0,0,0,0.06)", border:"1px solid rgba(255,255,255,0.8)" };
 const TOUCH_ROW = { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #f1f5f9", cursor:"pointer" };
 
@@ -2759,14 +2769,14 @@ function FindMyTab() {
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
-  { id:"home",      label:"Home",      color:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
-  { id:"weather",   label:"Weather",   color:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"upcoming",  label:"Upcoming",  color:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:"home",      label:"Home",      color:XMAS?"#BB2528":"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
+  { id:"weather",   label:"Weather",   color:XMAS?"#F8B229":"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"upcoming",  label:"Upcoming",  color:XMAS?"#165B33":"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"groceries", label:"Groceries", color:"#059669", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
-  { id:"calendar",  label:"Calendar",  color:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
-  { id:"rewards",   label:"Rewards",   color:"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
+  { id:"calendar",  label:"Calendar",  color:XMAS?"#F8B229":"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
+  { id:"rewards",   label:"Rewards",   color:XMAS?"#BB2528":"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
@@ -2777,7 +2787,7 @@ function AppInner() {
   const [tab,        setTab]        = useState("home");
   const [screensaver,setScreensaver]= useState(false);
   const [cozyMode,   setCozyMode]   = useState(false);
-  const [navVisible, setNavVisible] = useState(() => localStorage.getItem('navVisible') !== 'false');
+  const [navVisible, setNavVisible] = useState(() => localStorage.getItem('navVisible') === 'true');
   const hub  = useHub();
   const wide = useWide();
 
@@ -2785,7 +2795,7 @@ function AppInner() {
 
   // ── Zoom — persisted in localStorage ──
   const isMobile = window.innerWidth < 700;
-  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem(isMobile ? 'appZoom2Mobile' : 'appZoom2') || (isMobile ? '1.0' : '1.6')));
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem(isMobile ? 'appZoom2Mobile' : 'appZoom2') || (isMobile ? '1.0' : '2.0')));
   useEffect(() => {
     document.body.style.zoom = zoom;
     localStorage.setItem(isMobile ? 'appZoom2Mobile' : 'appZoom2', String(zoom));
@@ -2896,7 +2906,7 @@ function AppInner() {
 
   return (
     <div
-      style={{ height:"100vh", display:"flex", flexDirection:"column", background:"#f0f4f8", fontFamily:"'DM Sans','Inter','Ubuntu','Noto Sans',system-ui,sans-serif", overflow:"hidden" }}
+      style={{ height:"100vh", display:"flex", flexDirection:"column", background:APP_BG, fontFamily:"'DM Sans','Inter','Ubuntu','Noto Sans',system-ui,sans-serif", overflow:"hidden" }}
       onMouseMove={resetIdle} onMouseDown={resetIdle} onTouchStart={resetIdle} onKeyDown={resetIdle}
     >
       {screensaver && <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>}
@@ -2907,7 +2917,8 @@ function AppInner() {
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
         html, body { touch-action:none; -webkit-user-select:none; user-select:none; }
         input, textarea { user-select:text !important; -webkit-user-select:text !important; touch-action:auto !important; }
-        body { background:#f0f4f8; overscroll-behavior:none; }
+        body { background:${APP_BG}; overscroll-behavior:none; }
+        ${XMAS_CSS}
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:2.5px solid #fbbf24;box-shadow:0 2px 6px rgba(0,0,0,0.15);}
