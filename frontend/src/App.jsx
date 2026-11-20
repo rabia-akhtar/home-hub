@@ -3,8 +3,6 @@ import { useState, useEffect, useCallback, useRef, useMemo, Component } from "re
 const API = "/api";
 const RABIA = { name:"Rabia", color:"#38bdf8", light:"#e0f2fe", dark:"#0369a1", initial:"R" };
 const CLARE = { name:"Clare", color:"#f472b6", light:"#fce7f3", dark:"#9d174d", initial:"C" };
-const REWARD_PROJECTS = ["chores","house items","cats"];
-const countsForReward = p => REWARD_PROJECTS.includes((p||"").toLowerCase().trim());
 
 const WX = {0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Foggy",48:"Foggy",51:"Drizzle",53:"Drizzle",55:"Drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",71:"Light snow",73:"Snow",75:"Heavy snow",80:"Showers",81:"Showers",82:"Showers",95:"Storm",96:"Storm",99:"Storm"};
 const wxL = c => WX[c] || "–";
@@ -140,18 +138,14 @@ const TOUCH_ROW = { minHeight:60, display:"flex", alignItems:"center", padding:"
 function useHub() {
   const [wx,    setWx]    = useState(null);
   const [sun,   setSun]   = useState(null);
-  const [pts,   setPts]   = useState({rabia_points:0,clare_points:0});
   const [tasks, setTasks] = useState([]);
   const [projs, setProjs] = useState([]);
   const [evts,  setEvts]  = useState([]);
   const [authOk,setAuthOk]= useState(null);
-  const [rwds,  setRwds]  = useState({rewards:[],redeemed:[]});
   const [users, setUsers] = useState([]);
 
   const loadWx   = useCallback(()=>fetch(`${API}/weather`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object'&&!d.error)setWx(d);}).catch(()=>{}), []);
   const loadSun  = useCallback(()=>fetch(`${API}/sun`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object'&&!d.error)setSun(d);}).catch(()=>{}), []);
-  const loadPts  = useCallback(()=>fetch(`${API}/points`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object')setPts(d);}).catch(()=>{}), []);
-  const loadRwds = useCallback(()=>fetch(`${API}/rewards`).then(r=>r.json()).then(d=>{if(d&&typeof d==='object')setRwds(d);}).catch(()=>{}), []);
   const loadProjs= useCallback(()=>fetch(`${API}/projects`).then(r=>r.json()).then(d=>setProjs(Array.isArray(d)?d:[])).catch(()=>{}), []);
   const loadTasks= useCallback(()=>fetch(`${API}/tasks`).then(r=>r.json()).then(d=>setTasks(Array.isArray(d)?d:[])).catch(()=>{}), []);
   const loadUsers= useCallback(()=>fetch(`${API}/users`).then(r=>r.json()).then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}), []);
@@ -165,18 +159,16 @@ function useHub() {
   },[]);
 
   useEffect(()=>{
-    loadWx(); loadSun(); loadPts(); loadRwds(); loadProjs(); loadTasks(); loadCal(); loadUsers();
+    loadWx(); loadSun(); loadProjs(); loadTasks(); loadCal(); loadUsers();
     const t1=setInterval(loadWx,    600000); // weather every 10 min
     const t2=setInterval(loadSun,   600000); // sunrise every 10 min
     const t3=setInterval(loadTasks,  20000); // tasks every 20 s  (Sheets + Todoist)
     const t4=setInterval(loadCal,    60000); // calendar every 1 min
-    const t5=setInterval(loadPts,    30000); // points every 30 s
-    const t6=setInterval(loadRwds,   60000); // rewards every 1 min
     const t7=setInterval(loadProjs, 300000); // projects every 5 min (rarely change)
-    return()=>{clearInterval(t1);clearInterval(t2);clearInterval(t3);clearInterval(t4);clearInterval(t5);clearInterval(t6);clearInterval(t7);};
+    return()=>{clearInterval(t1);clearInterval(t2);clearInterval(t3);clearInterval(t4);clearInterval(t7);};
   },[]);
 
-  return { wx,sun,pts,setPts,tasks,setTasks,projs,evts,setEvts,authOk,rwds,setRwds,users, reload:{wx:loadWx,sun:loadSun,pts:loadPts,rwds:loadRwds,tasks:loadTasks,cal:loadCal,projs:loadProjs} };
+  return { wx,sun,tasks,setTasks,projs,evts,setEvts,authOk,users, reload:{wx:loadWx,sun:loadSun,tasks:loadTasks,cal:loadCal,projs:loadProjs} };
 }
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -188,26 +180,9 @@ function Pill({ label, color, bg }) {
   return <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99,background:bg||color+"22",color:color,letterSpacing:0.3 }}>{label}</span>;
 }
 
-function StarBadge({ pts }) {
-  const icon = pts>=500?"🏆":pts>=250?"🥇":pts>=100?"🌟":"✨";
-  return <span style={{fontSize:14}}>{icon}</span>;
-}
-
-function ProgressRing({ pts, max=500, size=56, color }) {
-  const r=22, circ=2*Math.PI*r, pct=Math.min(pts/max,1), dash=pct*circ;
-  return (
-    <svg width={size} height={size} viewBox="0 0 56 56">
-      <circle cx="28" cy="28" r={r} fill="none" stroke={color+"22"} strokeWidth="5"/>
-      <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="5"
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
-        transform="rotate(-90 28 28)" style={{transition:"stroke-dasharray 0.6s ease"}}/>
-      <text x="28" y="33" textAnchor="middle" fontSize="13" fontWeight="800" fill={color}>{pts}</text>
-    </svg>
-  );
-}
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, onStartCozy }) {
+function Header({ wx, sun, lightsOn, onToggleLights, onStartScreensaver, onStartCozy }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -289,7 +264,7 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
           </div>
         </div>
 
-        {/* Bottom row: weather + points + sunset */}
+        {/* Bottom row: weather + sunset */}
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
           {cur && (
             <div style={{ display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",backdropFilter:"blur(12px)",borderRadius:16,padding:"10px 16px",flex:1 }}>
@@ -309,18 +284,6 @@ function Header({ wx, sun, pts, lightsOn, onToggleLights, onStartScreensaver, on
               </div>
             </div>
           )}
-          <div style={{ display:"flex",gap:6 }}>
-            <div style={{ textAlign:"center",background:"rgba(255,255,255,0.18)",borderRadius:16,padding:"8px 12px" }}>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontWeight:600}}>R</div>
-              <div style={{fontSize:16,fontWeight:800,color:"#fff"}}>{pts?.rabia_points||0}</div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>pts</div>
-            </div>
-            <div style={{ textAlign:"center",background:"rgba(255,255,255,0.18)",borderRadius:16,padding:"8px 12px" }}>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontWeight:600}}>C</div>
-              <div style={{fontSize:16,fontWeight:800,color:"#fff"}}>{pts?.clare_points||0}</div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>pts</div>
-            </div>
-          </div>
         </div>
         {/* Advisory strip — only shown when there are active advisories */}
         {advisories2.length>0 && (
@@ -348,7 +311,7 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
   const family = isFamily(task);
   const complete = () => {
     const eff = family ? "family" : assignee;
-    setDone(true); onComplete(task, eff, task.counts_for_reward);
+    setDone(true); onComplete(task, eff);
   };
   const due = fmtDue(task.due?.date);
 
@@ -365,7 +328,6 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
           {due && <span style={{fontSize:11,fontWeight:700,color:due.color}}>{due.label}</span>}
         </div>
       </div>
-      {task.counts_for_reward && <span style={{fontSize:10,color:"#10b981",fontWeight:700}}>+5⭐</span>}
       <div style={{display:"flex",gap:5,flexShrink:0,alignItems:"center"}}>
         {family && <span style={{width:28,height:28,borderRadius:"50%",background:"#6366f1",color:"#fff",fontWeight:800,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>F</span>}
         {[RABIA,CLARE].map(p=>(
@@ -491,8 +453,10 @@ function HomePing() {
 }
 
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
-function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTask, onSetTab, wide, uidMap }) {
+function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wide, uidMap, onAddTask, onAddGrocery }) {
   const today = new Date(); today.setHours(0,0,0,0);
+  const [quickAdd, setQuickAdd] = useState(null); // null | 'task' | 'grocery'
+  const [qaText, setQaText]     = useState("");
   const todayStr = today.toISOString().slice(0,10);
 
   const groceriesProj    = projs.find(p=>p.name.toLowerCase()==="groceries");
@@ -545,25 +509,13 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
   const makeCol = (person, myEvts, myTasks, personalTasks=[], growable=false, myOverdue=[]) => {
     if (!myEvts.length && !myTasks.length && !personalTasks.length && !myOverdue.length) return null;
     const pKey  = person.name.toLowerCase();
-    const points= pts[`${pKey}_points`]||0;
-    const next  = [100,250,500,750,1000].find(m=>m>points)||1000;
-    const prog  = Math.round((points/next)*100);
     return (
       <div style={{display:"flex",flexDirection:"column",gap:12,...(growable?{height:"100%"}:{})}}>
-        {/* Avatar + points */}
+        {/* Avatar */}
         <div style={{...CARD,overflow:"hidden"}}>
           <div style={{background:`linear-gradient(135deg,${person.color}22,${person.color}08)`,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
             <Av person={person} size={48}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
-                <div style={{flex:1,height:6,background:`${person.color}20`,borderRadius:99,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${prog}%`,background:person.color,borderRadius:99,transition:"width 0.5s"}}/>
-                </div>
-                <div style={{fontSize:11,fontWeight:700,color:person.color,whiteSpace:"nowrap"}}>{points} / {next} ⭐</div>
-              </div>
-            </div>
-            <button onClick={()=>onResetPts(pKey)} style={{fontSize:10,padding:"3px 9px",borderRadius:99,border:`1px solid ${person.color}40`,background:"transparent",color:person.color,cursor:"pointer",fontFamily:"inherit"}}>reset</button>
+            <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
           </div>
         </div>
 
@@ -699,31 +651,99 @@ function HomeTab({ evts, tasks, projs, pts, wx, authOk, onResetPts, onCompleteTa
     </div>
   ) : null;
 
-  if(wide) return (
-    <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <HomeLights/>
-      <HomePing/>
-      {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
-      {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
-      {hasFamilyContent && familyCol}
-      {grocCard}
+  const submitQuickAdd = async () => {
+    const text = qaText.trim();
+    if (!text) return;
+    if (quickAdd === 'grocery') {
+      const grocProj = projs.find(p=>p.name.toLowerCase()==="groceries");
+      if (grocProj) await onAddTask({ content:text, project_id:grocProj.id });
+    } else {
+      await onAddTask({ content:text });
+    }
+    setQaText(""); setQuickAdd(null);
+  };
+
+  const qaLabel  = quickAdd === 'grocery' ? 'Add to grocery list' : 'Add task';
+  const qaColor  = quickAdd === 'grocery' ? '#059669' : ACCENT2;
+  const qaPlaceholder = quickAdd === 'grocery' ? 'e.g. milk, apples...' : 'e.g. call dentist...';
+
+  const quickAddModal = quickAdd && (
+    <div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+         onClick={e=>{if(e.target===e.currentTarget){setQuickAdd(null);setQaText("");}}}>
+      <div style={{width:"100%",maxWidth:680,background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 24px 40px",boxShadow:"0 -8px 40px rgba(0,0,0,0.18)"}}>
+        <div style={{fontSize:20,fontWeight:800,color:"#1e293b",marginBottom:20}}>{qaLabel}</div>
+        {/* Large pen-friendly text area */}
+        <textarea
+          autoFocus
+          value={qaText}
+          onChange={e=>setQaText(e.target.value)}
+          placeholder={qaPlaceholder}
+          rows={3}
+          style={{width:"100%",padding:"18px",borderRadius:16,border:`2.5px solid ${qaColor}`,fontSize:22,fontFamily:"inherit",outline:"none",color:"#1e293b",resize:"none",lineHeight:1.5,boxSizing:"border-box"}}
+          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitQuickAdd();}}}
+        />
+        <div style={{display:"flex",gap:12,marginTop:16}}>
+          <button onClick={submitQuickAdd} disabled={!qaText.trim()}
+            style={{flex:1,padding:"18px",borderRadius:16,border:"none",background:qaColor,color:"#fff",fontWeight:800,fontSize:18,cursor:qaText.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:qaText.trim()?1:0.5,minHeight:60}}>
+            Add
+          </button>
+          <button onClick={()=>{setQuickAdd(null);setQaText("");}}
+            style={{padding:"18px 24px",borderRadius:16,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <HomeLights/>
-      <HomePing/>
-      {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
-      {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
-      {hasFamilyContent && familyCol}
-      {grocCard}
+  const fabRow = (
+    <div style={{display:"flex",gap:12,marginTop:4}}>
+      <button onClick={()=>{setQuickAdd('grocery');setQaText("");}}
+        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:"2px solid #05966940",background:"#f0fdf4",color:"#059669",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="2" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="2"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="2" strokeLinecap="round"/></svg>
+        + Grocery
+      </button>
+      <button onClick={()=>{setQuickAdd('task');setQaText("");}}
+        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${ACCENT2}40`,background:`${ACCENT2}08`,color:ACCENT2,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke={ACCENT2} strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="16" stroke={ACCENT2} strokeWidth="2" strokeLinecap="round"/><line x1="8" y1="12" x2="16" y2="12" stroke={ACCENT2} strokeWidth="2" strokeLinecap="round"/></svg>
+        + Task
+      </button>
     </div>
+  );
+
+  if(wide) return (
+    <>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <HomeLights/>
+        <HomePing/>
+        {fabRow}
+        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
+        {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
+        {hasFamilyContent && familyCol}
+        {grocCard}
+      </div>
+      {quickAddModal}
+    </>
+  );
+
+  return (
+    <>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <HomeLights/>
+        <HomePing/>
+        {fabRow}
+        {makeCol(RABIA, rabiaEvts, rabiaTasks, rabiaPersonalTasks, false, overdueRabia)}
+        {makeCol(CLARE, clareEvts, clareTasks, [], false, overdueClare)}
+        {hasFamilyContent && familyCol}
+        {grocCard}
+      </div>
+      {quickAddModal}
+    </>
   );
 }
 
 // ─── TASKS TAB ────────────────────────────────────────────────────────────────
-function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidMap }) {
+function TasksTab({ tasks, projs, onComplete, onDelete, onAdd, reload, uidMap }) {
   const [adding, setAdding]   = useState(null); // project_id being added to
   const [newContent, setNewContent] = useState("");
   const [newDue,     setNewDue]     = useState("");
@@ -745,15 +765,13 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidM
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       {Object.values(grouped).map(({proj,tasks:pt})=>{
-        const isReward = countsForReward(proj.name);
-        const projColor = isReward ? "#10b981" : "#64748b";
+        const projColor = "#64748b";
         return (
           <div key={proj.id} style={{...CARD, overflow:"hidden"}}>
             {/* Project header */}
-            <div style={{padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid #f1f5f9",background:isReward?"#f0fdf4":"#fafafa"}}>
+            <div style={{padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{fontSize:13,fontWeight:800,color:projColor}}>{proj.name}</div>
-                {isReward && <Pill label="+5⭐ per task" color="#10b981"/>}
                 <span style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>{pt.length} tasks</span>
               </div>
               <button onClick={()=>setAdding(adding===proj.id?null:proj.id)} style={{width:36,height:36,borderRadius:"50%",border:"none",background:projColor,color:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,fontFamily:"inherit"}}>+</button>
@@ -787,7 +805,7 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidM
               <div style={{padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:14}}>No tasks — tap + to add one</div>
             )}
             {pt.map(t=>(
-              <TaskRow key={t.id} task={t} projColor={projColor} isReward={isReward} onComplete={onComplete} onDelete={onDelete} uidMap={uidMap}/>
+              <TaskRow key={t.id} task={t} projColor={projColor} onComplete={onComplete} onDelete={onDelete} uidMap={uidMap}/>
             ))}
           </div>
         );
@@ -800,7 +818,7 @@ function TasksTab({ tasks, projs, pts, onComplete, onDelete, onAdd, reload, uidM
   );
 }
 
-function TaskRow({ task, projColor, isReward, onComplete, onDelete, uidMap }) {
+function TaskRow({ task, projColor, onComplete, onDelete, uidMap }) {
   const mapped = uidMap?.[task.responsible_uid] || "";
   const [assignee, setAssignee] = useState(mapped);
   const [done, setDone] = useState(false);
@@ -809,7 +827,7 @@ function TaskRow({ task, projColor, isReward, onComplete, onDelete, uidMap }) {
   const family = isFamily(task);
   const complete = () => {
     const eff = family ? "family" : assignee;
-    setDone(true); onComplete(task, eff, isReward);
+    setDone(true); onComplete(task, eff);
   };
   const due = fmtDue(task.due?.date);
 
@@ -822,7 +840,6 @@ function TaskRow({ task, projColor, isReward, onComplete, onDelete, uidMap }) {
         <div style={{fontSize:15,color:"#1e293b",fontWeight:500,textDecoration:done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.content}</div>
         {due && <span style={{fontSize:11,fontWeight:700,color:due.color}}>{due.label}</span>}
       </div>
-      {isReward && <span style={{fontSize:11,color:"#10b981",fontWeight:700,flexShrink:0}}>+5⭐</span>}
       <div style={{display:"flex",gap:5,flexShrink:0,alignItems:"center"}}>
         {family && <span style={{width:28,height:28,borderRadius:"50%",background:"#6366f1",color:"#fff",fontWeight:800,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>F</span>}
         {[RABIA,CLARE].map(p=>(
@@ -1309,238 +1326,6 @@ function LightsTab() {
           No devices connected.<br/>
           Add device IPs to <code>.env</code> on the Pi (e.g. <code>KASA_IP_FLOWER=192.168.1.x</code>),<br/>
           then restart the server.
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── REWARDS TAB ──────────────────────────────────────────────────────────────
-function RewardsTab({ pts, setPts, rwds, setRwds }) {
-  const [confetti,      setConfetti]      = useState(null);
-  const [showAdd,       setShowAdd]       = useState(false);
-  const [form,          setForm]          = useState({ name:"", cost:100, icon:"🎁", who:"both" });
-  const [editing,       setEditing]       = useState(null);
-  const [editForm,      setEditForm]      = useState({});
-  const [taskDetailFor, setTaskDetailFor] = useState(null);
-
-  const REWARD_ICONS = ["🎬","☕","🍕","🎮","💆","✈️","🍽️","🎁","🛍️","🏖️","🎭","🎵","🍦","📚","🏃","🧖","🍷","🎨","💅","🧘","🏋️","🎲","🎤","🛁","🌅","🎊","🍰","🧁"];
-
-  const addReward = async () => {
-    if(!form.name.trim()) return;
-    const r = await fetch(`${API}/rewards`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)}).then(r=>r.json());
-    if(r.rewards) setRwds(rw=>({...rw,rewards:r.rewards}));
-    setForm({name:"",cost:100,icon:"🎁",who:"both"}); setShowAdd(false);
-  };
-
-  const saveEdit = async () => {
-    const r = await fetch(`${API}/rewards/${editing}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(editForm)}).then(r=>r.json());
-    if(r.rewards) setRwds(rw=>({...rw,rewards:r.rewards}));
-    setEditing(null);
-  };
-
-  const deleteReward = async (id) => {
-    const r = await fetch(`${API}/rewards/${id}`,{method:"DELETE"}).then(r=>r.json());
-    if(r.rewards) setRwds(rw=>({...rw,rewards:r.rewards}));
-  };
-
-  const redeem = async (reward, who) => {
-    const pts_val = who==="rabia" ? pts.rabia_points : pts.clare_points;
-    if(pts_val < reward.cost){ alert(`Not enough points! You have ${pts_val} but need ${reward.cost}.`); return; }
-    const r = await fetch(`${API}/rewards/redeem`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({who,name:reward.name,cost:reward.cost,icon:reward.icon})}).then(r=>r.json());
-    if(r.error){ alert(r.error); return; }
-    setPts(r.points);
-    setConfetti(reward.name);
-    setTimeout(()=>setConfetti(null), 3000);
-  };
-
-  const people  = [RABIA, CLARE];
-  const history = rwds.task_history || [];
-
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:16}}>
-
-      {/* Confetti banner */}
-      {confetti && (
-        <div style={{...CARD,padding:"20px 24px",background:"linear-gradient(135deg,#fef3c7,#fed7aa)",border:"2px solid #fbbf24",textAlign:"center"}}>
-          <div style={{display:"flex",justifyContent:"center",marginBottom:6}}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-              <path d="M2 22L8.5 8.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
-              <path d="M2 22L15.5 15.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
-              <path d="M2 22l5-2-2-5z" fill="#fbbf24"/>
-              <circle cx="9" cy="4" r="1.2" fill="#f472b6"/>
-              <circle cx="14" cy="2" r="0.9" fill="#60a5fa"/>
-              <circle cx="19" cy="6" r="1.1" fill="#34d399"/>
-              <circle cx="5" cy="8" r="0.8" fill="#a78bfa"/>
-              <line x1="12" y1="7" x2="13.5" y2="5" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="17" y1="10" x2="19" y2="9" stroke="#f472b6" strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="20" y1="14" x2="22" y2="13" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="16" y1="18" x2="18" y2="19" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="20" cy="4" r="0.7" fill="#f59e0b"/>
-              <circle cx="6" cy="14" r="0.7" fill="#60a5fa"/>
-            </svg>
-          </div>
-          <div style={{fontSize:18,fontWeight:800,color:"#92400e"}}>{confetti} redeemed!</div>
-          <div style={{fontSize:14,color:"#b45309",marginTop:4}}>Enjoy your reward!</div>
-        </div>
-      )}
-
-
-      {/* Task history detail for selected person */}
-      {taskDetailFor && (() => {
-        const person  = taskDetailFor==="rabia" ? RABIA : CLARE;
-        const ptsKey  = `${taskDetailFor}_points`;
-        const balance = pts[ptsKey] || 0;
-        let remaining = balance;
-        // Walk history newest-first, accumulate until we reach current balance
-        const contributing = [];
-        const sorted = [...history].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt));
-        for (const t of sorted) {
-          if (remaining <= 0) break;
-          if (t.who === taskDetailFor || t.who === 'family') {
-            contributing.push(t);
-            remaining -= t.points;
-          }
-        }
-        return (
-          <div style={{...CARD,overflow:"hidden"}}>
-            <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",background:`linear-gradient(135deg,${person.color}12,${person.color}06)`,display:"flex",alignItems:"center",gap:10}}>
-              <Av person={person} size={28}/>
-              <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{person.name}'s unspent tasks</div>
-              <div style={{fontSize:12,color:"#94a3b8",marginLeft:4}}>{contributing.length} tasks · {balance}⭐</div>
-              <button onClick={()=>setTaskDetailFor(null)} style={{marginLeft:"auto",background:"none",border:"none",fontSize:18,color:"#94a3b8",cursor:"pointer",lineHeight:1}}>×</button>
-            </div>
-            {contributing.length===0
-              ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>No unspent points yet</div>
-              : <div style={{maxHeight:340,overflowY:"auto"}}>
-                  {contributing.map((t,i)=>(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:"1px solid #f8fafc"}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
-                        <div style={{fontSize:11,color:"#94a3b8"}}>{t.project} · {new Date(t.completedAt).toLocaleDateString()}</div>
-                      </div>
-                      <div style={{fontSize:12,fontWeight:700,color:"#10b981",flexShrink:0}}>+{t.points}⭐{t.who==="family"?" (shared)":""}</div>
-                    </div>
-                  ))}
-                </div>
-            }
-          </div>
-        );
-      })()}
-
-      {/* Add reward */}
-      <button onClick={()=>setShowAdd(v=>!v)} style={{padding:"16px",borderRadius:20,border:"2px dashed #e2e8f0",background:"transparent",color:"#64748b",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-        {showAdd?"✕ Cancel":"+ Add reward"}
-      </button>
-      {showAdd && (
-        <div style={{...CARD,padding:"20px"}}>
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} inputMode="text" placeholder="Reward name (e.g. Movie night)" style={{padding:"14px 18px",borderRadius:16,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-            <div style={{display:"flex",gap:10,alignItems:"center"}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#64748b"}}>Cost:</div>
-              <input type="number" value={form.cost} onChange={e=>setForm(f=>({...f,cost:parseInt(e.target.value)||0}))} inputMode="numeric" style={{width:90,padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-              <div style={{fontSize:14,color:"#64748b"}}>⭐ points</div>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-              {REWARD_ICONS.map(ic=>(
-                <button key={ic} onClick={()=>setForm(f=>({...f,icon:ic}))} style={{width:44,height:44,fontSize:22,borderRadius:12,border:`2px solid ${form.icon===ic?"#6366f1":"#e2e8f0"}`,background:form.icon===ic?"#eef2ff":"#fff",cursor:"pointer"}}>{ic}</button>
-              ))}
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              {[["both","Everyone"],["rabia","Rabia"],["clare","Clare"]].map(([val,label])=>(
-                <button key={val} onClick={()=>setForm(f=>({...f,who:val}))} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${form.who===val?"#6366f1":"#e2e8f0"}`,background:form.who===val?"#eef2ff":"#fff",color:form.who===val?"#6366f1":"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
-              ))}
-            </div>
-            <button onClick={addReward} style={{padding:"14px",borderRadius:16,border:"none",background:BTN_GRAD,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Save reward</button>
-          </div>
-        </div>
-      )}
-
-      {/* Reward cards per person — sourced from Google Sheet */}
-      {rwds.rewards.length === 0 && !showAdd && (
-        <div style={{...CARD,padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:14}}>
-          No rewards yet — tap "+ Add reward" or add rows to the <strong>Rewards</strong> tab in the budget spreadsheet.
-        </div>
-      )}
-      {people.map(person=>{
-        const pKey   = person.name.toLowerCase();
-        const myPts  = pts[`${pKey}_points`]||0;
-        const myRwds = rwds.rewards.filter(r=>r.who==="both"||r.who===pKey);
-        if(!myRwds.length) return null;
-        return (
-          <div key={person.name}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-              <Av person={person} size={36}/>
-              <div style={{fontSize:16,fontWeight:800,color:"#1e293b"}}>{person.name}</div>
-              <div style={{fontSize:13,color:person.color,fontWeight:700}}>{myPts} pts</div>
-              <button onClick={()=>setTaskDetailFor(taskDetailFor===pKey?null:pKey)}
-                style={{marginLeft:"auto",fontSize:11,padding:"4px 10px",borderRadius:99,border:`1px solid ${person.color}40`,background:"transparent",color:person.color,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
-                {taskDetailFor===pKey?"Hide tasks":"Tasks ▸"}
-              </button>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              {myRwds.map(r=>{
-                const canAfford = myPts >= r.cost;
-                if(editing === r.id) return (
-                  <div key={r.id} style={{...CARD,padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {REWARD_ICONS.map(ic=>(
-                        <button key={ic} onClick={()=>setEditForm(f=>({...f,icon:ic}))} style={{width:36,height:36,fontSize:18,borderRadius:10,border:`2px solid ${editForm.icon===ic?"#6366f1":"#e2e8f0"}`,background:editForm.icon===ic?"#eef2ff":"#fff",cursor:"pointer"}}>{ic}</button>
-                      ))}
-                    </div>
-                    <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} inputMode="text" style={{padding:"10px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                      <input type="number" value={editForm.cost} onChange={e=>setEditForm(f=>({...f,cost:parseInt(e.target.value)||0}))} inputMode="numeric" style={{width:80,padding:"9px 12px",borderRadius:12,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
-                      <span style={{fontSize:13,color:"#64748b"}}>⭐</span>
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      {[["both","All"],["rabia","R"],["clare","C"]].map(([val,label])=>(
-                        <button key={val} onClick={()=>setEditForm(f=>({...f,who:val}))} style={{flex:1,padding:"8px",borderRadius:10,border:`2px solid ${editForm.who===val?"#6366f1":"#e2e8f0"}`,background:editForm.who===val?"#eef2ff":"#fff",color:editForm.who===val?"#6366f1":"#64748b",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
-                      ))}
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      <button onClick={saveEdit} style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:"#6366f1",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                      <button onClick={()=>setEditing(null)} style={{padding:"10px 14px",borderRadius:12,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                    </div>
-                  </div>
-                );
-                return (
-                  <div key={r.id} style={{...CARD,padding:"18px",textAlign:"center",opacity:canAfford?1:0.6,border:`2px solid ${canAfford?person.color+"40":"#f1f5f9"}`}}>
-                    <div style={{fontSize:40,marginBottom:8}}>{r.icon}</div>
-                    <div style={{fontSize:14,fontWeight:800,color:"#1e293b",marginBottom:4}}>{r.name}</div>
-                    <div style={{fontSize:12,color:person.color,fontWeight:700,marginBottom:12}}>{r.cost} ⭐</div>
-                    <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>redeem(r,pKey)} disabled={!canAfford}
-                        style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:canAfford?person.color:"#e2e8f0",color:canAfford?"#fff":"#94a3b8",fontWeight:700,fontSize:13,cursor:canAfford?"pointer":"not-allowed",fontFamily:"inherit"}}>
-                        {canAfford ? "Redeem" : "Need "+(r.cost-myPts)+" more"}
-                      </button>
-                      <button onClick={()=>{setEditing(r.id);setEditForm({name:r.name,cost:r.cost,icon:r.icon,who:r.who});}} style={{width:36,height:36,borderRadius:12,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✏️</button>
-                      <button onClick={()=>deleteReward(r.id)} style={{width:36,height:36,borderRadius:12,border:"1px solid #fee2e2",background:"#fff5f5",color:"#ef4444",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>×</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-
-
-      {/* Redeemed history */}
-      {rwds.redeemed.length>0 && (
-        <div style={{...CARD,padding:"18px 20px"}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>Redemption history</div>
-          {[...rwds.redeemed].reverse().slice(0,10).map((r,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid #f8fafc"}}>
-              <span style={{fontSize:22}}>{r.icon}</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:14,fontWeight:600,color:"#1e293b"}}>{r.name}</div>
-                <div style={{fontSize:11,color:"#94a3b8"}}>{new Date(r.redeemedAt).toLocaleDateString()}</div>
-              </div>
-              <div style={{fontSize:12,fontWeight:700,color:r.who==="rabia"?RABIA.color:CLARE.color,textTransform:"capitalize"}}>{r.who}</div>
-              <div style={{fontSize:12,color:"#94a3b8"}}>−{r.cost}⭐</div>
-            </div>
-          ))}
         </div>
       )}
     </div>
@@ -2776,7 +2561,6 @@ const NAV = [
   { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
   { id:"calendar",  label:"Calendar",  color:XMAS?"#F8B229":"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
-  { id:"rewards",   label:"Rewards",   color:XMAS?"#BB2528":"#a855f7", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
@@ -2880,13 +2664,12 @@ function AppInner() {
     if(u.email==='clare.a.tiedemann@gmail.com')   uidMap[u.id]='clare';
   });
 
-  const handleCompleteTask = async (task, who, countsForReward) => {
+  const handleCompleteTask = async (task, who) => {
     hub.setTasks(ts=>ts.filter(t=>t.id!==task.id));
-    const res = await fetch(`${API}/tasks/${task.id}/close`,{
+    await fetch(`${API}/tasks/${task.id}/close`,{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({assignee:who, counts_for_reward:countsForReward||task.counts_for_reward, is_recurring:!!task.due?.is_recurring, title:task.content, project:task.project_name||''}),
+      body:JSON.stringify({assignee:who, is_recurring:!!task.due?.is_recurring, title:task.content, project:task.project_name||''}),
     }).then(r=>r.json());
-    if(res.points) hub.setPts(res.points);
   };
 
   const handleDeleteTask = async task => {
@@ -2899,10 +2682,6 @@ function AppInner() {
     hub.reload.tasks();
   };
 
-  const handleResetPts = async who => {
-    const res=await fetch(`${API}/points/reset`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({who})}).then(r=>r.json());
-    hub.setPts(res);
-  };
 
   return (
     <div
@@ -2930,7 +2709,7 @@ function AppInner() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} pts={hub.pts} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onStartCozy={startCozy}/>
+      <Header wx={hub.wx} sun={hub.sun} lightsOn={headerLightsOn} onToggleLights={toggleAllLights} onStartScreensaver={startScreensaver} onStartCozy={startCozy}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
@@ -2964,14 +2743,13 @@ function AppInner() {
           ref={scrollRef}
           style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
         >
-          {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} pts={hub.pts} wx={hub.wx} authOk={hub.authOk} onResetPts={handleResetPts} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap}/>}
+          {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} wx={hub.wx} authOk={hub.authOk} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap} onAddTask={handleAddTask}/>}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
           {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap} onCompleteTask={handleCompleteTask}/>}
           {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
-          {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} pts={hub.pts} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
+          {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="lights"    && <LightsTab/>}
-          {tab==="rewards"   && <RewardsTab pts={hub.pts} setPts={hub.setPts} rwds={hub.rwds} setRwds={hub.setRwds}/>}
           {tab==="budget"    && <BudgetTab/>}
           {tab==="findmy"    && <FindMyTab/>}
           {tab==="debug"     && <DebugTab/>}
