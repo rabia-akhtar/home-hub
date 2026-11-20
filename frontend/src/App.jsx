@@ -1,8 +1,22 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
 
 const API = "/api";
-const RABIA = { name:"Rabia", color:"#2563A8", light:"#dbeafe", dark:"#1e3a5f", initial:"R" };
-const CLARE = { name:"Clare", color:"#9B2D5A", light:"#fce7f3", dark:"#5e1a37", initial:"C" };
+
+function isXmasSeason() {
+  const d = new Date(), m = d.getMonth() + 1, day = d.getDate();
+  return (m === 11 && day >= 15) || m === 12 || (m === 1 && day <= 15);
+}
+const XMAS = isXmasSeason();
+// SweetPixel "Dark Christmas" — Midnight Holly palette
+const HOLLY = { pine:"#133D30", fir:"#42634A", ink:"#1B1B1B", crimson:"#800D18", gold:"#CBA052", cream:"#F0E1CA" };
+
+const RABIA = XMAS
+  ? { name:"Rabia", color:HOLLY.pine,    light:"#DCE6DF", dark:"#0B2A20", initial:"R" }
+  : { name:"Rabia", color:"#2563A8", light:"#dbeafe", dark:"#1e3a5f", initial:"R" };
+const CLARE = XMAS
+  ? { name:"Clare", color:HOLLY.crimson, light:"#F3DADC", dark:"#560810", initial:"C" }
+  : { name:"Clare", color:"#9B2D5A", light:"#fce7f3", dark:"#5e1a37", initial:"C" };
+const GROCERY = XMAS ? HOLLY.fir : "#059669";
 
 const WX = {0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Foggy",48:"Foggy",51:"Drizzle",53:"Drizzle",55:"Drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",71:"Light snow",73:"Snow",75:"Heavy snow",80:"Showers",81:"Showers",82:"Showers",95:"Storm",96:"Storm",99:"Storm"};
 const wxL = c => WX[c] || "–";
@@ -110,35 +124,25 @@ function useWide() {
 }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-function isXmasSeason() {
-  const d = new Date(), m = d.getMonth() + 1, day = d.getDate();
-  return (m === 11 && day >= 15) || m === 12 || (m === 1 && day <= 15);
-}
-const XMAS = isXmasSeason();
-
-// ── Winter lodge palette (Christmas) / clean light palette (rest of year) ──
-// Lodge: dark walnut header, warm parchment body, amber/pine/burgundy accents
-const HEADER_BG  = XMAS
-  ? "linear-gradient(180deg,#1E110A 0%,#2C1609 60%,#1A0D06 100%)"
-  : "linear-gradient(160deg,#1e3a5f 0%,#2563A8 50%,#1a3050 100%)";
+const HEADER_BG  = XMAS ? HOLLY.pine : "linear-gradient(160deg,#1e3a5f 0%,#2563A8 50%,#1a3050 100%)";
 const GRAD       = HEADER_BG;
-const ACCENT     = XMAS ? "#C8871A" : "#2563A8";   // amber gold / steel blue
-const ACCENT2    = XMAS ? "#7A1F1F" : "#9B2D5A";   // deep holly red / rose
-const ACCENT3    = XMAS ? "#2A5230" : "#2D6A4F";   // pine green
-const ACCENT_L   = XMAS ? "#FEF3DC" : "#dbeafe";   // warm cream / light blue
-const ACCENT_D   = XMAS ? "#5C3A1A" : "#1e3a5f";   // dark walnut / dark blue
-const APP_BG     = XMAS ? "#EDE3CE" : "#f0f4f8";   // warm parchment / cool gray
-const BTN_GRAD   = XMAS ? "linear-gradient(135deg,#7A1F1F,#2A5230)" : "linear-gradient(135deg,#2563A8,#2D6A4F)";
+const ACCENT     = XMAS ? HOLLY.gold    : "#2563A8";
+const ACCENT2    = XMAS ? HOLLY.crimson : "#9B2D5A";
+const ACCENT3    = XMAS ? HOLLY.pine    : "#2D6A4F";
+const ACCENT_L   = XMAS ? "#F8EEDC"     : "#dbeafe";
+const ACCENT_D   = XMAS ? HOLLY.ink     : "#1e3a5f";
+const APP_BG     = XMAS ? HOLLY.cream   : "#f0f4f8";
+const BTN_GRAD   = XMAS ? HOLLY.crimson : "linear-gradient(135deg,#2563A8,#2D6A4F)";
 const XMAS_CSS   = XMAS ? `
-  body { background: #EDE3CE !important; }
-  ::-webkit-scrollbar-thumb { background: rgba(200,135,26,0.35) !important; }
-  input[type=range]::-webkit-slider-thumb { border-color: #C8871A !important; }
+  body { background: ${HOLLY.cream} !important; color: ${HOLLY.ink}; }
+  ::-webkit-scrollbar-thumb { background: rgba(19,61,48,0.35) !important; }
+  input[type=range]::-webkit-slider-thumb { border-color: ${HOLLY.gold} !important; }
 ` : '';
 const CARD = XMAS
-  ? { background:"#FAF6EC", borderRadius:20, boxShadow:"0 2px 14px rgba(30,17,10,0.1)", border:"1.5px solid #D8C4A0" }
+  ? { background:"#FAF4E8", borderRadius:20, boxShadow:"0 2px 12px rgba(27,27,27,0.08)", border:"1.5px solid #DFCBA6" }
   : { background:"#fff", borderRadius:20, boxShadow:"0 2px 14px rgba(0,0,0,0.07)", border:"1px solid #e8edf2" };
 const TOUCH_ROW = XMAS
-  ? { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #E5D3B3", cursor:"pointer" }
+  ? { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #E8D8BC", cursor:"pointer" }
   : { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #f1f5f9", cursor:"pointer" };
 
 // ─── Global state hook ────────────────────────────────────────────────────────
@@ -230,10 +234,10 @@ function Header({ wx, sun, onStartScreensaver, onStartCozy }) {
   if(windMph2>=35) advisories2.push({icon:"🌬️",msg:`Very windy (${Math.round(windMph2)} mph) — hold onto your hat!`});
 
   // Lodge-style header colours
-  const HDR_TEXT   = XMAS ? "#F5E6C8" : "#dbeafe";   // warm cream / cool blue-white
-  const HDR_MUTED  = XMAS ? "rgba(245,230,200,0.55)" : "rgba(219,234,254,0.6)";
-  const HDR_PILL   = XMAS ? "rgba(200,135,26,0.18)"  : "rgba(37,99,168,0.25)";
-  const HDR_BORDER = XMAS ? "#C8871A"                 : "#2563A8";
+  const HDR_TEXT   = XMAS ? HOLLY.cream : "#dbeafe";
+  const HDR_MUTED  = XMAS ? "rgba(240,225,202,0.6)" : "rgba(219,234,254,0.6)";
+  const HDR_PILL   = XMAS ? "rgba(27,27,27,0.28)"   : "rgba(37,99,168,0.25)";
+  const HDR_BORDER = XMAS ? HOLLY.gold              : "#2563A8";
 
   const mobile = window.innerWidth < 700;
   return (
@@ -632,15 +636,15 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
   const grocCard = (groceriesProj && groceryTasks.length > 0) ? (
     <div style={{...CARD,overflow:"hidden",border:"1px solid #bbf7d040"}}>
       {/* Header matches the person-column header style */}
-      <div style={{background:"linear-gradient(135deg,#05966912,#06966908)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#059669,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+      <div style={{background:`${GROCERY}12`,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:48,height:48,borderRadius:"50%",background:GROCERY,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#fff" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>
         </div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:17,fontWeight:800,color:"#1e293b"}}>Groceries</div>
           <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{groceryTasks.length} item{groceryTasks.length!==1?"s":""}</div>
         </div>
-        <button onClick={()=>onSetTab("groceries")} style={{fontSize:11,padding:"4px 10px",borderRadius:99,border:"1px solid #05966940",background:"transparent",color:"#059669",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
+        <button onClick={()=>onSetTab("groceries")} style={{fontSize:11,padding:"4px 10px",borderRadius:99,border:`1px solid ${GROCERY}40`,background:"transparent",color:GROCERY,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>See all →</button>
       </div>
       {/* Items */}
       {groceryTasks.length===0
@@ -669,7 +673,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
   };
 
   const qaLabel  = quickAdd === 'grocery' ? 'Add to grocery list' : 'Add task';
-  const qaColor  = quickAdd === 'grocery' ? '#059669' : ACCENT2;
+  const qaColor  = quickAdd === 'grocery' ? GROCERY : ACCENT2;
   const qaPlaceholder = quickAdd === 'grocery' ? 'e.g. milk, apples...' : 'e.g. call dentist...';
 
   const quickAddModal = quickAdd && (
@@ -704,8 +708,8 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
   const fabRow = (
     <div style={{display:"flex",gap:12,marginTop:4}}>
       <button onClick={()=>{setQuickAdd('grocery');setQaText("");}}
-        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:"2px solid #05966940",background:"#f0fdf4",color:"#059669",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#059669" strokeWidth="2" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="#059669" strokeWidth="2"/><path d="M16 10a4 4 0 01-8 0" stroke="#059669" strokeWidth="2" strokeLinecap="round"/></svg>
+        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${GROCERY}40`,background:`${GROCERY}0F`,color:GROCERY,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke={GROCERY} strokeWidth="2" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke={GROCERY} strokeWidth="2"/><path d="M16 10a4 4 0 01-8 0" stroke={GROCERY} strokeWidth="2" strokeLinecap="round"/></svg>
         + Grocery
       </button>
       <button onClick={()=>{setQuickAdd('task');setQaText("");}}
@@ -1375,7 +1379,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
             <button onClick={()=>{setAdding(false);setNewItem("");}} style={{padding:"12px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
           </div>
         ) : (
-          <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",borderRadius:16,border:"2px dashed #10b981",background:"#f0fdf4",color:"#059669",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+          <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",borderRadius:16,border:`2px dashed ${GROCERY}`,background:`${GROCERY}0F`,color:GROCERY,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
             + Add item
           </button>
         )}
@@ -1574,7 +1578,7 @@ function RecipeCard({ onIngredientsAdded }) {
               </div>
             ) : (
               <button onClick={addToGroceries} disabled={adding}
-                style={{width:"100%", padding:"13px", background:"linear-gradient(135deg,#059669,#10b981)", color:"#fff", border:"none", borderRadius:14, cursor:"pointer", fontFamily:"inherit", fontSize:14, fontWeight:800, opacity:adding?0.6:1}}>
+                style={{width:"100%", padding:"13px", background:GROCERY, color:"#fff", border:"none", borderRadius:14, cursor:"pointer", fontFamily:"inherit", fontSize:14, fontWeight:800, opacity:adding?0.6:1}}>
                 {adding ? "Adding…" : `+ Add all ingredients to Groceries`}
               </button>
             )}
@@ -2562,8 +2566,8 @@ const NAV = [
   { id:"home",      label:"Home",      color:XMAS?ACCENT2:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
   { id:"weather",   label:"Weather",   color:XMAS?ACCENT:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"upcoming",  label:"Upcoming",  color:XMAS?ACCENT3:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { id:"groceries", label:"Groceries", color:"#059669", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"lights",    label:"Lights",    color:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:"groceries", label:"Groceries", color:GROCERY, icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"lights",    label:"Lights",    color:XMAS?HOLLY.gold:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
   { id:"calendar",  label:"Calendar",  color:XMAS?ACCENT:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
