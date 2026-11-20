@@ -184,7 +184,47 @@ async function initTapo() {
   await refreshTapoDevices();
 }
 
+// Older Kasa plugs (e.g. EP10) speak the XOR protocol on port 9999, which tp-link-tapo-connect can't parse.
+function kasaLegacyRequest(host, payload, timeoutMs = 3000) {
+  const net = require('net');
+  return new Promise((resolve, reject) => {
+    const s = JSON.stringify(payload);
+    const out = Buffer.alloc(4 + s.length);
+    out.writeUInt32BE(s.length);
+    let k = 171;
+    for (let i = 0; i < s.length; i++) { k = s.charCodeAt(i) ^ k; out[4 + i] = k; }
+    let buf = Buffer.alloc(0);
+    const sock = net.connect(9999, host, () => sock.write(out));
+    sock.setTimeout(timeoutMs, () => { sock.destroy(); reject(new Error('Kasa legacy timeout')); });
+    sock.on('error', reject);
+    sock.on('data', d => {
+      buf = Buffer.concat([buf, d]);
+      if (buf.length < 4 || buf.length < 4 + buf.readUInt32BE(0)) return;
+      let key = 171, str = '';
+      for (const x of buf.subarray(4)) { str += String.fromCharCode(x ^ key); key = x; }
+      sock.end();
+      try { resolve(JSON.parse(str)); } catch (e) { reject(e); }
+    });
+  });
+}
+function kasaLegacyDevice(host) {
+  const setRelay = state => kasaLegacyRequest(host, { system: { set_relay_state: { state: state ? 1 : 0 } } });
+  return {
+    getDeviceInfo: async () => (await kasaLegacyRequest(host, { system: { get_sysinfo: {} } })).system.get_sysinfo,
+    turnOn:  () => setRelay(true),
+    turnOff: () => setRelay(false),
+  };
+}
+const legacyHosts = new Set();
+
 async function loginDevice(host) {
+  if (legacyHosts.has(host)) return kasaLegacyDevice(host);
+  try {
+    await kasaLegacyRequest(host, { system: { get_sysinfo: {} } }, 1500);
+    legacyHosts.add(host);
+    tapoInfo(`${host} speaks legacy Kasa protocol`);
+    return kasaLegacyDevice(host);
+  } catch { /* not a legacy Kasa device — fall through to Tapo/KLAP */ }
   if (tapo.loginDeviceByIp) return tapo.loginDeviceByIp(KASA_EMAIL, KASA_PASSWORD, host);
   if (tapo.loginDevice)     return tapo.loginDevice(KASA_EMAIL, KASA_PASSWORD, host);
   throw new Error('Unrecognised tp-link-tapo-connect API');

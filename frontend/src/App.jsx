@@ -193,7 +193,7 @@ function Pill({ label, color, bg }) {
 
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ wx, sun, onStartScreensaver, onStartCozy }) {
+function Header({ wx, sun, onStartScreensaver }) {
   const [now, setNow] = useState(new Date());
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
   const exitKiosk = () => fetch(`${API}/kiosk/exit`,{method:'POST'}).catch(()=>{});
@@ -250,15 +250,6 @@ function Header({ wx, sun, onStartScreensaver, onStartCozy }) {
           <div style={{ fontSize:mobile?20:28, fontWeight:700, color:HDR_TEXT, lineHeight:1.1, marginTop:2, letterSpacing:-0.5 }}>{fmtDate(now)}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {onStartCozy && (
-            <button onClick={onStartCozy} title="Cozy mode"
-              style={{width:40,height:40,borderRadius:12,border:`1px solid ${HDR_BORDER}40`,background:"rgba(255,255,255,0.08)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2C8 6 6 9 6 12a6 6 0 0012 0c0-3-2-6-6-10z" fill="rgba(255,165,80,0.9)" stroke={HDR_TEXT} strokeWidth="1.5" strokeLinejoin="round"/>
-                <path d="M12 8c-1.5 2-2 3.5-2 5a2 2 0 004 0c0-1.5-.5-3-2-5z" fill="rgba(255,220,100,0.9)"/>
-              </svg>
-            </button>
-          )}
           {!mobile && onStartScreensaver && (
             <button onClick={onStartScreensaver} title="Screensaver"
               style={{width:40,height:40,borderRadius:12,border:`1px solid ${HDR_BORDER}40`,background:"rgba(255,255,255,0.08)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -327,8 +318,8 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
   return (
     <div style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:"1px solid #f8fafc",gap:14,opacity:done?0.35:1,transition:"opacity 0.3s"}}>
       <button onClick={complete}
-        style={{width:24,height:24,borderRadius:"50%",border:"2px solid #10b981",background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        {done && <div style={{width:9,height:9,borderRadius:"50%",background:"#10b981"}}/>}
+        style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${GROCERY}`,background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        {done && <div style={{width:9,height:9,borderRadius:"50%",background:GROCERY}}/>}
       </button>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:14,color:"#1e293b",fontWeight:500,textDecoration:done?"line-through":"none"}}>{task.content}</div>
@@ -393,14 +384,14 @@ function HomeLights() {
             style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
               padding:'14px 10px', borderRadius:16, cursor:'pointer', fontFamily:'inherit',
               fontSize:14, fontWeight:700, transition:'all 0.15s',
-              background: on ? 'linear-gradient(145deg,#fef08a,#fbbf24)' : '#fff',
-              border: on ? '2px solid #f59e0b' : '2px solid #e2e8f0',
-              boxShadow: on ? '0 4px 16px rgba(251,191,36,0.35), inset 0 1px 0 rgba(255,255,255,0.4)' : '0 2px 6px rgba(0,0,0,0.07), inset 0 1px 0 #fff',
-              color: on ? '#78350f' : '#475569' }}>
+              background: XMAS ? (on ? HOLLY.gold : HOLLY.ink) : (on ? 'linear-gradient(145deg,#fef08a,#fbbf24)' : '#fff'),
+              border: XMAS ? `2px solid ${HOLLY.gold}` : (on ? '2px solid #f59e0b' : '2px solid #e2e8f0'),
+              boxShadow: on ? (XMAS ? '0 4px 16px rgba(203,160,82,0.45)' : '0 4px 16px rgba(251,191,36,0.35), inset 0 1px 0 rgba(255,255,255,0.4)') : '0 2px 6px rgba(0,0,0,0.07)',
+              color: XMAS ? (on ? HOLLY.ink : HOLLY.cream) : (on ? '#78350f' : '#475569') }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
               <path d="M9 21h6M12 3a6 6 0 016 6c0 2.22-1.2 4.16-3 5.2V17H9v-2.8C7.2 13.16 6 11.22 6 9a6 6 0 016-6z"
-                stroke={on ? '#92400e' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                fill={on ? 'rgba(253,230,138,0.6)' : 'none'}/>
+                stroke={XMAS ? (on ? HOLLY.ink : HOLLY.gold) : (on ? '#92400e' : '#94a3b8')} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                fill={on ? (XMAS ? 'rgba(255,255,255,0.35)' : 'rgba(253,230,138,0.6)') : 'none'}/>
             </svg>
             {label}
           </button>
@@ -651,7 +642,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
         ? <div style={{padding:"14px 18px",fontSize:13,color:"#94a3b8"}}>All clear! 🛒</div>
         : groceryTasks.slice(0,8).map((t,i)=>(
           <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:44,borderBottom:i<Math.min(groceryTasks.length,8)-1?"1px solid #f8fafc":"none",gap:10}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:"#10b981",flexShrink:0}}/>
+            <div style={{width:6,height:6,borderRadius:"50%",background:GROCERY,flexShrink:0}}/>
             <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
           </div>
         ))
@@ -708,13 +699,13 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
   const fabRow = (
     <div style={{display:"flex",gap:12,marginTop:4}}>
       <button onClick={()=>{setQuickAdd('grocery');setQaText("");}}
-        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${GROCERY}40`,background:`${GROCERY}0F`,color:GROCERY,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke={GROCERY} strokeWidth="2" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke={GROCERY} strokeWidth="2"/><path d="M16 10a4 4 0 01-8 0" stroke={GROCERY} strokeWidth="2" strokeLinecap="round"/></svg>
+        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${GROCERY}${XMAS?"":"40"}`,background:XMAS?GROCERY:`${GROCERY}0F`,color:XMAS?HOLLY.cream:GROCERY,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="2"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
         + Grocery
       </button>
       <button onClick={()=>{setQuickAdd('task');setQaText("");}}
-        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${ACCENT2}40`,background:`${ACCENT2}08`,color:ACCENT2,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke={ACCENT2} strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="16" stroke={ACCENT2} strokeWidth="2" strokeLinecap="round"/><line x1="8" y1="12" x2="16" y2="12" stroke={ACCENT2} strokeWidth="2" strokeLinecap="round"/></svg>
+        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${ACCENT2}${XMAS?"":"40"}`,background:XMAS?ACCENT2:`${ACCENT2}08`,color:XMAS?HOLLY.cream:ACCENT2,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><line x1="8" y1="12" x2="16" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
         + Task
       </button>
     </div>
@@ -1375,7 +1366,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
               style={{flex:1,padding:"12px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none",color:"#1e293b"}}/>
             <button onClick={()=>setHwPanel(true)} title="Write with stylus"
               style={{padding:"12px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#6366f1",fontSize:18,cursor:"pointer",lineHeight:1}}>✏️</button>
-            <button onClick={doAdd} style={{padding:"12px 20px",borderRadius:14,border:"none",background:"#10b981",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
+            <button onClick={doAdd} style={{padding:"12px 20px",borderRadius:14,border:"none",background:GROCERY,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
             <button onClick={()=>{setAdding(false);setNewItem("");}} style={{padding:"12px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
           </div>
         ) : (
@@ -1401,7 +1392,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
         {groceryTasks.map((t,i)=>(
           <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:i<groceryTasks.length-1?"1px solid #f1f5f9":"none",gap:14}}>
             <button onClick={()=>onComplete(t,"",false)}
-              style={{width:26,height:26,borderRadius:6,border:"2px solid #10b981",background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              style={{width:26,height:26,borderRadius:6,border:`2px solid ${GROCERY}`,background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
             </button>
             <div style={{flex:1,fontSize:15,color:"#1e293b",fontWeight:500}}>{t.content}</div>
             <button onClick={()=>onDelete(t)} style={{width:28,height:28,borderRadius:"50%",border:"1px solid #fee2e2",background:"#fff5f5",color:"#ef4444",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>×</button>
@@ -2690,7 +2681,7 @@ function AppInner() {
       `}</style>
 
       {/* Header — always visible */}
-      <Header wx={hub.wx} sun={hub.sun} onStartScreensaver={startScreensaver} onStartCozy={startCozy}/>
+      <Header wx={hub.wx} sun={hub.sun} onStartScreensaver={startScreensaver}/>
 
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
