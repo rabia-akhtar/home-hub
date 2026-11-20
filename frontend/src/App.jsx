@@ -453,10 +453,145 @@ function HomePing() {
 }
 
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
+// ─── HOME QUICK-ADD SHEET ────────────────────────────────────────────────────
+function QuickAddSheet({ projs, onAdd, onClose }) {
+  const groceriesProj = projs.find(p => p.name.toLowerCase() === "groceries");
+  const rabiaProj     = projs.find(p => p.name.toLowerCase() === "rabia's personal");
+  const dests = [
+    { id:"task",    label:"Task",    color:ACCENT2 },
+    rabiaProj     && { id:"rabia",   label:"Rabia",   color:RABIA.color },
+    groceriesProj && { id:"grocery", label:"Grocery", color:GROCERY },
+  ].filter(Boolean);
+
+  const [mode,   setMode]   = useState("draw");
+  const [text,   setText]   = useState("");
+  const [dest,   setDest]   = useState("task");
+  const [status, setStatus] = useState("idle"); // idle|reading|error
+  const [saving, setSaving] = useState(false);
+  const reqId = useRef(0);
+
+  const read = async strokes => {
+    const id = ++reqId.current;
+    setStatus("reading");
+    try {
+      const t = await recognizeInk(strokes);
+      if (id === reqId.current) { setText(t); setStatus("idle"); }
+      return t;
+    } catch {
+      if (id === reqId.current) setStatus("error");
+      return "";
+    }
+  };
+  const ink = useInk(read);
+
+  const clearInk = () => { reqId.current++; ink.clear(); setText(""); setStatus("idle"); };
+
+  const submit = async () => {
+    if (saving) return;
+    let content = text.trim();
+    if (!content && mode === "draw" && ink.strokeCount) content = (await read([...ink.strokesRef.current])).trim();
+    if (!content) return;
+    const body = { content };
+    if (dest === "grocery") body.project_id = groceriesProj.id;
+    else {
+      body.due_string = "today";
+      if (dest === "rabia") body.project_id = rabiaProj.id;
+    }
+    setSaving(true);
+    await onAdd(body);
+    onClose();
+  };
+
+  const destColor = dests.find(d => d.id === dest)?.color || ACCENT2;
+  const canAdd = !saving && (text.trim() || (mode === "draw" && ink.strokeCount > 0));
+  const sheetBg = XMAS ? CARD.background : "#fff";
+  const inkBg   = XMAS ? "#FFFDF8" : "#f8fafc";
+  const lineCol = XMAS ? "#DFCBA6" : "#e2e8f0";
+  const textCol = XMAS ? HOLLY.ink : "#1e293b";
+  const mutedCol = XMAS ? "#8A7A62" : "#94a3b8";
+
+  const tabBtn = (id, label) => (
+    <button onClick={() => setMode(id)}
+      style={{padding:"10px 18px",borderRadius:12,border:"none",fontFamily:"inherit",fontSize:15,fontWeight:700,cursor:"pointer",
+        background: mode === id ? textCol : "transparent", color: mode === id ? sheetBg : mutedCol}}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+         onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{width:"100%",maxWidth:760,background:sheetBg,borderRadius:"24px 24px 0 0",padding:"22px 24px 32px",boxShadow:"0 -8px 40px rgba(0,0,0,0.18)",display:"flex",flexDirection:"column",gap:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:20,fontWeight:800,color:textCol}}>Add</div>
+          <div style={{display:"flex",gap:4,padding:4,borderRadius:14,border:`1.5px solid ${lineCol}`}}>
+            {tabBtn("draw", "✏️ Write")}
+            {tabBtn("type", "⌨ Type")}
+          </div>
+        </div>
+
+        <div style={{display: mode === "draw" ? "flex" : "none", flexDirection:"column", gap:10}}>
+          <div style={{position:"relative"}}>
+            <canvas {...ink.canvasProps}
+              style={{width:"100%",height:240,background:inkBg,borderRadius:16,border:`2px solid ${lineCol}`,touchAction:"none",cursor:"crosshair",display:"block"}}/>
+            {ink.strokeCount === 0 && (
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",fontSize:18,color:mutedCol}}>
+                Write here with the pen
+              </div>
+            )}
+            {ink.strokeCount > 0 && (
+              <button onClick={clearInk}
+                style={{position:"absolute",top:10,right:10,padding:"8px 14px",borderRadius:10,border:`1.5px solid ${lineCol}`,background:sheetBg,color:mutedCol,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                Clear
+              </button>
+            )}
+          </div>
+          <input value={status === "reading" ? "" : text} onChange={e => setText(e.target.value)}
+            placeholder={status === "reading" ? "Reading…" : status === "error" ? "Couldn't read that — try again or fix it here" : "Your writing shows up here"}
+            style={{padding:"14px 16px",borderRadius:14,border:`2px solid ${text ? destColor : lineCol}`,fontSize:20,fontFamily:"inherit",outline:"none",background:inkBg,color:textCol}}/>
+        </div>
+
+        {mode === "type" && (
+          <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={3}
+            placeholder="e.g. call the dentist, milk…"
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
+            style={{width:"100%",padding:18,borderRadius:16,border:`2.5px solid ${destColor}`,fontSize:22,fontFamily:"inherit",outline:"none",color:textCol,background:inkBg,resize:"none",lineHeight:1.5,boxSizing:"border-box"}}/>
+        )}
+
+        <div>
+          <div style={{fontSize:12,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",color:mutedCol,marginBottom:8}}>Add to</div>
+          <div style={{display:"flex",gap:10}}>
+            {dests.map(d => {
+              const on = dest === d.id;
+              return (
+                <button key={d.id} onClick={() => setDest(d.id)}
+                  style={{flex:1,minHeight:60,borderRadius:16,fontFamily:"inherit",fontSize:17,fontWeight:800,cursor:"pointer",
+                    border:`2px solid ${d.color}`, background: on ? d.color : "transparent", color: on ? "#fff" : d.color}}>
+                  {d.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{display:"flex",gap:12}}>
+          <button onClick={onClose}
+            style={{padding:"18px 24px",borderRadius:16,border:`1.5px solid ${lineCol}`,background:"transparent",color:mutedCol,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
+            Cancel
+          </button>
+          <button onClick={submit} disabled={!canAdd}
+            style={{flex:1,padding:18,borderRadius:16,border:"none",background:destColor,color:"#fff",fontWeight:800,fontSize:18,cursor:canAdd?"pointer":"not-allowed",fontFamily:"inherit",opacity:canAdd?1:0.5,minHeight:60}}>
+            {saving ? "Adding…" : `Add to ${dests.find(d => d.id === dest)?.label}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wide, uidMap, onAddTask, onAddGrocery }) {
   const today = new Date(); today.setHours(0,0,0,0);
-  const [quickAdd, setQuickAdd] = useState(null); // null | 'task' | 'grocery'
-  const [qaText, setQaText]     = useState("");
+  const [quickAdd, setQuickAdd] = useState(false);
   const todayStr = today.toISOString().slice(0,10);
 
   const groceriesProj    = projs.find(p=>p.name.toLowerCase()==="groceries");
@@ -641,9 +776,10 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
       {groceryTasks.length===0
         ? <div style={{padding:"14px 18px",fontSize:13,color:"#94a3b8"}}>All clear! 🛒</div>
         : groceryTasks.slice(0,8).map((t,i)=>(
-          <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:44,borderBottom:i<Math.min(groceryTasks.length,8)-1?"1px solid #f8fafc":"none",gap:10}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:GROCERY,flexShrink:0}}/>
-            <div style={{fontSize:13,color:"#1e293b"}}>{t.content}</div>
+          <div key={t.id} onClick={()=>onCompleteTask(t, "")}
+            style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:56,borderBottom:i<Math.min(groceryTasks.length,8)-1?"1px solid #f8fafc":"none",gap:14,cursor:"pointer"}}>
+            <div style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${GROCERY}`,flexShrink:0}}/>
+            <div style={{fontSize:14,color:"#1e293b",fontWeight:500}}>{t.content}</div>
           </div>
         ))
       }
@@ -651,64 +787,16 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
     </div>
   ) : null;
 
-  const submitQuickAdd = async () => {
-    const text = qaText.trim();
-    if (!text) return;
-    if (quickAdd === 'grocery') {
-      const grocProj = projs.find(p=>p.name.toLowerCase()==="groceries");
-      if (grocProj) await onAddTask({ content:text, project_id:grocProj.id });
-    } else {
-      await onAddTask({ content:text });
-    }
-    setQaText(""); setQuickAdd(null);
-  };
-
-  const qaLabel  = quickAdd === 'grocery' ? 'Add to grocery list' : 'Add task';
-  const qaColor  = quickAdd === 'grocery' ? GROCERY : ACCENT2;
-  const qaPlaceholder = quickAdd === 'grocery' ? 'e.g. milk, apples...' : 'e.g. call dentist...';
-
-  const quickAddModal = quickAdd && (
-    <div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}
-         onClick={e=>{if(e.target===e.currentTarget){setQuickAdd(null);setQaText("");}}}>
-      <div style={{width:"100%",maxWidth:680,background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 24px 40px",boxShadow:"0 -8px 40px rgba(0,0,0,0.18)"}}>
-        <div style={{fontSize:20,fontWeight:800,color:"#1e293b",marginBottom:20}}>{qaLabel}</div>
-        {/* Large pen-friendly text area */}
-        <textarea
-          autoFocus
-          value={qaText}
-          onChange={e=>setQaText(e.target.value)}
-          placeholder={qaPlaceholder}
-          rows={3}
-          style={{width:"100%",padding:"18px",borderRadius:16,border:`2.5px solid ${qaColor}`,fontSize:22,fontFamily:"inherit",outline:"none",color:"#1e293b",resize:"none",lineHeight:1.5,boxSizing:"border-box"}}
-          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitQuickAdd();}}}
-        />
-        <div style={{display:"flex",gap:12,marginTop:16}}>
-          <button onClick={submitQuickAdd} disabled={!qaText.trim()}
-            style={{flex:1,padding:"18px",borderRadius:16,border:"none",background:qaColor,color:"#fff",fontWeight:800,fontSize:18,cursor:qaText.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:qaText.trim()?1:0.5,minHeight:60}}>
-            Add
-          </button>
-          <button onClick={()=>{setQuickAdd(null);setQaText("");}}
-            style={{padding:"18px 24px",borderRadius:16,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  const quickAddModal = quickAdd && <QuickAddSheet projs={projs} onAdd={onAddTask} onClose={()=>setQuickAdd(false)}/>;
 
   const fabRow = (
-    <div style={{display:"flex",gap:12,marginTop:4}}>
-      <button onClick={()=>{setQuickAdd('grocery');setQaText("");}}
-        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${GROCERY}${XMAS?"":"40"}`,background:XMAS?GROCERY:`${GROCERY}0F`,color:XMAS?HOLLY.cream:GROCERY,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="2"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        + Grocery
-      </button>
-      <button onClick={()=>{setQuickAdd('task');setQaText("");}}
-        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:`2px solid ${ACCENT2}${XMAS?"":"40"}`,background:XMAS?ACCENT2:`${ACCENT2}08`,color:XMAS?HOLLY.cream:ACCENT2,fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",minHeight:60}}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><line x1="8" y1="12" x2="16" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        + Task
-      </button>
-    </div>
+    <button onClick={()=>setQuickAdd(true)}
+      style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"18px 16px",borderRadius:18,border:"none",
+        background:XMAS?HOLLY.gold:ACCENT,color:XMAS?HOLLY.ink:"#fff",fontWeight:800,fontSize:18,cursor:"pointer",fontFamily:"inherit",minHeight:64,marginTop:4,
+        boxShadow:XMAS?"0 4px 14px rgba(203,160,82,0.35)":"0 4px 14px rgba(0,0,0,0.12)"}}>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"/></svg>
+      Add
+    </button>
   );
 
   if(wide) return (
@@ -1832,18 +1920,19 @@ function XmasSnowOverlay() {
 }
 
 // ─── HANDWRITING PANEL ───────────────────────────────────────────────────────
-function HandwritingPanel({ onDone, onCancel }) {
-  const canvasRef   = useRef(null);
-  const strokesRef  = useRef([]);        // committed strokes
-  const activeRef   = useRef(null);      // stroke in progress
-  const startTime   = useRef(Date.now());
-  const ctxRef      = useRef(null);
+// Pen ink capture shared by the handwriting panel and the home quick-add sheet.
+// Fingers/palms are ignored; mouse is allowed so it can be tested off-device.
+function useInk(onPause) {
+  const canvasRef  = useRef(null);
+  const strokesRef = useRef([]);
+  const activeRef  = useRef(null);
+  const startTime  = useRef(Date.now());
+  const ctxRef     = useRef(null);
+  const pauseTimer = useRef(null);
+  const onPauseRef = useRef(onPause);
+  onPauseRef.current = onPause;
   const [strokeCount, setStrokeCount] = useState(0);
-  const [result,   setResult]   = useState('');
-  const [status,   setStatus]   = useState('idle'); // idle|recognizing|done|error
-  const [errMsg,   setErrMsg]   = useState('');
 
-  // Init canvas context once
   useEffect(() => {
     const canvas = canvasRef.current;
     const dpr = window.devicePixelRatio || 1;
@@ -1854,79 +1943,92 @@ function HandwritingPanel({ onDone, onCancel }) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctxRef.current = ctx;
+    return () => clearTimeout(pauseTimer.current);
   }, []);
 
-  const canvasXY = (e) => {
+  const isInk = e => e.pointerType === 'pen' || e.pointerType === 'mouse';
+  const xy = e => {
     const r = canvasRef.current.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const sx = canvasRef.current.offsetWidth / r.width || 1;
+    const sy = canvasRef.current.offsetHeight / r.height || 1;
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
   };
 
-  const onPointerDown = (e) => {
-    if (e.pointerType !== 'pen') return;   // palm rejection
+  const onPointerDown = e => {
+    if (!isInk(e)) return;
     e.preventDefault();
+    clearTimeout(pauseTimer.current);
     canvasRef.current.setPointerCapture(e.pointerId);
-    const { x, y } = canvasXY(e);
-    const t = Date.now() - startTime.current;
-    activeRef.current = { x: [x], y: [y], t: [t], p: [e.pressure] };
-    const ctx = ctxRef.current;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
+    const { x, y } = xy(e);
+    activeRef.current = { x: [x], y: [y], t: [Date.now() - startTime.current], p: [e.pressure || 0.5] };
+    ctxRef.current.beginPath();
+    ctxRef.current.moveTo(x, y);
   };
-
-  const onPointerMove = (e) => {
-    if (e.pointerType !== 'pen' || !activeRef.current) return;
+  const onPointerMove = e => {
+    if (!isInk(e) || !activeRef.current) return;
     e.preventDefault();
-    // Use getCoalescedEvents for high-fidelity MPP 2.0 input
-    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     const ctx = ctxRef.current;
-    for (const ev of events) {
-      const { x, y } = canvasXY(ev);
-      activeRef.current.x.push(x);
-      activeRef.current.y.push(y);
-      activeRef.current.t.push(Date.now() - startTime.current);
-      activeRef.current.p.push(ev.pressure);
-      ctx.lineWidth = Math.max(1, ev.pressure * 5);
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x, y);
+    for (const ev of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) {
+      const { x, y } = xy(ev);
+      const a = activeRef.current;
+      a.x.push(x); a.y.push(y); a.t.push(Date.now() - startTime.current); a.p.push(ev.pressure || 0.5);
+      ctx.lineWidth = Math.max(2, (ev.pressure || 0.5) * 6);
+      ctx.strokeStyle = XMAS ? HOLLY.ink : '#1e293b';
+      ctx.lineTo(x, y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y);
     }
   };
-
-  const onPointerUp = (e) => {
-    if (e.pointerType !== 'pen' || !activeRef.current) return;
+  const onPointerUp = e => {
+    if (!isInk(e) || !activeRef.current) return;
     e.preventDefault();
     strokesRef.current.push(activeRef.current);
     activeRef.current = null;
     setStrokeCount(c => c + 1);
+    if (onPauseRef.current) {
+      clearTimeout(pauseTimer.current);
+      pauseTimer.current = setTimeout(() => onPauseRef.current([...strokesRef.current]), 900);
+    }
+  };
+  const clear = () => {
+    clearTimeout(pauseTimer.current);
+    const c = canvasRef.current;
+    ctxRef.current.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
+    strokesRef.current = [];
+    activeRef.current = null;
+    startTime.current = Date.now();
+    setStrokeCount(0);
   };
 
-  const clear = () => {
-    const canvas = canvasRef.current;
-    ctxRef.current.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
-    strokesRef.current = [];
-    activeRef.current  = null;
-    startTime.current  = Date.now();
-    setStrokeCount(0);
-    setResult('');
-    setStatus('idle');
-    setErrMsg('');
+  return {
+    canvasProps: { ref: canvasRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
+    strokesRef, strokeCount, clear,
   };
+}
+
+async function recognizeInk(strokes) {
+  const r = await fetch(`${API}/handwriting/recognize`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ strokes }),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Recognition failed');
+  return d.text;
+}
+
+function HandwritingPanel({ onDone, onCancel }) {
+  const ink = useInk();
+  const strokeCount = ink.strokeCount;
+  const [result,   setResult]   = useState('');
+  const [status,   setStatus]   = useState('idle'); // idle|recognizing|done|error
+  const [errMsg,   setErrMsg]   = useState('');
+
+  const clear = () => { ink.clear(); setResult(''); setStatus('idle'); setErrMsg(''); };
 
   const recognize = async () => {
-    if (!strokesRef.current.length) return;
+    if (!ink.strokesRef.current.length) return;
     setStatus('recognizing');
     setErrMsg('');
     try {
-      const r = await fetch(`${API}/api/handwriting/recognize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strokes: strokesRef.current })
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Recognition failed');
-      setResult(d.text);
+      setResult(await recognizeInk(ink.strokesRef.current));
       setStatus('done');
     } catch (err) {
       setErrMsg(err.message);
@@ -1948,12 +2050,8 @@ function HandwritingPanel({ onDone, onCancel }) {
         </div>
 
         {/* Canvas — tall for comfortable writing */}
-        <canvas ref={canvasRef}
+        <canvas {...ink.canvasProps}
           style={{width:'100%',height:200,background:'#f8fafc',borderRadius:14,border:'2px solid #e2e8f0',touchAction:'none',cursor:'crosshair',display:'block'}}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
         />
 
         {/* Result edit box */}
