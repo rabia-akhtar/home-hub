@@ -112,7 +112,17 @@ function useWide() {
 }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const GRAD = "linear-gradient(160deg,#ff9472 0%,#f2709c 30%,#a78bfa 65%,#38bdf8 100%)";
+function isXmasSeason() {
+  const d = new Date(), m = d.getMonth() + 1, day = d.getDate();
+  return (m === 11 && day >= 15) || m === 12 || (m === 1 && day <= 15);
+}
+const XMAS = isXmasSeason();
+const GRAD     = XMAS
+  ? "linear-gradient(160deg,#c41e3a 0%,#8b1a1a 30%,#1a5c30 65%,#c8a000 100%)"
+  : "linear-gradient(160deg,#ff9472 0%,#f2709c 30%,#a78bfa 65%,#38bdf8 100%)";
+const ACCENT   = XMAS ? "#c8a000" : "#38bdf8";
+const ACCENT2  = XMAS ? "#c41e3a" : "#f2709c";
+const BTN_GRAD = XMAS ? "linear-gradient(135deg,#c41e3a,#1a5c30)" : "linear-gradient(135deg,#f2709c,#38bdf8)";
 const CARD = { background:"rgba(255,255,255,0.95)", borderRadius:24, boxShadow:"0 2px 16px rgba(0,0,0,0.06)", border:"1px solid rgba(255,255,255,0.8)" };
 const TOUCH_ROW = { minHeight:60, display:"flex", alignItems:"center", padding:"0 20px", borderBottom:"1px solid #f1f5f9", cursor:"pointer" };
 
@@ -892,7 +902,7 @@ function CalendarTab({ evts, authOk, reload }) {
                 </button>
               ))}
             </div>
-            <button onClick={addEvent} disabled={saving} style={{padding:"14px",borderRadius:16,border:"none",background:"linear-gradient(135deg,#f2709c,#38bdf8)",color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>
+            <button onClick={addEvent} disabled={saving} style={{padding:"14px",borderRadius:16,border:"none",background:BTN_GRAD,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>
               {saving?"Saving…":"Save event"}
             </button>
           </div>
@@ -916,7 +926,7 @@ function CalendarTab({ evts, authOk, reload }) {
           {days.map((d,i)=>(
             <div key={i} style={{textAlign:"center",padding:"10px 0"}}>
               <div style={{fontSize:11,color:"#94a3b8",fontWeight:700}}>{DAY[d.getDay()]}</div>
-              <div style={{fontSize:17,fontWeight:800,lineHeight:1.3,color:isToday(d)?"#fff":"#1e293b",background:isToday(d)?"linear-gradient(135deg,#f2709c,#38bdf8)":"transparent",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",margin:"3px auto 0"}}>{d.getDate()}</div>
+              <div style={{fontSize:17,fontWeight:800,lineHeight:1.3,color:isToday(d)?"#fff":"#1e293b",background:isToday(d)?BTN_GRAD:"transparent",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",margin:"3px auto 0"}}>{d.getDate()}</div>
             </div>
           ))}
         </div>
@@ -1431,7 +1441,7 @@ function RewardsTab({ pts, setPts, rwds, setRwds }) {
                 <button key={val} onClick={()=>setForm(f=>({...f,who:val}))} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${form.who===val?"#6366f1":"#e2e8f0"}`,background:form.who===val?"#eef2ff":"#fff",color:form.who===val?"#6366f1":"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
               ))}
             </div>
-            <button onClick={addReward} style={{padding:"14px",borderRadius:16,border:"none",background:"linear-gradient(135deg,#f2709c,#38bdf8)",color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Save reward</button>
+            <button onClick={addReward} style={{padding:"14px",borderRadius:16,border:"none",background:BTN_GRAD,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Save reward</button>
           </div>
         </div>
       )}
@@ -1880,49 +1890,148 @@ function ScreensaverClock() {
 }
 
 // ─── COZY SCREENSAVER ────────────────────────────────────────────────────────
-const COZY_VIDEOS = [
-  { id: 'L_LUpnjgPso', label: 'Crackling Fireplace'       },
-  { id: 'UgHKb_7884o', label: 'Hogwarts Common Room Fire'  },
-  { id: 'mUDMagRVmTw', label: 'Snowy Window'              },
-  { id: 'xNN7iTA57jM', label: 'Harry Potter Fireplace'    },
-  { id: 'hHW1oY26kxQ', label: 'Cozy Cabin Fireplace'      },
-  { id: 'ZJAtgqpbuLk', label: 'Christmas Fireplace'       },
-  { id: 'qHGTs1NSB1s', label: 'Snowfall & Piano'          },
+const COZY_SCENES = [
+  { id: 'snow',  label: 'Snowfall Night'   },
+  { id: 'fire',  label: 'Crackling Fire'   },
+  { id: 'xmas',  label: 'Christmas Lights' },
+  { id: 'storm', label: 'Winter Storm'     },
 ];
 
-function CozyScreensaver({ onDismiss }) {
-  const [video]   = useState(() => COZY_VIDEOS[Math.floor(Math.random() * COZY_VIDEOS.length)]);
-  const [current, setCurrent] = useState(0);
+let _cozyCssInjected = false;
+function injectCozyCss() {
+  if (_cozyCssInjected) return;
+  _cozyCssInjected = true;
+  const s = document.createElement('style');
+  s.textContent = `
+    @keyframes cozy-fall  { 0%{transform:translateY(-10px);opacity:.9} 100%{transform:translateY(110vh);opacity:.2} }
+    @keyframes cozy-storm { 0%{transform:translateY(-10px) translateX(0)} 100%{transform:translateY(110vh) translateX(-50px)} }
+    @keyframes cozy-sway  { 0%,100%{margin-left:0} 50%{margin-left:18px} }
+    @keyframes cozy-flicker { 0%,100%{opacity:1;transform:scaleY(1) scaleX(1)} 25%{opacity:.82;transform:scaleY(.96) scaleX(1.04)} 50%{opacity:.93;transform:scaleY(1.05) scaleX(.97)} 75%{opacity:.87;transform:scaleY(.97)} }
+    @keyframes cozy-ember { 0%{transform:translateY(0) translateX(0);opacity:.8} 60%{transform:translateY(-50px) translateX(12px);opacity:.3} 100%{transform:translateY(-90px) translateX(-4px);opacity:0} }
+    @keyframes cozy-twinkle { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.1;transform:scale(.55)} }
+    @keyframes cozy-glow  { 0%,100%{opacity:.6} 50%{opacity:1} }
+  `;
+  document.head.appendChild(s);
+}
 
-  const nextVideo = (e) => {
-    e.stopPropagation();
-    setCurrent(i => (i + 1) % COZY_VIDEOS.length);
-  };
-
-  const vid = COZY_VIDEOS[(COZY_VIDEOS.indexOf(video) + current) % COZY_VIDEOS.length] || video;
-  const src = `https://www.youtube.com/embed/${vid.id}?autoplay=1&mute=1&loop=1&playlist=${vid.id}&controls=0&iv_load_policy=3&modestbranding=1&rel=0&playsinline=1`;
-
+function SnowScene({ storm }) {
+  const flakes = useMemo(() => Array.from({length: storm ? 90 : 50}, () => ({
+    left:     Math.random() * 100,
+    size:     Math.random() * 4 + 2,
+    duration: Math.random() * 8 + (storm ? 3 : 7),
+    delay:    Math.random() * 12,
+    opacity:  Math.random() * 0.55 + 0.3,
+  })), [storm]);
+  const stars = useMemo(() => Array.from({length: 35}, () => ({
+    left:     Math.random() * 100,
+    top:      Math.random() * 55,
+    opacity:  Math.random() * 0.6 + 0.2,
+    duration: Math.random() * 3 + 2,
+    delay:    Math.random() * 6,
+  })), []);
   return (
-    <div onClick={onDismiss}
-      style={{position:"fixed",inset:0,zIndex:9999,background:"#000",cursor:"pointer"}}>
-      {/* YouTube iframe */}
-      <iframe
-        key={vid.id}
-        src={src}
-        allow="autoplay; fullscreen"
-        style={{position:"absolute",inset:0,width:"100%",height:"100%",border:"none",pointerEvents:"none"}}
-        title={vid.label}
-      />
-      {/* Clock */}
+    <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,#04091a 0%,#0b1a30 60%,#162540 100%)',overflow:'hidden'}}>
+      {stars.map((s,i) => (
+        <div key={i} style={{position:'absolute',left:s.left+'%',top:s.top+'%',width:2,height:2,borderRadius:'50%',background:'white',opacity:s.opacity,animation:`cozy-twinkle ${s.duration}s ${s.delay}s infinite`}}/>
+      ))}
+      {flakes.map((f,i) => (
+        <div key={i} style={{position:'absolute',left:f.left+'%',top:-8,width:f.size,height:f.size,borderRadius:'50%',background:'white',opacity:f.opacity,animation:`${storm?'cozy-storm':'cozy-fall'} ${f.duration}s ${f.delay}s infinite linear, cozy-sway ${f.duration*1.6}s ${f.delay}s infinite ease-in-out`}}/>
+      ))}
+      <div style={{position:'absolute',bottom:0,left:0,right:0,height:60,background:'linear-gradient(0deg,rgba(190,215,255,0.18) 0%,transparent 100%)'}}/>
+    </div>
+  );
+}
+
+function FireScene() {
+  const embers = useMemo(() => Array.from({length: 22}, () => ({
+    left:     28 + Math.random() * 44,
+    size:     Math.random() * 7 + 3,
+    duration: Math.random() * 1.4 + 0.7,
+    delay:    Math.random() * 2.5,
+    color:    ['#ff4500','#ff6b00','#ffaa00','#ffd700'][Math.floor(Math.random()*4)],
+  })), []);
+  return (
+    <div style={{position:'absolute',inset:0,background:'#070202',overflow:'hidden'}}>
+      <div style={{position:'absolute',bottom:0,left:'5%',right:'5%',height:220,background:'radial-gradient(ellipse at 50% 100%,rgba(255,90,0,0.35) 0%,transparent 70%)'}}/>
+      <div style={{position:'absolute',bottom:55,left:'22%',right:'22%',height:240,background:'radial-gradient(ellipse at 50% 92%,#cc3300 0%,#ff2200 15%,transparent 65%)',animation:'cozy-flicker 0.9s infinite',filter:'blur(10px)',transformOrigin:'bottom center'}}/>
+      <div style={{position:'absolute',bottom:55,left:'28%',right:'28%',height:195,background:'radial-gradient(ellipse at 50% 90%,#ff8800 0%,#ff5500 25%,transparent 68%)',animation:'cozy-flicker 1.2s 0.15s infinite',filter:'blur(6px)',transformOrigin:'bottom center'}}/>
+      <div style={{position:'absolute',bottom:55,left:'34%',right:'34%',height:140,background:'radial-gradient(ellipse at 50% 90%,#fff8e0 0%,#ffee00 15%,#ffaa00 45%,transparent 70%)',animation:'cozy-flicker 0.65s 0.08s infinite',filter:'blur(2px)',transformOrigin:'bottom center'}}/>
+      <div style={{position:'absolute',bottom:44,left:'18%',right:'18%',height:18,background:'linear-gradient(180deg,#3a1500,#180a00)',borderRadius:10}}/>
+      {embers.map((p,i) => (
+        <div key={i} style={{position:'absolute',bottom:65,left:p.left+'%',width:p.size,height:p.size,borderRadius:'50%',background:p.color,animation:`cozy-ember ${p.duration}s ${p.delay}s infinite`}}/>
+      ))}
+    </div>
+  );
+}
+
+function XmasScene() {
+  const lights = useMemo(() => {
+    const colors = ['#ff3333','#33ee33','#ffdd00','#3399ff','#ff66ff','#33ffee','#ffffff','#ff8800'];
+    return Array.from({length: 70}, () => ({
+      left:     Math.random() * 97 + 1.5,
+      top:      Math.random() * 78 + 5,
+      color:    colors[Math.floor(Math.random() * colors.length)],
+      size:     Math.random() * 5 + 4,
+      duration: Math.random() * 1.8 + 0.8,
+      delay:    Math.random() * 5,
+    }));
+  }, []);
+  return (
+    <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,#010801 0%,#021202 55%,#030d03 100%)',overflow:'hidden'}}>
+      {[12,28,48,65,82].map((x,i) => {
+        const h = 100 + i * 25;
+        const w = 30 + i * 8;
+        return <div key={x} style={{position:'absolute',bottom:0,left:x+'%',width:0,height:0,borderLeft:`${w/2}px solid transparent`,borderRight:`${w/2}px solid transparent`,borderBottom:`${h}px solid rgba(8,25,8,0.85)`}}/>;
+      })}
+      {lights.map((l,i) => (
+        <div key={i} style={{position:'absolute',left:l.left+'%',top:l.top+'%',width:l.size,height:l.size,borderRadius:'50%',background:l.color,boxShadow:`0 0 ${l.size*2}px ${l.size/2}px ${l.color}`,animation:`cozy-twinkle ${l.duration}s ${l.delay}s infinite`}}/>
+      ))}
+      <div style={{position:'absolute',bottom:0,left:0,right:0,height:35,background:'linear-gradient(0deg,rgba(210,230,255,0.15) 0%,transparent 100%)'}}/>
+    </div>
+  );
+}
+
+function CozySceneRenderer({ id }) {
+  if (id === 'fire')  return <FireScene/>;
+  if (id === 'xmas')  return <XmasScene/>;
+  if (id === 'storm') return <SnowScene storm/>;
+  return <SnowScene/>;
+}
+
+function CozyScreensaver({ onDismiss }) {
+  const [idx, setIdx] = useState(() => Math.floor(Math.random() * COZY_SCENES.length));
+  useEffect(() => { injectCozyCss(); }, []);
+  const scene = COZY_SCENES[idx];
+  return (
+    <div onClick={onDismiss} style={{position:"fixed",inset:0,zIndex:9999,cursor:"pointer",overflow:"hidden"}}>
+      <CozySceneRenderer id={scene.id}/>
       <ScreensaverClock/>
-      {/* Label + controls */}
       <div style={{position:"absolute",bottom:28,left:28,right:28,display:"flex",alignItems:"flex-end",justifyContent:"space-between",pointerEvents:"none"}}>
-        <div style={{color:"rgba(255,255,255,0.45)",fontSize:11}}>{vid.label} · Tap to wake</div>
-        <button onClick={nextVideo}
+        <div style={{color:"rgba(255,255,255,0.45)",fontSize:11}}>{scene.label} · Tap to wake</div>
+        <button onClick={e=>{ e.stopPropagation(); setIdx(i=>(i+1)%COZY_SCENES.length); }}
           style={{pointerEvents:"all",background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,color:"#fff",fontSize:12,padding:"6px 14px",cursor:"pointer",backdropFilter:"blur(6px)"}}>
-          Next video →
+          Next →
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── CHRISTMAS SNOW OVERLAY ──────────────────────────────────────────────────
+function XmasSnowOverlay() {
+  const flakes = useMemo(() => Array.from({length: 28}, () => ({
+    left:     Math.random() * 100,
+    size:     Math.random() * 3 + 2,
+    duration: Math.random() * 10 + 12,
+    delay:    Math.random() * 15,
+    opacity:  Math.random() * 0.35 + 0.1,
+  })), []);
+  useEffect(() => { injectCozyCss(); }, []);
+  return (
+    <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:10,overflow:"hidden"}}>
+      {flakes.map((f,i) => (
+        <div key={i} style={{position:"absolute",left:f.left+'%',top:-8,width:f.size,height:f.size,borderRadius:"50%",background:"white",opacity:f.opacity,animation:`cozy-fall ${f.duration}s ${f.delay}s infinite linear`}}/>
+      ))}
     </div>
   );
 }
@@ -2668,12 +2777,15 @@ function AppInner() {
   const [tab,        setTab]        = useState("home");
   const [screensaver,setScreensaver]= useState(false);
   const [cozyMode,   setCozyMode]   = useState(false);
+  const [navVisible, setNavVisible] = useState(() => localStorage.getItem('navVisible') !== 'false');
   const hub  = useHub();
   const wide = useWide();
 
+  useEffect(() => { localStorage.setItem('navVisible', String(navVisible)); }, [navVisible]);
+
   // ── Zoom — persisted in localStorage ──
   const isMobile = window.innerWidth < 700;
-  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem(isMobile ? 'appZoom2Mobile' : 'appZoom2') || (isMobile ? '1.0' : '1.35')));
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem(isMobile ? 'appZoom2Mobile' : 'appZoom2') || (isMobile ? '1.0' : '1.6')));
   useEffect(() => {
     document.body.style.zoom = zoom;
     localStorage.setItem(isMobile ? 'appZoom2Mobile' : 'appZoom2', String(zoom));
@@ -2789,6 +2901,7 @@ function AppInner() {
     >
       {screensaver && <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>}
       {cozyMode && <CozyScreensaver onDismiss={()=>{ setCozyMode(false); setTab("home"); resetIdle(); }}/>}
+      {XMAS && <XmasSnowOverlay/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
@@ -2811,8 +2924,12 @@ function AppInner() {
       <div style={{ flex:1, minHeight:0, display:"flex", overflow:"hidden" }}>
 
         {/* Sidebar nav — wide screens (Pi / desktop) */}
-        {wide && (
-          <div style={{ width:68, background:"rgba(255,255,255,0.97)", borderRight:"1px solid rgba(0,0,0,0.07)", display:"flex", flexDirection:"column", flexShrink:0, overflowY:"auto", paddingTop:8 }}>
+        {wide && navVisible && (
+          <div style={{ width:72, background:"rgba(255,255,255,0.97)", borderRight:"1px solid rgba(0,0,0,0.07)", display:"flex", flexDirection:"column", flexShrink:0, overflowY:"auto", paddingTop:4 }}>
+            {/* Collapse button */}
+            <button onClick={()=>setNavVisible(false)} title="Hide nav" style={{display:"flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"8px 0",color:"#cbd5e1",width:"100%"}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            </button>
             {NAV.map(n=>{
               const active = tab===n.id;
               return (
@@ -2823,6 +2940,12 @@ function AppInner() {
               );
             })}
           </div>
+        )}
+        {/* Expand button when sidebar hidden */}
+        {wide && !navVisible && (
+          <button onClick={()=>setNavVisible(true)} title="Show nav" style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",zIndex:50,background:"rgba(255,255,255,0.95)",border:"1px solid rgba(0,0,0,0.08)",borderLeft:"none",borderRadius:"0 8px 8px 0",padding:"10px 4px",cursor:"pointer",color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"2px 0 8px rgba(0,0,0,0.06)"}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          </button>
         )}
 
         {/* Scrollable content */}
