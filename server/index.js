@@ -130,6 +130,7 @@ const TAPO_DEVICES = [
   { alias: 'Smart Plug Flower',    group: 'living_room', host: process.env.KASA_IP_FLOWER     || '',              label: process.env.KASA_LABEL_FLOWER     || 'Flower Lamp'    },
   { alias: 'Smart Plug Globe',     group: 'living_room', host: process.env.KASA_IP_GLOBE      || '',              label: process.env.KASA_LABEL_GLOBE      || 'Globe Lamp'     },
   { alias: 'Smart Plug Long Lamp', group: 'living_room', host: process.env.KASA_IP_LAMP       || '',              label: process.env.KASA_LABEL_LAMP       || 'Long Lamp'      },
+  { alias: 'Christmas Tree',       group: 'living_room', host: process.env.KASA_IP_XMAS_TREE  || '',              label: process.env.KASA_LABEL_XMAS_TREE  || 'Christmas Tree' },
   // Bedroom
   { alias: 'Bedroom Lamp',         group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_1  || '',              label: process.env.KASA_LABEL_BEDROOM_1  || 'Bedroom Lamp'   },
   { alias: 'Bedroom Lamp 2',       group: 'bedroom',     host: process.env.KASA_IP_BEDROOM_2  || '',              label: process.env.KASA_LABEL_BEDROOM_2  || 'Bedroom Lamp 2' },
