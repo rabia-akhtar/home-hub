@@ -2431,6 +2431,48 @@ function BudgetTab() {
   );
 }
 
+// ─── SETTINGS TAB ────────────────────────────────────────────────────────────
+function SettingsTab({ zoom, zoomIn, zoomOut, resetZoom, wide, navVisible, setNavVisible }) {
+  const label = { fontSize:15, fontWeight:700, color:"#1e293b" };
+  const hint  = { fontSize:12, color:"#94a3b8", marginTop:2 };
+  const round = { width:52, height:52, borderRadius:"50%", border:`2px solid ${ACCENT_D}22`, background:"transparent",
+                  fontSize:26, lineHeight:1, color:ACCENT_D, cursor:"pointer", fontFamily:"inherit" };
+  const row   = { display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, padding:"18px 20px" };
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{...CARD, overflow:"hidden"}}>
+        <div style={{padding:"16px 20px 0",fontSize:12,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",color:"#94a3b8"}}>Display</div>
+        <div style={row}>
+          <div>
+            <div style={label}>Zoom</div>
+            <div style={hint}>Size of everything on this screen</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <button onClick={zoomOut} style={round} aria-label="Zoom out">−</button>
+            <span style={{fontSize:18,fontWeight:800,color:"#1e293b",minWidth:58,textAlign:"center",fontVariantNumeric:"tabular-nums"}}>{Math.round(zoom*100)}%</span>
+            <button onClick={zoomIn} style={round} aria-label="Zoom in">+</button>
+            <button onClick={resetZoom} style={{padding:"12px 16px",borderRadius:12,border:`1.5px solid ${ACCENT_D}22`,background:"transparent",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Reset</button>
+          </div>
+        </div>
+        {wide && (
+          <div style={{...row, borderTop:"1px solid #00000010"}}>
+            <div>
+              <div style={label}>Sidebar</div>
+              <div style={hint}>Show the tab list on the left</div>
+            </div>
+            <button onClick={()=>setNavVisible(v=>!v)} role="switch" aria-checked={navVisible}
+              style={{width:60,height:34,borderRadius:99,border:"none",cursor:"pointer",position:"relative",background:navVisible?ACCENT3:"#cbd5e1",transition:"background 0.2s"}}>
+              <span style={{position:"absolute",top:4,left:navVisible?30:4,width:26,height:26,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{fontSize:12,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",color:"#94a3b8",padding:"4px 4px 0"}}>System status</div>
+      <DebugTab/>
+    </div>
+  );
+}
+
 function DebugTab() {
   const API = import.meta.env.VITE_API_URL || '';
   const [data,    setData]    = useState(null);
@@ -2754,7 +2796,7 @@ const NAV = [
   { id:"calendar",  label:"Calendar",  color:XMAS?ACCENT:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
-  { id:"debug",     label:"Debug",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"settings",  label:"Settings",     color:"#64748b", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
 ];
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
@@ -2790,6 +2832,7 @@ function AppInner() {
   }, [zoom]);
   const zoomIn  = useCallback(() => setZoom(z => Math.min(+(z + 0.05).toFixed(2), 2.0)),  []);
   const zoomOut = useCallback(() => setZoom(z => Math.max(+(z - 0.05).toFixed(2), 0.5)), []);
+  const resetZoom = useCallback(() => setZoom(isMobile ? 1.0 : 2.0), []);
 
 
   // ── Manual screensaver — suppress motion dismiss for 10s ──
@@ -3005,7 +3048,7 @@ function AppInner() {
           {tab==="lights"    && <LightsTab/>}
           {tab==="budget"    && <BudgetTab/>}
           {tab==="findmy"    && <FindMyTab/>}
-          {tab==="debug"     && <DebugTab/>}
+          {tab==="settings"  && <SettingsTab zoom={zoom} zoomIn={zoomIn} zoomOut={zoomOut} resetZoom={resetZoom} wide={wide} navVisible={navVisible} setNavVisible={setNavVisible}/>}
         </div>
       </div>
 
@@ -3028,30 +3071,6 @@ function AppInner() {
       {/* Virtual keyboard for the kiosk only — phones have their own */}
       {!isMobile && <VirtualKeyboard />}
 
-      {/* Zoom control — floating bottom-right */}
-      <div style={{
-        position:"fixed", bottom: wide ? 16 : 86, right:14, zIndex:300,
-        display:"flex", alignItems:"center",
-        background:"rgba(255,255,255,0.92)", backdropFilter:"blur(12px)",
-        borderRadius:99, boxShadow:"0 2px 10px rgba(0,0,0,0.14)",
-        border:"1px solid rgba(0,0,0,0.08)", padding:"3px 5px",
-      }}>
-        <button onClick={zoomOut} style={{
-          width:32, height:32, borderRadius:"50%", border:"none",
-          background:"transparent", cursor:"pointer",
-          fontSize:20, fontWeight:300, lineHeight:1,
-          color:"#475569", display:"flex", alignItems:"center", justifyContent:"center",
-          fontFamily:"inherit",
-        }}>−</button>
-        <span style={{fontSize:12,fontWeight:700,color:"#64748b",minWidth:38,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
-        <button onClick={zoomIn} style={{
-          width:32, height:32, borderRadius:"50%", border:"none",
-          background:"transparent", cursor:"pointer",
-          fontSize:20, fontWeight:300, lineHeight:1,
-          color:"#475569", display:"flex", alignItems:"center", justifyContent:"center",
-          fontFamily:"inherit",
-        }}>+</button>
-      </div>
     </div>
   );
 }
