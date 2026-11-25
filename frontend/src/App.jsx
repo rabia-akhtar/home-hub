@@ -1926,25 +1926,6 @@ function CozyScreensaver({ onDismiss }) {
   );
 }
 
-// ─── CHRISTMAS SNOW OVERLAY ──────────────────────────────────────────────────
-function XmasSnowOverlay() {
-  const flakes = useMemo(() => Array.from({length: 28}, () => ({
-    left:     Math.random() * 100,
-    size:     Math.random() * 3 + 2,
-    duration: Math.random() * 10 + 12,
-    delay:    Math.random() * 15,
-    opacity:  Math.random() * 0.35 + 0.1,
-  })), []);
-  useEffect(() => { injectCozyCss(); }, []);
-  return (
-    <div className="xmas-snow" style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:10,overflow:"hidden"}}>
-      {flakes.map((f,i) => (
-        <div key={i} style={{position:"absolute",left:f.left+'%',top:-8,width:f.size,height:f.size,borderRadius:"50%",background:"white",opacity:f.opacity,animation:`cozy-fall ${f.duration}s ${f.delay}s infinite linear`}}/>
-      ))}
-    </div>
-  );
-}
-
 // ─── HANDWRITING PANEL ───────────────────────────────────────────────────────
 // Pen ink capture shared by the handwriting panel and the home quick-add sheet.
 // Fingers/palms are ignored; mouse is allowed so it can be tested off-device.
@@ -2027,12 +2008,9 @@ function useInk(onPause) {
     const onRaw = e => handleMoveRef.current(e);
     if (raw) canvas.addEventListener('pointerrawupdate', onRaw);
 
-    // Falling snow forces full-screen repaints on the 4K panel; pause it while writing.
-    document.body.classList.add('inking');
     return () => {
       clearTimeout(pauseTimer.current);
       if (raw) canvas.removeEventListener('pointerrawupdate', onRaw);
-      document.body.classList.remove('inking');
     };
   }, []);
 
@@ -2863,14 +2841,12 @@ function AppInner() {
       {screensaver && (XMAS
         ? <CozyScreensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>
         : <Screensaver onDismiss={()=>{ setScreensaver(false); setTab("home"); resetIdle(); }}/>)}
-      {XMAS && <XmasSnowOverlay/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
         html, body { touch-action:none; -webkit-user-select:none; user-select:none; }
         input, textarea { user-select:text !important; -webkit-user-select:text !important; touch-action:auto !important; }
         body { background:${APP_BG}; overscroll-behavior:none; }
-        body.inking .xmas-snow { display:none; }
         ${XMAS_CSS}
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
