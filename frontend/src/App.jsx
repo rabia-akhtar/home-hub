@@ -1420,9 +1420,9 @@ function Toggle({ on, onToggle, disabled }) {
 
 const GROUP_META = [
   { id: 'living_room', label: 'Living Room' },
+  { id: 'christmas_tree', label: 'Christmas Tree' },
   { id: 'bedroom',     label: 'Bedroom'     },
   { id: 'kitchen',     label: 'Kitchen'     },
-  { id: 'christmas_tree', label: 'Christmas Tree' },
 ];
 
 function DeviceRow({ d, busy, onToggle }) {
