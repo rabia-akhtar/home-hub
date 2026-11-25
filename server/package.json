@@ -1,7 +1,7 @@
 {
   "name": "akhtar-tiedemann-hub-server",
   "version": "1.0.0",
-  "description": "Family hub backend — Kasa + weather + Todoist + Google Calendar",
+  "description": "Family hub backend — Kasa + weather + Google Sheets tasks + Google Calendar",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

@@ -114,15 +114,6 @@ function ensureRewards() {
 }
 ensureRewards();
 
-// Projects that count toward rewards
-const REWARD_PROJECTS  = ['chores','house items','cats'];
-const EXCLUDE_LABELS   = ['personal','exclude'];
-function countsForReward(projectName, labels) {
-  if (!REWARD_PROJECTS.includes((projectName||'').toLowerCase().trim())) return false;
-  if ((labels||[]).some(l => EXCLUDE_LABELS.includes(l.toLowerCase().trim()))) return false;
-  return true;
-}
-
 // ─── Kasa / Tapo KLAP protocol (EP25 + newer devices) ───────────────────────
 // EP25 uses KLAP over HTTP port 80 — the old tplink-smarthome-api (port 9999) won't work.
 // Requires: npm install tp-link-tapo-connect   in ~/home-hub/server/
@@ -449,39 +440,24 @@ app.get('/api/sun', async (req,res) => {
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// ─── Todoist — full two-way sync ──────────────────────────────────────────────
-const TODO_BASE = 'https://api.todoist.com/api/v1';
-const TODO_HDR = { Authorization:`Bearer ${process.env.TODOIST_TOKEN}`, 'Content-Type':'application/json' };
-const todoList = r => r.results || (Array.isArray(r) ? r : []);
+// ─── Tasks & groceries — Google Sheet "Tasks" tab ──────────────────────────────
+const { createTaskStore } = require('./sheetTasks');
+const taskStore = createTaskStore({
+  sheetsClient: () => sheetsClient(),
+  getSpreadsheetId: () => SPREADSHEET_ID,
+  onComplete: t => appendTaskHistoryRow({
+    completedAt: new Date().toISOString(),
+    title: t.content, project: t.project_name, who: t.who || '', points: '', task_id: t.id,
+  }),
+});
+setTimeout(() => taskStore.start(), 0);
 
-// GET /api/tasks — all tasks with project name
 app.get('/api/tasks', async (req,res) => {
-  try {
-    const [tasks,projects] = await Promise.all([
-      fetch(`${TODO_BASE}/tasks`,    {headers:TODO_HDR}).then(r=>r.json()),
-      fetch(`${TODO_BASE}/projects`, {headers:TODO_HDR}).then(r=>r.json()),
-    ]);
-    const pm = {};
-    todoList(projects).forEach(p=>{ pm[p.id]=p.name; });
-    const enriched = todoList(tasks).map(t=>({
-      ...t,
-      project_name: pm[t.project_id]||'Inbox',
-      counts_for_reward: countsForReward(pm[t.project_id]||'Inbox', t.labels) && !t.due?.is_recurring,
-      // REST API v1 uses assignee_id; frontend expects responsible_uid (Sync API field name)
-      responsible_uid: t.assignee_id || t.responsible_uid || null,
-      checked: t.is_completed || t.checked || false,
-    }));
-    res.json(enriched);
-  } catch(e) { res.status(500).json({error:e.message}); }
+  try { res.json(await taskStore.list()); }
+  catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// GET /api/projects
-app.get('/api/projects', async (req,res) => {
-  try {
-    const r = await fetch(`${TODO_BASE}/projects`,{headers:TODO_HDR}).then(r=>r.json());
-    res.json(todoList(r));
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
+app.get('/api/projects', (req,res) => res.json(taskStore.projects()));
 
 // ─── Recipes (Edamam) ────────────────────────────────────────────────────────
 const EDAMAM_ID  = process.env.EDAMAM_APP_ID;
@@ -524,135 +500,36 @@ app.post('/api/recipes/add-ingredients', async (req, res) => {
   try {
     const { ingredients, recipeName } = req.body;
     if (!ingredients?.length) return res.status(400).json({ error: 'No ingredients' });
-    // Find the Groceries project
-    const projects = await fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json());
-    const grocProj  = todoList(projects).find(p => p.name.toLowerCase() === 'groceries');
-    if (!grocProj) return res.status(404).json({ error: 'Groceries project not found in Todoist' });
-    // Create one task per ingredient (parallel)
-    await Promise.all(ingredients.map(line =>
-      fetch(`${TODO_BASE}/tasks`, {
-        method: 'POST', headers: TODO_HDR,
-        body: JSON.stringify({ content: line, project_id: grocProj.id, description: `From: ${recipeName}` }),
-      })
-    ));
-    res.json({ ok: true, added: ingredients.length, project: grocProj.name });
+    for (const line of ingredients) await taskStore.create({ content: line, project_id: 'groceries' });
+    res.json({ ok: true, added: ingredients.length, project: 'Groceries' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // POST /api/tasks — create
 app.post('/api/tasks', async (req,res) => {
-  try { res.json(await fetch(`${TODO_BASE}/tasks`,{method:'POST',headers:TODO_HDR,body:JSON.stringify(req.body)}).then(r=>r.json())); }
+  try { res.json(await taskStore.create(req.body)); }
   catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// POST /api/tasks/:id/close — complete + award points
+// POST /api/tasks/:id/close — mark done and log to Task History
 app.post('/api/tasks/:id/close', async (req,res) => {
-  try {
-    // Fetch task BEFORE closing so we can check is_recurring and labels server-side
-    let isRecurring = false;
-    let hasExcludeLabel = false;
-    try {
-      const taskData = await fetch(`${TODO_BASE}/tasks/${req.params.id}`,{headers:TODO_HDR}).then(r=>r.json());
-      isRecurring = !!(taskData?.due?.is_recurring);
-      hasExcludeLabel = (taskData?.labels||[]).some(l => EXCLUDE_LABELS.includes(l.toLowerCase().trim()));
-    } catch { isRecurring = !!req.body.is_recurring; }
-
-    await fetch(`${TODO_BASE}/tasks/${req.params.id}/close`,{method:'POST',headers:TODO_HDR});
-    const data = loadData();
-    if (req.body.counts_for_reward && !isRecurring && !hasExcludeLabel) {
-      const who = req.body.assignee;
-      // Append to Google Sheets "Task History" — source of truth for all points
-      appendTaskHistoryRow({
-        completedAt: new Date().toISOString(),
-        title:       req.body.title   || 'Task',
-        project:     req.body.project || '',
-        who,
-        points:     5,
-        todoist_id: req.params.id,
-      });
-    }
-    saveData(data);
-    // Points computed from sheet (small delay to let append land)
-    const newPts = await computePointsFromSheet();
-    res.json({ ok: true, points: { ...data, ...newPts } });
-  } catch(e) { res.status(500).json({error:e.message}); }
+  try { res.json({ ok: true, task: await taskStore.close(req.params.id, req.body?.assignee) }); }
+  catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// DELETE /api/tasks/:id
+// DELETE /api/tasks/:id — marks the row deleted (kept in the sheet)
 app.delete('/api/tasks/:id', async (req,res) => {
-  try {
-    await fetch(`${TODO_BASE}/tasks/${req.params.id}`,{method:'DELETE',headers:TODO_HDR});
-    res.json({ok:true});
-  } catch(e) { res.status(500).json({error:e.message}); }
+  try { await taskStore.remove(req.params.id); res.json({ok:true}); }
+  catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// PATCH /api/tasks/:id — update content/due
+// PATCH /api/tasks/:id — update content/due/list/assignee
 app.patch('/api/tasks/:id', async (req,res) => {
-  try {
-    const updated = await fetch(`${TODO_BASE}/tasks/${req.params.id}`,{method:'POST',headers:TODO_HDR,body:JSON.stringify(req.body)}).then(r=>r.json());
-    res.json(updated);
-  } catch(e) { res.status(500).json({error:e.message}); }
+  try { res.json(await taskStore.update(req.params.id, req.body)); }
+  catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// GET /api/users — current user + collaborators (for UID→person mapping)
-app.get('/api/users', async (req,res) => {
-  try {
-    const [me, projData] = await Promise.all([
-      fetch(`${TODO_BASE}/user`,{headers:TODO_HDR}).then(r=>r.json()),
-      fetch(`${TODO_BASE}/projects`,{headers:TODO_HDR}).then(r=>r.json()),
-    ]);
-    const shared = todoList(projData).filter(p=>p.is_shared);
-    const collabArrays = await Promise.all(
-      shared.map(p=>fetch(`${TODO_BASE}/projects/${p.id}/collaborators`,{headers:TODO_HDR}).then(r=>r.json()).catch(()=>({})))
-    );
-    const seen = {};
-    if(me.id) seen[me.id]={id:me.id,email:me.email,name:me.full_name};
-    collabArrays.forEach(c=>todoList(c).forEach(u=>{ if(u.id) seen[u.id]={id:u.id,email:u.email,name:u.full_name||u.name}; }));
-    res.json(Object.values(seen));
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-
-// ─── Points — derived from Task History sheet ─────────────────────────────────
-app.get('/api/points', async (req, res) => {
-  try {
-    const [data, computed] = await Promise.all([Promise.resolve(loadData()), computePointsFromSheet()]);
-    res.json({ ...data, ...computed });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Reset: append a negative correction row to the history sheet
-app.post('/api/points/reset', async (req, res) => {
-  try {
-    const who = req.body.who || 'all';
-    const computed = await computePointsFromSheet();
-    const toReset = (who === 'all') ? ['rabia', 'clare'] : [who];
-    for (const person of toReset) {
-      const bal = computed[`${person}_points`] || 0;
-      if (bal !== 0) {
-        await appendTaskHistoryRow({
-          completedAt: new Date().toISOString(),
-          title: '[Points Reset]', project: '', who: person, points: -bal, todoist_id: '',
-        });
-      }
-    }
-    const newPts = await computePointsFromSheet();
-    res.json({ ...loadData(), ...newPts });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Manual add: append a bonus row to the history sheet
-app.post('/api/points/add', async (req, res) => {
-  try {
-    const { who, amount } = req.body;
-    if (!who || !amount) return res.status(400).json({ error: 'Missing fields' });
-    await appendTaskHistoryRow({
-      completedAt: new Date().toISOString(),
-      title: '[Manual addition]', project: '', who, points: amount, todoist_id: '',
-    });
-    const newPts = await computePointsFromSheet();
-    res.json({ ...loadData(), ...newPts });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+app.get('/api/users', (req,res) => res.json(taskStore.users()));
 
 // ─── Rewards — list from Google Sheets "Rewards" tab ─────────────────────────
 let rewardsSheetCache = { data: null, ts: 0 };
@@ -698,7 +575,7 @@ async function getRewardsSheetId() {
 }
 
 // ─── Task History — Google Sheets "Task History" tab ─────────────────────────
-// Columns: A=Date  B=Title  C=Project  D=Who  E=Points  F=TodoistID
+// Columns: A=Date  B=Title  C=Project  D=Who  E=Points  F=TaskID
 const TASK_HISTORY_SHEET = 'Task History';
 let taskHistoryCache = { data: null, ts: 0 };
 
@@ -718,7 +595,7 @@ async function fetchTaskHistoryFromSheet() {
       project:     row[2] || '',
       who:         row[3] || '',
       points:      parseFloat(row[4]) || 5,
-      todoist_id:  row[5] || '',
+      task_id:  row[5] || '',
     }));
     taskHistoryCache = { data: history, ts: Date.now() };
     return history;
@@ -738,7 +615,7 @@ async function appendTaskHistoryRow(entry) {
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[
         entry.completedAt, entry.title, entry.project,
-        entry.who, entry.points, entry.todoist_id || '',
+        entry.who, entry.points, entry.task_id || '',
       ]] },
     });
   } catch(e) {
@@ -760,111 +637,6 @@ async function computePointsFromSheet() {
 
 // Server-side UID → 'rabia'|'clare' map (mirrors frontend uidMap logic)
 let serverUidMapCache = null;
-async function getServerUidMap() {
-  if (serverUidMapCache) return serverUidMapCache;
-  try {
-    const [me, projData] = await Promise.all([
-      fetch(`${TODO_BASE}/user`,     { headers: TODO_HDR }).then(r => r.json()),
-      fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json()),
-    ]);
-    const seen = {};
-    if (me.id) seen[me.id] = { id: me.id, email: me.email, name: me.full_name };
-    const shared = todoList(projData).filter(p => p.is_shared);
-    const collabArrays = await Promise.all(
-      shared.map(p =>
-        fetch(`${TODO_BASE}/projects/${p.id}/collaborators`, { headers: TODO_HDR })
-          .then(r => r.json()).catch(() => ({}))
-      )
-    );
-    collabArrays.forEach(c => todoList(c).forEach(u => {
-      if (u.id) seen[u.id] = { id: u.id, email: u.email, name: u.full_name || u.name };
-    }));
-    const map = {};
-    Object.values(seen).forEach(u => {
-      if      (/rabia/i.test(u.name||'') || /rabia/i.test(u.email||'')) map[u.id] = 'rabia';
-      else if (/clare/i.test(u.name||'') || /clare/i.test(u.email||'')) map[u.id] = 'clare';
-    });
-    serverUidMapCache = map;
-    setTimeout(() => { serverUidMapCache = null; }, 60 * 60 * 1000); // refresh hourly
-    return map;
-  } catch(e) {
-    console.warn('[UidMap] Failed:', e.message);
-    return serverUidMapCache || {};
-  }
-}
-
-// Periodic Todoist sync — picks up tasks completed outside the hub app
-// Periodic sync: GET /api/v1/tasks/completed/by_completion_date (correct REST API v1 endpoint)
-// Tracks last_sync_at in data.json; on each run fetches only new completions since then.
-async function syncCompletedTasks() {
-  const data = loadData();
-  const now  = new Date();
-  // Look back 10 min extra to cover any clock skew
-  const since = data.todoist_last_sync_at
-    ? new Date(new Date(data.todoist_last_sync_at).getTime() - 10 * 60 * 1000).toISOString()
-    : new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(); // first run: last 24 h
-  const until = now.toISOString();
-
-  try {
-    const [projectsRes, uidMap] = await Promise.all([
-      fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json()),
-      getServerUidMap(),
-    ]);
-    const pm = {};
-    todoList(projectsRes).forEach(p => { pm[p.id] = p.name; });
-
-    // Load existing tracked IDs to avoid double-counting
-    const existing   = await fetchTaskHistoryFromSheet();
-    const trackedIds = new Set(existing.map(h => h.todoist_id).filter(Boolean));
-
-    // Page through completed tasks in the window
-    let cursor = null;
-    let added  = 0;
-    while (true) {
-      const params = new URLSearchParams({ since, until, limit: '200' });
-      if (cursor) params.set('cursor', cursor);
-      const r = await fetch(`${TODO_BASE}/tasks/completed/by_completion_date?${params}`, { headers: TODO_HDR }).then(r => r.json());
-      const items = r.items || [];
-
-      for (const item of items) {
-        const itemId = String(item.id || '');
-        if (!itemId || trackedIds.has(itemId)) continue;
-
-        const projectName = pm[item.project_id] || 'Inbox';
-        if (!countsForReward(projectName, item.labels)) continue;
-        if (item.due?.is_recurring)        continue;
-
-        const who = uidMap[item.responsible_uid || item.completed_by_uid] || null;
-        if (!who) continue;
-
-        await appendTaskHistoryRow({
-          completedAt: item.completed_at || now.toISOString(),
-          title:       item.content || 'Task',
-          project:     projectName,
-          who,
-          points:      5,
-          todoist_id:  itemId,
-        });
-        trackedIds.add(itemId);
-        added++;
-      }
-
-      cursor = r.next_cursor || null;
-      if (!cursor) break;
-    }
-
-    // Save the sync timestamp
-    data.todoist_last_sync_at = now.toISOString();
-    saveData(data);
-
-    if (added > 0) console.log(`[Sync] Added ${added} task(s) to Task History from Todoist`);
-  } catch(e) {
-    console.error('[Sync] Error:', e.message);
-  }
-}
-// Run once on startup, then every 5 minutes
-setTimeout(syncCompletedTasks, 5000);
-setInterval(syncCompletedTasks, 5 * 60 * 1000);
 
 app.get('/api/rewards', async (req, res) => {
   const [{ rewards, error: sheetError }, data, task_history] = await Promise.all([
@@ -966,7 +738,7 @@ app.post('/api/rewards/redeem', async (req, res) => {
       project:     '',
       who,
       points:      -cost,
-      todoist_id:  '',
+      task_id:  '',
     });
     // Also keep in JSON for the redemption history display in the app
     const data = loadData();
@@ -1421,24 +1193,12 @@ app.post('/api/voice/execute', async (req, res) => {
 
   try {
     if (intent.action === 'add_grocery') {
-      const projects = await fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR }).then(r => r.json());
-      const grocProj = todoList(projects).find(p => p.name.toLowerCase() === 'groceries');
-      if (!grocProj) return res.status(404).json({ ok: false, message: 'Groceries project not found in Todoist' });
-      await fetch(`${TODO_BASE}/tasks`, {
-        method: 'POST', headers: TODO_HDR,
-        body: JSON.stringify({ content: intent.content, project_id: grocProj.id }),
-      });
+      await taskStore.create({ content: intent.content, project_id: 'groceries' });
       return res.json({ ok: true, message: `Added "${intent.content}" to Groceries` });
     }
 
     if (intent.action === 'add_task') {
-      const body = { content: intent.content };
-      if (intent.due)      body.due_string = intent.due;
-      if (intent.assignee) {
-        // find the collaborator and set responsible_uid if available
-        // for now just add as a plain task; assignee shown in content if needed
-      }
-      await fetch(`${TODO_BASE}/tasks`, { method: 'POST', headers: TODO_HDR, body: JSON.stringify(body) });
+      await taskStore.create({ content: intent.content, due_string: intent.due, assignee_id: intent.assignee });
       const extra = [intent.due && `due ${intent.due}`, intent.assignee && `for ${intent.assignee}`].filter(Boolean).join(', ');
       return res.json({ ok: true, message: `Added task "${intent.content}"${extra ? ` (${extra})` : ''}` });
     }
@@ -1676,17 +1436,6 @@ app.get('/api/debug/system', async (req, res) => {
   const data   = loadData();
   const hasGoogleTokens = !!(data.google_tokens?.access_token);
 
-  // Quick Todoist connectivity check
-  let todoistStatus = 'not_configured';
-  let todoistError  = null;
-  if (process.env.TODOIST_TOKEN) {
-    try {
-      const r = await fetch(`${TODO_BASE}/projects`, { headers: TODO_HDR });
-      todoistStatus = r.ok ? 'ok' : `http_${r.status}`;
-      if (!r.ok) todoistError = await r.text();
-    } catch (e) { todoistStatus = 'error'; todoistError = e.message; }
-  }
-
   // Quick weather check
   const lat = process.env.LAT || '40.7128', lon = process.env.LON || '-74.0060';
   let weatherStatus = 'unknown';
@@ -1727,11 +1476,7 @@ app.get('/api/debug/system', async (req, res) => {
       error: weatherError,
       location: { lat, lon, city: process.env.CITY || 'unknown' },
     },
-    todoist: {
-      status: todoistStatus,
-      token_set: !!process.env.TODOIST_TOKEN,
-      error: todoistError,
-    },
+    tasks_sheet: taskStore.status(),
     google_calendar: {
       status: hasGoogleTokens ? 'authenticated' : (process.env.GOOGLE_CLIENT_ID ? 'not_authenticated' : 'not_configured'),
       client_id_set: !!process.env.GOOGLE_CLIENT_ID,

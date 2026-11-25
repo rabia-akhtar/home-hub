@@ -11,7 +11,7 @@ A standalone family command center — no Home Assistant required.
 | Lights   | tplink-smarthome-api          | Local LAN control, no cloud        |
 | Weather  | Open-Meteo                    | Free, no API key needed            |
 | Sun/Moon | Open-Meteo + math             | Sunrise, sunset, moon phase        |
-| Tasks    | Todoist REST API v2           | Chores + gamified star points      |
+| Tasks    | Google Sheets ("Tasks" tab)   | Tasks, groceries, completion log   |
 | Calendar | Google Calendar API           | Rabia & Clare's calendars          |
 
 ---
@@ -52,9 +52,11 @@ Open it in a browser, or load `http://YOUR_LAN_IP:3000` on any tablet/phone on y
 
 ## API Keys & Credentials
 
-### Todoist
-1. Go to https://app.todoist.com/app/settings/integrations/developer
-2. Copy your API token → paste into `.env` as `TODOIST_TOKEN`
+### Tasks & groceries
+Stored in the household Google Sheet (same service account as Task History). The server
+creates a `Tasks` tab on first run with columns ID, Task, List, Who, Due, Status, Created,
+Completed. Rows can be edited directly in the sheet; the hub picks changes up within 30 s.
+Completed items are also appended to `Task History`.
 
 ### Google Calendar
 1. Go to https://console.cloud.google.com
@@ -82,15 +84,6 @@ Open-Meteo is completely free with no API key. Just set your `LAT`, `LON`, and `
 ```bash
 chromium-browser --kiosk --app=http://localhost:3000
 ```
-
----
-
-## Gamification
-
-- Completing a Todoist task via the Tasks tab awards **+5 stars** to the assignee
-- Points are stored in `server/data.json` (persists across restarts)
-- Hold the reset button on a score card to reset to zero
-- Milestones: ✨ 0–249 · ⭐ 250–499 · 🥇 500–749 · 🏆 750–1000
 
 ---
 

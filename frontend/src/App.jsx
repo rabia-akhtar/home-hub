@@ -173,7 +173,7 @@ function useHub() {
     loadWx(); loadSun(); loadProjs(); loadTasks(); loadCal(); loadUsers();
     const t1=setInterval(loadWx,    600000); // weather every 10 min
     const t2=setInterval(loadSun,   600000); // sunrise every 10 min
-    const t3=setInterval(loadTasks,  20000); // tasks every 20 s  (Sheets + Todoist)
+    const t3=setInterval(loadTasks,  20000); // tasks every 20 s
     const t4=setInterval(loadCal,    60000); // calendar every 1 min
     const t7=setInterval(loadProjs, 300000); // projects every 5 min (rarely change)
     return()=>{clearInterval(t1);clearInterval(t2);clearInterval(t3);clearInterval(t4);clearInterval(t7);};
@@ -241,14 +241,14 @@ function Header({ wx, sun, onStartScreensaver }) {
 
   const mobile = window.innerWidth < 700;
   return (
-    <div style={{ background:GRAD, padding: mobile ? "14px 16px 12px" : "22px 28px 18px", flexShrink:0,
+    <div style={{ background:GRAD, padding: mobile ? "calc(env(safe-area-inset-top, 0px) + 8px) 16px 10px" : "22px 28px 18px", flexShrink:0,
                   borderBottom:`3px solid ${HDR_BORDER}` }}>
       {/* Top row: clock + date | buttons */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:14 }}>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:11, fontWeight:800, color:HDR_MUTED, letterSpacing:3, textTransform:"uppercase" }}>Clarabiner</div>
-          <div style={{ fontSize: mobile ? 40 : 56, fontWeight:700, color:HDR_TEXT, lineHeight:1, letterSpacing:-2, marginTop:6, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{fmtTime(now)}</div>
-          <div style={{ fontSize: mobile ? 16 : 20, fontWeight:600, color:HDR_TEXT, opacity:0.85, marginTop:6, whiteSpace:"nowrap" }}>{fmtDate(now)}</div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom: mobile ? 8 : 14 }}>
+        <div style={{ minWidth:0, display: mobile ? "flex" : "block", alignItems:"baseline", gap:10 }}>
+          {!mobile && <div style={{ fontSize:11, fontWeight:800, color:HDR_MUTED, letterSpacing:3, textTransform:"uppercase" }}>Clarabiner</div>}
+          <div style={{ fontSize: mobile ? 30 : 56, fontWeight:700, color:HDR_TEXT, lineHeight:1, letterSpacing: mobile ? -1 : -2, marginTop: mobile ? 0 : 6, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{fmtTime(now)}</div>
+          <div style={{ fontSize: mobile ? 14 : 20, fontWeight:600, color:HDR_TEXT, opacity:0.85, marginTop: mobile ? 0 : 6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{fmtDate(now)}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
           {!mobile && onStartScreensaver && (
@@ -545,14 +545,10 @@ function HomePing() {
 // ─── HOME QUICK-ADD SHEET ────────────────────────────────────────────────────
 function QuickAddSheet({ projs, uidMap, onAdd, onClose }) {
   const groceriesProj = projs.find(p => p.name.toLowerCase() === "groceries");
-  const rabiaProj     = projs.find(p => p.name.toLowerCase() === "rabia's personal");
-  // Todoist only allows assignees in shared projects, so Clare's items go to Chores.
-  const choresProj    = projs.find(p => p.name.toLowerCase() === "chores");
-  const clareUid      = Object.keys(uidMap || {}).find(k => uidMap[k] === "clare");
   const dests = [
     { id:"task",    label:"Task",    color:ACCENT2 },
-    rabiaProj     && { id:"rabia",   label:"Rabia",   color:RABIA.color },
-    choresProj && clareUid && { id:"clare", label:"Clare", color:CLARE.color },
+    { id:"rabia",   label:"Rabia",   color:RABIA.color },
+    { id:"clare",   label:"Clare",   color:CLARE.color },
     groceriesProj && { id:"grocery", label:"Grocery", color:GROCERY },
   ].filter(Boolean);
 
@@ -588,8 +584,7 @@ function QuickAddSheet({ projs, uidMap, onAdd, onClose }) {
     if (dest === "grocery") body.project_id = groceriesProj.id;
     else {
       body.due_string = "today";
-      if (dest === "rabia") body.project_id = rabiaProj.id;
-      if (dest === "clare") { body.project_id = choresProj.id; body.assignee_id = clareUid; }
+      if (dest === "rabia" || dest === "clare") body.assignee_id = dest;
     }
     setSaving(true);
     await onAdd(body);
@@ -998,7 +993,7 @@ function TasksTab({ tasks, projs, onComplete, onDelete, onAdd, reload, uidMap })
       })}
 
       {projs.length===0 && (
-        <div style={{...CARD,padding:"32px 24px",textAlign:"center",color:"#94a3b8",fontSize:15}}>Loading projects from Todoist…</div>
+        <div style={{...CARD,padding:"32px 24px",textAlign:"center",color:"#94a3b8",fontSize:15}}>Loading lists…</div>
       )}
     </div>
   );
@@ -1538,7 +1533,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
 
   if(!groceriesProj) return (
     <div style={{...CARD,padding:"32px 24px",textAlign:"center",color:"#94a3b8",fontSize:14}}>
-      No "Groceries" project found in Todoist. Create one to get started.
+      Groceries list not available — check the Tasks sheet connection.
     </div>
   );
 
@@ -1594,57 +1589,6 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
   );
 }
 
-// ─── UPCOMING TAB ────────────────────────────────────────────────────────────
-function UpcomingTab({ tasks, projs, uidMap, onCompleteTask, onDeleteTask }) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const groceriesProj     = projs.find(p=>p.name.toLowerCase()==="groceries");
-  const rabiaPersonalProj = projs.find(p=>p.name.toLowerCase()==="rabia's personal");
-
-  const weekEnd = new Date(today); weekEnd.setDate(today.getDate()+6);
-  const weekTasks = tasks.filter(t=>{
-    if(!t.due?.date||t.checked) return false;
-    if(t.project_id===groceriesProj?.id) return false;
-    if(t.due?.is_recurring) return false;
-    const d=new Date(t.due.date+'T12:00:00');
-    return d>today && d<=weekEnd;
-  }).sort((a,b)=>a.due.date.localeCompare(b.due.date));
-
-  const weekRabia  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="rabia"||t.project_id===rabiaPersonalProj?.id; });
-  const weekClare  = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return a==="clare"; });
-  const weekFamily = weekTasks.filter(t=>{ const a=uidMap?.[t.responsible_uid]; return isFamily(t)||(!a&&t.project_id!==rabiaPersonalProj?.id); });
-
-  const Col = ({person, color, wt}) => (
-    <div style={{...CARD,overflow:"hidden"}}>
-      <div style={{padding:"14px 18px",borderBottom:"1px solid #f1f5f9",background:`${color}10`,display:"flex",alignItems:"center",gap:10}}>
-        {person
-          ? <Av person={person} size={28}/>
-          : <div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>F</div>
-        }
-        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{person?.name||"Family"}</div>
-        <span style={{fontSize:12,color:"#94a3b8"}}>{wt.length} task{wt.length!==1?"s":""}</span>
-      </div>
-      {wt.length===0
-        ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>Nothing this week</div>
-        : wt.map(t=>(
-            <HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} onDelete={onDeleteTask} uidMap={uidMap}/>
-          ))
-      }
-    </div>
-  );
-
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase",paddingLeft:4}}>
-        Next 7 days · {weekTasks.length} task{weekTasks.length!==1?"s":""}
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <Col person={RABIA}  color={RABIA.color}  wt={weekRabia}/>
-        <Col person={CLARE}  color={CLARE.color}  wt={weekClare}/>
-        <Col person={null}   color="#6366f1"       wt={weekFamily}/>
-      </div>
-    </div>
-  );
-}
 
 // ─── RECIPES TAB ─────────────────────────────────────────────────────────────
 const CUISINE_COLORS = {
@@ -2540,7 +2484,7 @@ function DebugTab() {
   if (error)   return <div style={{padding:40,textAlign:"center",color:"#ef4444",fontSize:14}}>Error: {error}</div>;
   if (!data)   return null;
 
-  const { lights, motion, weather, todoist, google_calendar: gcal, pushover, env } = data;
+  const { lights, motion, weather, tasks_sheet: tasksSheet, google_calendar: gcal, pushover, env } = data;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -2604,12 +2548,12 @@ function DebugTab() {
           )}
         </Section>
 
-        {/* Todoist */}
-        <Section title="Todoist" color="#10b981">
-          <Row label="Token" value={todoist.token_set?"Set in .env ✓":"Missing TODOIST_TOKEN in .env"} status={todoist.token_set?"ok":"error"}/>
-          <Row label="API connection" value={todoist.status} status={statusColor(todoist.status)}/>
-          {todoist.error && (
-            <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",wordBreak:"break-all"}}>{todoist.error}</div>
+        {/* Tasks sheet */}
+        <Section title="Tasks (Google Sheet)" color="#10b981">
+          <Row label="Open items" value={tasksSheet?.count ?? "–"} status={tasksSheet?.error ? "error" : "ok"}/>
+          <Row label="Last loaded" value={tasksSheet?.loadedAt ? new Date(tasksSheet.loadedAt).toLocaleTimeString() : "never"} status={tasksSheet?.loadedAt ? "ok" : "error"}/>
+          {tasksSheet?.error && (
+            <div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#ef4444",wordBreak:"break-all"}}>{tasksSheet.error}</div>
           )}
         </Section>
 
@@ -2807,7 +2751,6 @@ const NAV = [
   { id:"lights",    label:"Lights",    color:XMAS?HOLLY.gold:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"weather",   label:"Weather",   color:XMAS?ACCENT:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
   { id:"groceries", label:"Groceries", color:GROCERY, icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"upcoming",  label:"Upcoming",  color:XMAS?ACCENT3:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"calendar",  label:"Calendar",  color:XMAS?ACCENT:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
@@ -2885,11 +2828,7 @@ function AppInner() {
   // Handles BOTH touch events (proper touch screens) AND mouse-drag events
   const scrollRef = useRef(null);
 
-  const uidMap = {};
-  hub.users.forEach(u=>{
-    if(u.email==='rabia1082@gmail.com')           uidMap[u.id]='rabia';
-    if(u.email==='clare.a.tiedemann@gmail.com')   uidMap[u.id]='clare';
-  });
+  const uidMap = { rabia:'rabia', clare:'clare' };
 
   // Completes/deletes are held for a few seconds so they can be undone; the task is hidden meanwhile.
   const UNDO_MS = 5000;
@@ -3060,7 +2999,6 @@ function AppInner() {
             </div>
           )}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
-          {tab==="upcoming"  && <UpcomingTab tasks={visibleTasks} projs={hub.projs} uidMap={uidMap} onCompleteTask={handleCompleteTask} onDeleteTask={handleDeleteTask}/>}
           {tab==="groceries" && <GroceriesTab tasks={visibleTasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
           {tab==="tasks"     && <TasksTab tasks={visibleTasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
@@ -3087,8 +3025,8 @@ function AppInner() {
       </div>
       )}
 
-      {/* Virtual keyboard — always on top, rendered by Chromium itself */}
-      <VirtualKeyboard />
+      {/* Virtual keyboard for the kiosk only — phones have their own */}
+      {!isMobile && <VirtualKeyboard />}
 
       {/* Zoom control — floating bottom-right */}
       <div style={{
