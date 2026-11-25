@@ -302,7 +302,76 @@ function Header({ wx, sun, onStartScreensaver }) {
 }
 
 // ─── HOME DAILY TASK ROW ──────────────────────────────────────────────────────
-function HomeDailyTaskRow({ task, onComplete, uidMap }) {
+// ─── SWIPE ROW ───────────────────────────────────────────────────────────────
+// Swipe right = done, swipe left = delete. touch-action:pan-y keeps vertical scrolling native;
+// a horizontal lock only engages once the finger clearly moves sideways.
+function SwipeRow({ children, onSwipeRight, onSwipeLeft }) {
+  const ref   = useRef(null);
+  const start = useRef(null);
+  const dxRef = useRef(0);
+  const moved = useRef(false);
+  const [dx, setDxState] = useState(0);
+  const [anim, setAnim]  = useState(false);
+  const setDx = v => { dxRef.current = v; setDxState(v); };
+
+  const onPointerDown = e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, lock: null };
+    moved.current = false;
+    setAnim(false);
+  };
+  const onPointerMove = e => {
+    const s = start.current;
+    if (!s || e.pointerId !== s.id) return;
+    const ddx = e.clientX - s.x, ddy = e.clientY - s.y;
+    if (!s.lock) {
+      if (Math.abs(ddx) > 12 && Math.abs(ddx) > Math.abs(ddy) * 1.4) {
+        s.lock = 'x';
+        try { ref.current.setPointerCapture(e.pointerId); } catch {}
+      } else if (Math.abs(ddy) > 12) s.lock = 'y';
+    }
+    if (s.lock !== 'x') return;
+    moved.current = true;
+    let v = ddx;
+    if ((v > 0 && !onSwipeRight) || (v < 0 && !onSwipeLeft)) v *= 0.15;
+    setDx(v);
+  };
+  const onPointerUp = () => {
+    const s = start.current;
+    start.current = null;
+    if (!s || s.lock !== 'x') return;
+    const w = ref.current.offsetWidth, v = dxRef.current, th = Math.min(110, w * 0.3);
+    setAnim(true);
+    if (v > th && onSwipeRight)      { setDx(w);  setTimeout(onSwipeRight, 180); }
+    else if (v < -th && onSwipeLeft) { setDx(-w); setTimeout(onSwipeLeft, 180); }
+    else setDx(0);
+  };
+  const onClickCapture = e => {
+    if (moved.current) { e.stopPropagation(); e.preventDefault(); moved.current = false; }
+  };
+
+  const armed = Math.abs(dx) > Math.min(110, (ref.current?.offsetWidth || 400) * 0.3);
+  return (
+    <div ref={ref} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+      onClickCapture={onClickCapture}
+      style={{ position:'relative', overflow:'hidden', touchAction:'pan-y', userSelect:'none', WebkitUserSelect:'none' }}>
+      {dx !== 0 && (
+        <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center',
+          justifyContent: dx > 0 ? 'flex-start' : 'flex-end', padding:'0 24px', gap:8,
+          background: dx > 0 ? (armed ? GROCERY : `${GROCERY}AA`) : (armed ? '#B3261E' : '#B3261EAA'),
+          color:'#fff', fontWeight:800, fontSize:15 }}>
+          {dx > 0 ? '✓ Done' : 'Delete 🗑'}
+        </div>
+      )}
+      <div style={{ position:'relative', transform:`translateX(${dx}px)`, transition: anim ? 'transform 0.18s ease-out' : 'none',
+        background: CARD.background }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function HomeDailyTaskRow({ task, onComplete, onDelete, uidMap }) {
   const mapped = uidMap?.[task.responsible_uid] || "";
   const [assignee, setAssignee] = useState(mapped);
   const [done,     setDone]     = useState(false);
@@ -316,6 +385,7 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
   const due = fmtDue(task.due?.date);
 
   return (
+    <SwipeRow onSwipeRight={complete} onSwipeLeft={onDelete && (()=>onDelete(task))}>
     <div style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:"1px solid #f8fafc",gap:14,opacity:done?0.35:1,transition:"opacity 0.3s"}}>
       <button onClick={complete}
         style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${GROCERY}`,background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -338,6 +408,7 @@ function HomeDailyTaskRow({ task, onComplete, uidMap }) {
         ))}
       </div>
     </div>
+    </SwipeRow>
   );
 }
 
@@ -614,7 +685,7 @@ function QuickAddSheet({ projs, uidMap, onAdd, onClose }) {
   );
 }
 
-function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wide, uidMap, onAddTask, onAddGrocery }) {
+function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onDeleteTask, onSetTab, wide, uidMap, onAddTask }) {
   const today = new Date(); today.setHours(0,0,0,0);
   const [quickAdd, setQuickAdd] = useState(false);
   const todayStr = today.toISOString().slice(0,10);
@@ -687,7 +758,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
               <div style={{fontSize:12,fontWeight:700,color:"#ef4444"}}>Overdue</div>
               <span style={{fontSize:11,color:"#fca5a8",marginLeft:2}}>{myOverdue.length}</span>
             </div>
-            {myOverdue.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+            {myOverdue.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} onDelete={onDeleteTask} uidMap={uidMap}/>)}
           </div>
         )}
 
@@ -699,7 +770,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
               <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
               <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{myTasks.length}</span>
             </div>
-            {myTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+            {myTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} onDelete={onDeleteTask} uidMap={uidMap}/>)}
           </div>
         )}
 
@@ -711,7 +782,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
               <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Personal</div>
               <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{personalTasks.length}</span>
             </div>
-            {personalTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+            {personalTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} onDelete={onDeleteTask} uidMap={uidMap}/>)}
           </div>
         )}
 
@@ -768,7 +839,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
             <div style={{fontSize:12,fontWeight:700,color:"#ef4444"}}>Overdue</div>
             <span style={{fontSize:11,color:"#fca5a8",marginLeft:2}}>{overdueFamily.length}</span>
           </div>
-          {overdueFamily.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+          {overdueFamily.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} onDelete={onDeleteTask} uidMap={uidMap}/>)}
         </div>
       )}
       {familyTasks.length>0 && (
@@ -778,7 +849,7 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
             <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>Due Today</div>
             <span style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{familyTasks.length}</span>
           </div>
-          {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>)}
+          {familyTasks.map(t=><HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} onDelete={onDeleteTask} uidMap={uidMap}/>)}
         </div>
       )}
     </div>
@@ -801,11 +872,13 @@ function HomeTab({ evts, tasks, projs, wx, authOk, onCompleteTask, onSetTab, wid
       {groceryTasks.length===0
         ? <div style={{padding:"14px 18px",fontSize:13,color:"#94a3b8"}}>All clear! 🛒</div>
         : groceryTasks.slice(0,8).map((t,i)=>(
-          <div key={t.id} onClick={()=>onCompleteTask(t, "")}
+          <SwipeRow key={t.id} onSwipeRight={()=>onCompleteTask(t, "")} onSwipeLeft={()=>onDeleteTask(t)}>
+          <div onClick={()=>onCompleteTask(t, "")}
             style={{display:"flex",alignItems:"center",padding:"0 18px",minHeight:56,borderBottom:i<Math.min(groceryTasks.length,8)-1?"1px solid #f8fafc":"none",gap:14,cursor:"pointer"}}>
             <div style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${GROCERY}`,flexShrink:0}}/>
             <div style={{fontSize:14,color:"#1e293b",fontWeight:500}}>{t.content}</div>
           </div>
+          </SwipeRow>
         ))
       }
       {groceryTasks.length>8 && <div style={{padding:"10px 18px",fontSize:12,color:"#94a3b8"}}>+{groceryTasks.length-8} more items</div>}
@@ -945,6 +1018,7 @@ function TaskRow({ task, projColor, onComplete, onDelete, uidMap }) {
   const due = fmtDue(task.due?.date);
 
   return (
+    <SwipeRow onSwipeRight={complete} onSwipeLeft={()=>onDelete(task)}>
     <div style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:"1px solid #f8fafc",gap:14,opacity:done?0.35:1,transition:"opacity 0.3s"}}>
       <button onClick={complete} style={{width:26,height:26,borderRadius:"50%",border:`2.5px solid ${projColor}`,background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
         {done && <div style={{width:10,height:10,borderRadius:"50%",background:projColor}}/>}
@@ -961,6 +1035,7 @@ function TaskRow({ task, projColor, onComplete, onDelete, uidMap }) {
         <button onClick={()=>onDelete(task)} style={{width:28,height:28,borderRadius:"50%",border:"1px solid #fee2e2",background:"#fff5f5",color:"#ef4444",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>×</button>
       </div>
     </div>
+    </SwipeRow>
   );
 }
 
@@ -1504,13 +1579,15 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
           </div>
         )}
         {groceryTasks.map((t,i)=>(
-          <div key={t.id} style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:i<groceryTasks.length-1?"1px solid #f1f5f9":"none",gap:14}}>
+          <SwipeRow key={t.id} onSwipeRight={()=>onComplete(t,"",false)} onSwipeLeft={()=>onDelete(t)}>
+          <div style={{display:"flex",alignItems:"center",padding:"0 20px",minHeight:60,borderBottom:i<groceryTasks.length-1?"1px solid #f1f5f9":"none",gap:14}}>
             <button onClick={()=>onComplete(t,"",false)}
               style={{width:26,height:26,borderRadius:6,border:`2px solid ${GROCERY}`,background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
             </button>
             <div style={{flex:1,fontSize:15,color:"#1e293b",fontWeight:500}}>{t.content}</div>
             <button onClick={()=>onDelete(t)} style={{width:28,height:28,borderRadius:"50%",border:"1px solid #fee2e2",background:"#fff5f5",color:"#ef4444",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>×</button>
           </div>
+          </SwipeRow>
         ))}
       </div>
     </div>
@@ -1518,7 +1595,7 @@ function GroceriesTab({ tasks, projs, onComplete, onDelete, onAdd }) {
 }
 
 // ─── UPCOMING TAB ────────────────────────────────────────────────────────────
-function UpcomingTab({ tasks, projs, uidMap, onCompleteTask }) {
+function UpcomingTab({ tasks, projs, uidMap, onCompleteTask, onDeleteTask }) {
   const today = new Date(); today.setHours(0,0,0,0);
   const groceriesProj     = projs.find(p=>p.name.toLowerCase()==="groceries");
   const rabiaPersonalProj = projs.find(p=>p.name.toLowerCase()==="rabia's personal");
@@ -1549,7 +1626,7 @@ function UpcomingTab({ tasks, projs, uidMap, onCompleteTask }) {
       {wt.length===0
         ? <div style={{padding:"20px",textAlign:"center",fontSize:13,color:"#94a3b8"}}>Nothing this week</div>
         : wt.map(t=>(
-            <HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} uidMap={uidMap}/>
+            <HomeDailyTaskRow key={t.id} task={t} onComplete={onCompleteTask} onDelete={onDeleteTask} uidMap={uidMap}/>
           ))
       }
     </div>
@@ -2726,11 +2803,11 @@ function FindMyTab() {
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV = [
   { id:"home",      label:"Home",      color:XMAS?ACCENT2:"#f472b6", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
-  { id:"weather",   label:"Weather",   color:XMAS?ACCENT:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"upcoming",  label:"Upcoming",  color:XMAS?ACCENT3:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { id:"groceries", label:"Groceries", color:GROCERY, icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
-  { id:"lights",    label:"Lights",    color:XMAS?HOLLY.gold:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"tasks",     label:"Tasks",     color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="13" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5"/><circle cx="6" cy="9" r="1.2" fill="currentColor"/><circle cx="6" cy="13" r="1.2" fill="currentColor"/></svg> },
+  { id:"lights",    label:"Lights",    color:XMAS?HOLLY.gold:"#fbbf24", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.7 2 6 4.7 6 8c0 2.5 1.4 4.7 3.5 5.9V18h5v-4.1C16.6 12.7 18 10.5 18 8c0-3.3-2.7-6-6-6z" stroke="currentColor" strokeWidth="1.8"/><line x1="9.5" y1="18" x2="14.5" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10.5" y1="21" x2="13.5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:"weather",   label:"Weather",   color:XMAS?ACCENT:"#0ea5e9", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="19" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M7 18c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"groceries", label:"Groceries", color:GROCERY, icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.8"/><path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { id:"upcoming",  label:"Upcoming",  color:XMAS?ACCENT3:"#6366f1", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="18" x2="13" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"calendar",  label:"Calendar",  color:XMAS?ACCENT:"#38bdf8", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { id:"budget",    label:"Budget",    color:"#10b981", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="15" r="1.5" fill="currentColor"/><line x1="11" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { id:"findmy",    label:"Find My",   color:"#34d399", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2C7.6 2 4 5.6 4 10c0 5.4 8 12 8 12s8-6.6 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg> },
@@ -2814,18 +2891,87 @@ function AppInner() {
     if(u.email==='clare.a.tiedemann@gmail.com')   uidMap[u.id]='clare';
   });
 
-  const handleCompleteTask = async (task, who) => {
-    hub.setTasks(ts=>ts.filter(t=>t.id!==task.id));
-    await fetch(`${API}/tasks/${task.id}/close`,{
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({assignee:who, is_recurring:!!task.due?.is_recurring, title:task.content, project:task.project_name||''}),
-    }).then(r=>r.json());
-  };
+  // Completes/deletes are held for a few seconds so they can be undone; the task is hidden meanwhile.
+  const UNDO_MS = 5000;
+  const pendingRef = useRef(new Map());          // task id -> { timer, run }
+  const [pendingIds, setPendingIds] = useState(() => new Set());
+  const [undoToast, setUndoToast]   = useState(null); // { id, text }
+  const visibleTasks = useMemo(() => hub.tasks.filter(t => !pendingIds.has(t.id)), [hub.tasks, pendingIds]);
 
-  const handleDeleteTask = async task => {
-    hub.setTasks(ts=>ts.filter(t=>t.id!==task.id));
-    await fetch(`${API}/tasks/${task.id}`,{method:"DELETE"});
+  const settle = id => {
+    pendingRef.current.delete(id);
+    setPendingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
   };
+  const deferTaskAction = (task, text, request) => {
+    const prior = pendingRef.current.get(task.id);
+    if (prior) return;
+    const run = async () => {
+      clearTimeout(pendingRef.current.get(task.id)?.timer);
+      try { await request(); hub.setTasks(ts => ts.filter(t => t.id !== task.id)); } catch {}
+      settle(task.id);
+      setUndoToast(t => (t?.id === task.id ? null : t));
+    };
+    pendingRef.current.set(task.id, { timer: setTimeout(run, UNDO_MS), run });
+    setPendingIds(prev => new Set(prev).add(task.id));
+    setUndoToast({ id: task.id, text });
+  };
+  const undoTaskAction = id => {
+    clearTimeout(pendingRef.current.get(id)?.timer);
+    settle(id);
+    setUndoToast(null);
+  };
+  // Don't lose a pending action if the kiosk reloads for a new deploy.
+  useEffect(() => {
+    const flush = () => pendingRef.current.forEach(p => p.run());
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, []);
+
+  const handleCompleteTask = (task, who) => deferTaskAction(task, `Done: ${task.content}`, () =>
+    fetch(`${API}/tasks/${task.id}/close`, {
+      method:"POST", headers:{"Content-Type":"application/json"}, keepalive:true,
+      body:JSON.stringify({assignee:who, is_recurring:!!task.due?.is_recurring, title:task.content, project:task.project_name||''}),
+    }));
+
+  const handleDeleteTask = task => deferTaskAction(task, `Deleted: ${task.content}`, () =>
+    fetch(`${API}/tasks/${task.id}`, { method:"DELETE", keepalive:true }));
+
+  // ── Pull to refresh (touch, at top of the scroll area) ──
+  const [pull, setPull] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const reloadRef = useRef(hub.reload);
+  reloadRef.current = hub.reload;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let startY = null, dist = 0;
+    const onStart = e => { startY = el.scrollTop <= 0 ? e.touches[0].clientY : null; dist = 0; };
+    const onMove  = e => {
+      if (startY === null) return;
+      dist = Math.max(0, Math.min(110, (e.touches[0].clientY - startY) * 0.5));
+      setPull(dist);
+    };
+    const onEnd = async () => {
+      if (startY === null) return;
+      startY = null;
+      if (dist >= 70) {
+        setRefreshing(true);
+        await Promise.allSettled(Object.values(reloadRef.current).map(f => f()));
+        setRefreshing(false);
+      }
+      setPull(0);
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove',  onMove,  { passive: true });
+    el.addEventListener('touchend',   onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove',  onMove);
+      el.removeEventListener('touchend',   onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, []);
 
   const handleAddTask = async body => {
     await fetch(`${API}/tasks`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -2847,6 +2993,7 @@ function AppInner() {
         html, body { touch-action:none; -webkit-user-select:none; user-select:none; }
         input, textarea { user-select:text !important; -webkit-user-select:text !important; touch-action:auto !important; }
         body { background:${APP_BG}; overscroll-behavior:none; }
+        * { -webkit-tap-highlight-color: transparent; }
         ${XMAS_CSS}
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
@@ -2893,11 +3040,29 @@ function AppInner() {
           ref={scrollRef}
           style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: wide ? "24px 28px 28px" : "16px 16px 100px" }}
         >
-          {tab==="home"      && <HomeTab evts={hub.evts} tasks={hub.tasks} projs={hub.projs} wx={hub.wx} authOk={hub.authOk} onCompleteTask={handleCompleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap} onAddTask={handleAddTask}/>}
+          {(pull > 0 || refreshing) && (
+            <div style={{ height: refreshing ? 48 : pull, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden",
+              fontSize:13, fontWeight:700, color: XMAS ? HOLLY.fir : "#64748b", transition: pull ? "none" : "height 0.2s" }}>
+              {refreshing ? "Refreshing…" : pull >= 70 ? "↻ Release to refresh" : "↓ Pull to refresh"}
+            </div>
+          )}
+          {tab==="home"      && <HomeTab evts={hub.evts} tasks={visibleTasks} projs={hub.projs} wx={hub.wx} authOk={hub.authOk} onCompleteTask={handleCompleteTask} onDeleteTask={handleDeleteTask} onSetTab={setTab} wide={wide} uidMap={uidMap} onAddTask={handleAddTask}/>}
+          {undoToast && (
+            <div key={undoToast.id} style={{ position:"fixed", left:"50%", bottom:24, transform:"translateX(-50%)", zIndex:900,
+              display:"flex", alignItems:"center", gap:16, padding:"12px 12px 12px 20px", borderRadius:16, maxWidth:"min(560px, 92vw)",
+              background: XMAS ? HOLLY.ink : "#1e293b", color:"#fff", boxShadow:"0 8px 30px rgba(0,0,0,0.3)" }}>
+              <span style={{ fontSize:14, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{undoToast.text}</span>
+              <button onClick={() => undoTaskAction(undoToast.id)}
+                style={{ flexShrink:0, padding:"10px 18px", minHeight:44, borderRadius:12, border:"none", fontFamily:"inherit", fontSize:14, fontWeight:800, cursor:"pointer",
+                  background: XMAS ? HOLLY.gold : "#fbbf24", color: XMAS ? HOLLY.ink : "#1e293b" }}>
+                Undo
+              </button>
+            </div>
+          )}
           {tab==="weather"   && <WeatherTab wx={hub.wx} sun={hub.sun}/>}
-          {tab==="upcoming"  && <UpcomingTab tasks={hub.tasks} projs={hub.projs} uidMap={uidMap} onCompleteTask={handleCompleteTask}/>}
-          {tab==="groceries" && <GroceriesTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
-          {tab==="tasks"     && <TasksTab tasks={hub.tasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
+          {tab==="upcoming"  && <UpcomingTab tasks={visibleTasks} projs={hub.projs} uidMap={uidMap} onCompleteTask={handleCompleteTask} onDeleteTask={handleDeleteTask}/>}
+          {tab==="groceries" && <GroceriesTab tasks={visibleTasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask}/>}
+          {tab==="tasks"     && <TasksTab tasks={visibleTasks} projs={hub.projs} onComplete={handleCompleteTask} onDelete={handleDeleteTask} onAdd={handleAddTask} reload={hub.reload} uidMap={uidMap}/>}
           {tab==="calendar"  && <CalendarTab evts={hub.evts} authOk={hub.authOk} reload={hub.reload}/>}
           {tab==="lights"    && <LightsTab/>}
           {tab==="budget"    && <BudgetTab/>}
