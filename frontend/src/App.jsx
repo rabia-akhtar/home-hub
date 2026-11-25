@@ -346,14 +346,15 @@ function HomeLights() {
   const GROUPS = [
     { key: 'living', ids: ['living_room', 'kitchen', 'dining_room'], label: 'Living Area' },
     { key: 'bedroom', ids: ['bedroom'],               label: 'Bedroom'      },
+    { key: 'tree',    ids: ['christmas_tree'],        label: 'Tree', tree: true },
   ];
-  const [state, setState] = useState({ living: null, bedroom: null });
+  const [state, setState] = useState({ living: null, bedroom: null, tree: null });
 
   const load = useCallback(async () => {
     try {
       const devices = await fetch(`${API}/lights`).then(r => r.json());
       if (!Array.isArray(devices)) return;
-      const next = { living: null, bedroom: null };
+      const next = { living: null, bedroom: null, tree: null };
       GROUPS.forEach(({ key, ids }) => {
         const grp = devices.filter(d => ids.includes(d.group) && !d.unreachable);
         if (grp.length) next[key] = grp.some(d => d.on);
@@ -377,8 +378,25 @@ function HomeLights() {
 
   return (
     <div style={{ display:'flex', gap:10 }}>
-      {GROUPS.map(({ key, ids, label }) => {
+      {GROUPS.filter(g => !g.tree || XMAS || state.tree !== null).map(({ key, ids, label, tree }) => {
         const on = state[key];
+        if (tree) return (
+          <button key={key} onClick={() => toggle(key, ids)} title="Christmas tree"
+            style={{ flex:'0 0 auto', minWidth:110, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+              padding:'14px 16px', borderRadius:16, cursor:'pointer', fontFamily:'inherit', fontSize:14, fontWeight:700, transition:'all 0.15s',
+              background: on ? HOLLY.pine : (XMAS ? HOLLY.ink : '#fff'),
+              border: `2px solid ${on ? HOLLY.gold : (XMAS ? HOLLY.gold : '#e2e8f0')}`,
+              boxShadow: on ? '0 0 0 3px rgba(203,160,82,0.35), 0 4px 16px rgba(19,61,48,0.45)' : '0 2px 6px rgba(0,0,0,0.07)',
+              color: on || XMAS ? HOLLY.cream : '#475569' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2l4 6h-2.5l4 5.5H15l4.5 6h-15L9 13.5H6.5l4-5.5H8z" fill={on ? '#3E7A57' : 'none'}
+                stroke={on ? HOLLY.gold : (XMAS ? HOLLY.gold : '#94a3b8')} strokeWidth="1.6" strokeLinejoin="round"/>
+              <line x1="12" y1="19.5" x2="12" y2="22" stroke={on ? HOLLY.gold : (XMAS ? HOLLY.gold : '#94a3b8')} strokeWidth="2" strokeLinecap="round"/>
+              {on && <><circle cx="10" cy="11" r="1" fill={HOLLY.gold}/><circle cx="14" cy="15" r="1" fill="#E04A4A"/><circle cx="10.5" cy="17" r="1" fill={HOLLY.cream}/></>}
+            </svg>
+            {label}
+          </button>
+        );
         return (
           <button key={key} onClick={() => toggle(key, ids)}
             style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8,
@@ -539,6 +557,8 @@ function QuickAddSheet({ projs, uidMap, onAdd, onClose }) {
           <div style={{position:"relative"}}>
             <canvas {...ink.canvasProps}
               style={{width:"100%",height:240,background:inkBg,borderRadius:16,border:`2px solid ${lineCol}`,touchAction:"none",cursor:"crosshair",display:"block"}}/>
+            <canvas {...ink.predictProps}
+              style={{position:"absolute",left:2,top:2,width:"calc(100% - 4px)",height:236,pointerEvents:"none"}}/>
             {ink.strokeCount === 0 && (
               <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",fontSize:18,color:mutedCol}}>
                 Write here with the pen
@@ -1327,6 +1347,7 @@ const GROUP_META = [
   { id: 'living_room', label: 'Living Room' },
   { id: 'bedroom',     label: 'Bedroom'     },
   { id: 'kitchen',     label: 'Kitchen'     },
+  { id: 'christmas_tree', label: 'Christmas Tree' },
 ];
 
 function DeviceRow({ d, busy, onToggle }) {
@@ -1916,7 +1937,7 @@ function XmasSnowOverlay() {
   })), []);
   useEffect(() => { injectCozyCss(); }, []);
   return (
-    <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:10,overflow:"hidden"}}>
+    <div className="xmas-snow" style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:10,overflow:"hidden"}}>
       {flakes.map((f,i) => (
         <div key={i} style={{position:"absolute",left:f.left+'%',top:-8,width:f.size,height:f.size,borderRadius:"50%",background:"white",opacity:f.opacity,animation:`cozy-fall ${f.duration}s ${f.delay}s infinite linear`}}/>
       ))}
@@ -1927,37 +1948,93 @@ function XmasSnowOverlay() {
 // ─── HANDWRITING PANEL ───────────────────────────────────────────────────────
 // Pen ink capture shared by the handwriting panel and the home quick-add sheet.
 // Fingers/palms are ignored; mouse is allowed so it can be tested off-device.
+// Latency: desynchronized canvas, pointerrawupdate when available, and a
+// predicted-stroke layer that draws slightly ahead of the pen tip.
 function useInk(onPause) {
   const canvasRef  = useRef(null);
+  const predictRef = useRef(null);
   const strokesRef = useRef([]);
   const activeRef  = useRef(null);
   const startTime  = useRef(Date.now());
   const ctxRef     = useRef(null);
+  const pctxRef    = useRef(null);
   const pauseTimer = useRef(null);
   const onPauseRef = useRef(onPause);
   onPauseRef.current = onPause;
   const [strokeCount, setStrokeCount] = useState(0);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width  = canvas.offsetWidth  * dpr;
-    canvas.height = canvas.offsetHeight * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctxRef.current = ctx;
-    return () => clearTimeout(pauseTimer.current);
-  }, []);
-
+  const inkColor = XMAS ? HOLLY.ink : '#1e293b';
+  const width = p => Math.max(2, (p || 0.5) * 6);
   const isInk = e => e.pointerType === 'pen' || e.pointerType === 'mouse';
   const xy = e => {
-    const r = canvasRef.current.getBoundingClientRect();
-    const sx = canvasRef.current.offsetWidth / r.width || 1;
-    const sy = canvasRef.current.offsetHeight / r.height || 1;
-    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+    const c = canvasRef.current, r = c.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (c.offsetWidth / r.width || 1), y: (e.clientY - r.top) * (c.offsetHeight / r.height || 1) };
   };
+
+  const clearPrediction = () => {
+    const pc = predictRef.current;
+    if (pc && pctxRef.current) pctxRef.current.clearRect(0, 0, pc.offsetWidth, pc.offsetHeight);
+  };
+
+  const handleMove = e => {
+    const a = activeRef.current;
+    if (!isInk(e) || !a) return;
+    const ctx = ctxRef.current;
+    let { x: lx, y: ly } = { x: a.x[a.x.length - 1], y: a.y[a.y.length - 1] };
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    for (const ev of (e.getCoalescedEvents?.() || [e])) {
+      const { x, y } = xy(ev);
+      a.x.push(x); a.y.push(y); a.t.push(Date.now() - startTime.current); a.p.push(ev.pressure || 0.5);
+      ctx.lineWidth = width(ev.pressure);
+      ctx.lineTo(x, y);
+      lx = x; ly = y;
+    }
+    ctx.stroke();
+
+    const predicted = e.getPredictedEvents?.() || [];
+    clearPrediction();
+    if (predicted.length && pctxRef.current) {
+      const pctx = pctxRef.current;
+      pctx.lineWidth = width(e.pressure);
+      pctx.beginPath();
+      pctx.moveTo(lx, ly);
+      for (const ev of predicted) { const { x, y } = xy(ev); pctx.lineTo(x, y); }
+      pctx.stroke();
+    }
+  };
+  const handleMoveRef = useRef(handleMove);
+  handleMoveRef.current = handleMove;
+
+  useEffect(() => {
+    const setup = (canvas, opts) => {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width  = canvas.offsetWidth  * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
+      const ctx = canvas.getContext('2d', opts);
+      ctx.scale(dpr, dpr);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = inkColor;
+      return ctx;
+    };
+    ctxRef.current = setup(canvasRef.current, { desynchronized: true });
+    if (predictRef.current) pctxRef.current = setup(predictRef.current, { desynchronized: true });
+
+    // pointerrawupdate skips the per-frame batching of pointermove (secure contexts only, e.g. the localhost kiosk).
+    const canvas = canvasRef.current;
+    const raw = 'onpointerrawupdate' in window;
+    const onRaw = e => handleMoveRef.current(e);
+    if (raw) canvas.addEventListener('pointerrawupdate', onRaw);
+
+    // Falling snow forces full-screen repaints on the 4K panel; pause it while writing.
+    document.body.classList.add('inking');
+    return () => {
+      clearTimeout(pauseTimer.current);
+      if (raw) canvas.removeEventListener('pointerrawupdate', onRaw);
+      document.body.classList.remove('inking');
+    };
+  }, []);
 
   const onPointerDown = e => {
     if (!isInk(e)) return;
@@ -1966,25 +2043,21 @@ function useInk(onPause) {
     canvasRef.current.setPointerCapture(e.pointerId);
     const { x, y } = xy(e);
     activeRef.current = { x: [x], y: [y], t: [Date.now() - startTime.current], p: [e.pressure || 0.5] };
-    ctxRef.current.beginPath();
-    ctxRef.current.moveTo(x, y);
+    const ctx = ctxRef.current;
+    ctx.beginPath();
+    ctx.arc(x, y, width(e.pressure) / 2, 0, Math.PI * 2);
+    ctx.fillStyle = inkColor;
+    ctx.fill();
   };
   const onPointerMove = e => {
-    if (!isInk(e) || !activeRef.current) return;
-    e.preventDefault();
-    const ctx = ctxRef.current;
-    for (const ev of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) {
-      const { x, y } = xy(ev);
-      const a = activeRef.current;
-      a.x.push(x); a.y.push(y); a.t.push(Date.now() - startTime.current); a.p.push(ev.pressure || 0.5);
-      ctx.lineWidth = Math.max(2, (ev.pressure || 0.5) * 6);
-      ctx.strokeStyle = XMAS ? HOLLY.ink : '#1e293b';
-      ctx.lineTo(x, y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y);
-    }
+    if ('onpointerrawupdate' in window) { if (isInk(e)) e.preventDefault(); return; }
+    if (isInk(e)) e.preventDefault();
+    handleMove(e);
   };
   const onPointerUp = e => {
     if (!isInk(e) || !activeRef.current) return;
     e.preventDefault();
+    clearPrediction();
     strokesRef.current.push(activeRef.current);
     activeRef.current = null;
     setStrokeCount(c => c + 1);
@@ -1997,6 +2070,7 @@ function useInk(onPause) {
     clearTimeout(pauseTimer.current);
     const c = canvasRef.current;
     ctxRef.current.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
+    clearPrediction();
     strokesRef.current = [];
     activeRef.current = null;
     startTime.current = Date.now();
@@ -2005,6 +2079,7 @@ function useInk(onPause) {
 
   return {
     canvasProps: { ref: canvasRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
+    predictProps: { ref: predictRef },
     canvasRef, strokesRef, strokeCount, clear,
   };
 }
@@ -2066,9 +2141,13 @@ function HandwritingPanel({ onDone, onCancel }) {
         </div>
 
         {/* Canvas — tall for comfortable writing */}
-        <canvas {...ink.canvasProps}
-          style={{width:'100%',height:200,background:'#f8fafc',borderRadius:14,border:'2px solid #e2e8f0',touchAction:'none',cursor:'crosshair',display:'block'}}
-        />
+        <div style={{position:'relative'}}>
+          <canvas {...ink.canvasProps}
+            style={{width:'100%',height:200,background:'#f8fafc',borderRadius:14,border:'2px solid #e2e8f0',touchAction:'none',cursor:'crosshair',display:'block'}}
+          />
+          <canvas {...ink.predictProps}
+            style={{position:'absolute',left:2,top:2,width:'calc(100% - 4px)',height:196,pointerEvents:'none'}}/>
+        </div>
 
         {/* Result edit box */}
         {status === 'done' && (
@@ -2791,6 +2870,7 @@ function AppInner() {
         html, body { touch-action:none; -webkit-user-select:none; user-select:none; }
         input, textarea { user-select:text !important; -webkit-user-select:text !important; touch-action:auto !important; }
         body { background:${APP_BG}; overscroll-behavior:none; }
+        body.inking .xmas-snow { display:none; }
         ${XMAS_CSS}
         button { font-family:inherit; }
         input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;outline:none;cursor:pointer;}
