@@ -256,6 +256,47 @@ async function refreshTapoDevices() {
 initTapo();
 setInterval(refreshTapoDevices, 30000);
 
+// ── Christmas tree night schedule ─────────────────────────────────────────────
+// Off at TREE_OFF_TIME; back on at TREE_ON_TIME only if the schedule turned it off.
+// State is persisted so a restart overnight still restores the tree in the morning.
+const TREE_ALIAS     = 'Christmas Tree';
+const TREE_OFF_TIME  = process.env.TREE_OFF_TIME || '23:00';
+const TREE_ON_TIME   = process.env.TREE_ON_TIME  || '07:00';
+const TREE_SCHED_FILE = path.join(__dirname, 'tree_schedule.json');
+const hhmm = d => d.toTimeString().slice(0, 5);
+function loadTreeSched() {
+  try { return JSON.parse(fs.readFileSync(TREE_SCHED_FILE, 'utf8')); } catch { return { offFor: null, autoOff: false }; }
+}
+function saveTreeSched(st) { try { fs.writeFileSync(TREE_SCHED_FILE, JSON.stringify(st)); } catch {} }
+
+async function treeScheduleTick() {
+  const tree = tapoCache[TREE_ALIAS];
+  if (!tree || !tree.host) return;
+  const now = new Date(), t = hhmm(now);
+  const inOff = TREE_OFF_TIME > TREE_ON_TIME
+    ? (t >= TREE_OFF_TIME || t < TREE_ON_TIME)
+    : (t >= TREE_OFF_TIME && t < TREE_ON_TIME);
+  const nightStart = new Date(now);
+  if (t < TREE_ON_TIME) nightStart.setDate(nightStart.getDate() - 1);
+  const nightKey = nightStart.toDateString();
+  const st = loadTreeSched();
+  try {
+    if (inOff && st.offFor !== nightKey) {
+      const wasOn = !!tree.on;
+      if (wasOn) await tapoSetPower(TREE_ALIAS, false);
+      saveTreeSched({ offFor: nightKey, autoOff: wasOn });
+      tapoInfo(`🎄 Night schedule: ${wasOn ? 'turned tree off' : 'tree already off'}`);
+    } else if (!inOff && st.autoOff) {
+      await tapoSetPower(TREE_ALIAS, true);
+      saveTreeSched({ ...st, autoOff: false });
+      tapoInfo('🎄 Morning schedule: turned tree back on');
+    }
+  } catch (e) {
+    tapoInfo(`🎄 Tree schedule failed (will retry): ${e.message}`);
+  }
+}
+setInterval(treeScheduleTick, 30000);
+
 // GET /api/lights — list all devices with current state
 app.get('/api/lights', async (req, res) => {
   try {
