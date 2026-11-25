@@ -243,13 +243,14 @@ function Header({ wx, sun, onStartScreensaver }) {
   return (
     <div style={{ background:GRAD, padding: mobile ? "14px 16px 12px" : "22px 28px 18px", flexShrink:0,
                   borderBottom:`3px solid ${HDR_BORDER}` }}>
-      {/* Top row: name/date | buttons | clock */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-        <div>
+      {/* Top row: clock + date | buttons */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:14 }}>
+        <div style={{ minWidth:0 }}>
           <div style={{ fontSize:11, fontWeight:800, color:HDR_MUTED, letterSpacing:3, textTransform:"uppercase" }}>Clarabiner</div>
-          <div style={{ fontSize:mobile?20:28, fontWeight:700, color:HDR_TEXT, lineHeight:1.1, marginTop:2, letterSpacing:-0.5 }}>{fmtDate(now)}</div>
+          <div style={{ fontSize: mobile ? 40 : 56, fontWeight:700, color:HDR_TEXT, lineHeight:1, letterSpacing:-2, marginTop:6, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{fmtTime(now)}</div>
+          <div style={{ fontSize: mobile ? 16 : 20, fontWeight:600, color:HDR_TEXT, opacity:0.85, marginTop:6, whiteSpace:"nowrap" }}>{fmtDate(now)}</div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
           {!mobile && onStartScreensaver && (
             <button onClick={onStartScreensaver} title="Screensaver"
               style={{width:40,height:40,borderRadius:12,border:`1px solid ${HDR_BORDER}40`,background:"rgba(255,255,255,0.08)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -266,7 +267,6 @@ function Header({ wx, sun, onStartScreensaver }) {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke={HDR_TEXT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="16 17 21 12 16 7" stroke={HDR_TEXT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke={HDR_TEXT} strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
           )}
-          <div style={{ fontSize: mobile ? 36 : 56, fontWeight:700, color:HDR_TEXT, lineHeight:1, letterSpacing:-2, marginLeft:4 }}>{fmtTime(now)}</div>
         </div>
       </div>
 
