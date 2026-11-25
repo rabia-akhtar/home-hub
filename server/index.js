@@ -22,7 +22,7 @@ let pirPin      = parseInt(process.env.PIR_GPIO || '17');
 // Require this many triggers within PIR_WINDOW_MS to actually wake the screen.
 // A walk-by usually fires once; standing in front fires repeatedly.
 const PIR_WAKE_COUNT  = parseInt(process.env.PIR_WAKE_COUNT  || '2');
-const PIR_WINDOW_MS   = parseInt(process.env.PIR_WINDOW_MS   || '20000');
+const PIR_WINDOW_MS   = parseInt(process.env.PIR_WINDOW_MS   || '40000');
 let   pirWindowFires  = 0;
 let   pirWindowTimer  = null;
 
