@@ -247,8 +247,8 @@ function Header({ wx, sun, onStartScreensaver }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom: mobile ? 8 : 14 }}>
         <div style={{ minWidth:0, display: mobile ? "flex" : "block", alignItems:"baseline", gap:10 }}>
           {!mobile && <div style={{ fontSize:11, fontWeight:800, color:HDR_MUTED, letterSpacing:3, textTransform:"uppercase" }}>Clarabiner</div>}
-          <div style={{ fontSize: mobile ? 30 : 56, fontWeight:700, color:HDR_TEXT, lineHeight:1, letterSpacing: mobile ? -1 : -2, marginTop: mobile ? 0 : 6, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{fmtTime(now)}</div>
-          <div style={{ fontSize: mobile ? 14 : 20, fontWeight:600, color:HDR_TEXT, opacity:0.85, marginTop: mobile ? 0 : 6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{fmtDate(now)}</div>
+          {!mobile && <div style={{ fontSize: 56, fontWeight:700, color:HDR_TEXT, lineHeight:1, letterSpacing: mobile ? -1 : -2, marginTop: mobile ? 0 : 6, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{fmtTime(now)}</div>}
+          <div style={{ fontSize: 20, fontWeight: mobile ? 700 : 600, color:HDR_TEXT, opacity: mobile ? 1 : 0.85, marginTop: mobile ? 0 : 6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{fmtDate(now)}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
           {!mobile && onStartScreensaver && (
@@ -3054,13 +3054,13 @@ function AppInner() {
 
       {/* Bottom nav — narrow screens (mobile) */}
       {!wide && (
-      <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(255,255,255,0.97)", backdropFilter:"blur(20px)", borderTop:"1px solid rgba(0,0,0,0.07)", display:"flex", justifyContent:"space-around", padding:"10px 2px 20px", zIndex:200, overflowX:"auto"}}>
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(255,255,255,0.97)", backdropFilter:"blur(20px)", borderTop:"1px solid rgba(0,0,0,0.07)", display:"flex", padding:"8px 2px calc(env(safe-area-inset-bottom, 0px) + 8px)", zIndex:200 }}>
         {NAV.map(n=>{
           const active=tab===n.id;
           return (
-            <button key={n.id} onClick={()=>setTab(n.id)} style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:"transparent",border:"none",cursor:"pointer",padding:"4px 6px",color:active?n.color:"#94a3b8",transition:"color 0.2s",minWidth:52,flexShrink:0 }}>
+            <button key={n.id} onClick={()=>setTab(n.id)} style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:"transparent",border:"none",cursor:"pointer",padding:"4px 0",color:active?n.color:"#94a3b8",transition:"color 0.2s",flex:"1 1 0",minWidth:0 }}>
               <div style={{transform:active?"scale(1.1)":"scale(1)",transition:"transform 0.2s"}}>{n.icon}</div>
-              <div style={{fontSize:9,fontWeight:active?800:600,letterSpacing:0.1}}>{n.label}</div>
+              <div style={{fontSize:9,fontWeight:active?800:600,letterSpacing:0,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.label}</div>
               {active&&<div style={{width:4,height:4,borderRadius:"50%",background:n.color}}/>}
             </button>
           );
